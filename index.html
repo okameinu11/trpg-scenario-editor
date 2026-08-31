@@ -1299,9 +1299,14 @@
       });
     }
 
+    // HTMLに埋め込む前のエスケープ。
+    //
+    // 文字列以外（自動計算した派生値は数値）を渡されても落ちないよう String() を通す。
+    // 以前は str.replace を直接呼んでおり、数値を渡すと TypeError で
+    // プレビュー全体の描画が止まっていた。
     function escapeHTML(str) {
-      if (!str) return '';
-      return str
+      if (str === null || str === undefined) return '';
+      return String(str)
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
@@ -1879,12 +1884,20 @@
 
     function saveToLocal() {
       if (!editor || !scenarioTitle) return;
-      localStorage.setItem('trpg_current_id', currentScenarioId);
-      localStorage.setItem('trpg_current_system', currentSystemId);
-      localStorage.setItem('trpg_scenario_content', editor.value);
-      localStorage.setItem('trpg_scenario_title', scenarioTitle.value);
-      localStorage.setItem('trpg_npcs_cache', JSON.stringify(currentNpcs));
-      
+      // 自動保存も容量上限に当たりうる（特に立ち絵を持つNPCがいるとき）。
+      // 入力のたびに走る処理なので alert は出さず、状態表示で気づけるようにする。
+      try {
+        writeStore('trpg_current_id', currentScenarioId);
+        writeStore('trpg_current_system', currentSystemId);
+        writeStore('trpg_scenario_content', editor.value);
+        writeStore('trpg_scenario_title', scenarioTitle.value);
+        writeStore('trpg_npcs_cache', JSON.stringify(currentNpcs));
+      } catch (e) {
+        console.error('作業状態の自動保存に失敗しました:', e);
+        if (saveStatus) saveStatus.innerText = '⚠ 保存領域が不足しています（書き出しを推奨）';
+        return;
+      }
+
       const now = new Date();
       const timeStr = now.toTimeString().split(' ')[0].substring(0, 5);
       if (saveStatus) saveStatus.innerText = `✓ ローカル自動保存済み (${timeStr})`;
@@ -2551,6 +2564,121 @@
       });
     }
 
+    // === 能力値レーダーチャート ===
+    //
+    // 外部ライブラリを入れない方針のため、SVGを自前で組み立てている。
+    // SVGなので拡大しても粗くならず、PDF出力にもそのまま載る。
+    // 軸の数・名称・上限はシステム定義から取るので、システムが増えても手を入れなくてよい。
+    function buildRadarChartSVG(npc, opts) {
+      const sys = currentSystem();
+      const o = opts || {};
+      const size = o.size || 190;
+      const pad = o.pad || 30;
+      const abilities = sys.abilities;
+      const n = abilities.length;
+      if (n < 3 || !npc || !npc.status) return '';
+
+      const cx = size / 2;
+      const cy = size / 2;
+      const radius = size / 2 - pad;
+      const max = sys.abilityMax || 10;
+      const gridColor = o.gridColor || '#475569';
+      const labelColor = o.labelColor || '#94a3b8';
+
+      const pointAt = (i, ratio) => {
+        // 真上を始点にして時計回りに配置する
+        const angle = (Math.PI * 2 * i / n) - Math.PI / 2;
+        return [cx + Math.cos(angle) * radius * ratio, cy + Math.sin(angle) * radius * ratio];
+      };
+      const fmt = pt => pt[0].toFixed(1) + ',' + pt[1].toFixed(1);
+
+      // 目盛りの多角形と軸線
+      let grid = '';
+      [0.25, 0.5, 0.75, 1].forEach(step => {
+        const pts = abilities.map((_, i) => fmt(pointAt(i, step))).join(' ');
+        grid += `<polygon points="${pts}" fill="none" stroke="${gridColor}" stroke-width="1" opacity="0.45"/>`;
+      });
+      abilities.forEach((_, i) => {
+        const p = pointAt(i, 1);
+        grid += `<line x1="${cx}" y1="${cy}" x2="${p[0].toFixed(1)}" y2="${p[1].toFixed(1)}" stroke="${gridColor}" stroke-width="1" opacity="0.45"/>`;
+      });
+
+      // 実際の能力値
+      const ratios = abilities.map(ab => {
+        const v = parseFloat(npc.status[ab.key]);
+        return (isFinite(v) && v > 0) ? Math.min(v / max, 1) : 0;
+      });
+      const hasAny = ratios.some(v => v > 0);
+      const valuePts = ratios.map((v, i) => fmt(pointAt(i, v))).join(' ');
+      const shape = hasAny
+        ? `<polygon points="${valuePts}" fill="${o.fill || 'rgba(59,130,246,0.35)'}" stroke="${o.stroke || '#3b82f6'}" stroke-width="2" stroke-linejoin="round"/>`
+        : '';
+
+      // 軸ラベル（能力値名と実数）
+      let labels = '';
+      abilities.forEach((ab, i) => {
+        const p = pointAt(i, 1.19);
+        const raw = parseFloat(npc.status[ab.key]);
+        const shown = (isFinite(raw) && raw > 0) ? raw : '−';
+        // 「STR 筋力」のような2語ラベルは先頭だけ使って窮屈にしない
+        const short = String(ab.label).split(' ')[0];
+        labels += `<text x="${p[0].toFixed(1)}" y="${p[1].toFixed(1)}" text-anchor="middle" `
+          + `dominant-baseline="middle" font-size="${o.fontSize || 9}" fill="${labelColor}">`
+          + `${escapeHTML(short)} ${escapeHTML(String(shown))}</text>`;
+      });
+
+      return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" `
+        + `role="img" aria-label="能力値のレーダーチャート">${grid}${shape}${labels}</svg>`;
+    }
+
+    // 編集中に能力値を変えたらチャートも描き直す
+    function refreshRadarChart() {
+      const box = document.getElementById('npc-radar');
+      if (!box) return;
+      const npc = currentNpcs.find(n => n.id === selectedNpcId);
+      if (npc) box.innerHTML = buildRadarChartSVG(npc);
+    }
+
+    // === 立ち絵画像の縮小 ===
+    //
+    // 原寸のまま保存すると数枚で保存領域（約5MB）を使い切るため、
+    // 読み込んだ時点で長辺を縮めて再エンコードする。
+    // WebPは同じ見た目でJPEGより小さいので優先し、非対応環境ではJPEGに落とす。
+    const AVATAR_MAX_EDGE = 1024;
+
+    function shrinkImageFile(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('画像ファイルを読み込めませんでした。'));
+        reader.onload = e => {
+          const original = e.target.result;
+          const img = new Image();
+          img.onerror = () => reject(new Error('画像として読み取れませんでした。'));
+          img.onload = () => {
+            const scale = Math.min(1, AVATAR_MAX_EDGE / Math.max(img.width, img.height));
+            const w = Math.max(1, Math.round(img.width * scale));
+            const h = Math.max(1, Math.round(img.height * scale));
+
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+
+            let out = canvas.toDataURL('image/webp', 0.85);
+            if (out.indexOf('data:image/webp') !== 0) {
+              out = canvas.toDataURL('image/jpeg', 0.85);
+            }
+            // 縮小して逆に大きくなる場合（小さなPNG等）は原本を使う
+            if (out.length >= original.length && scale === 1) out = original;
+
+            resolve({ dataUrl: out, width: w, height: h, beforeBytes: original.length, afterBytes: out.length });
+          };
+          img.src = original;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
     // NPC詳細エディタのレンダリング (共鳴者シート準拠 - 8能力値版)
     function renderNpcEditor() {
       if (!npcEditorArea) return;
@@ -2690,11 +2818,16 @@
           <!-- アバター画像ローカル読み込み (URL入力欄を廃止し、ローカルファイル読み込みに一本化) -->
           <div class="form-group" style="flex: 2;">
             <label class="form-label">立ち絵画像</label>
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <div id="npc-editor-avatar-preview" style="width: 40px; height: 40px; border-radius: 50%; background-color: var(--bg-input); background-size: cover; background-position: center; border: 1px solid var(--border-color); ${avatarStyle}"></div>
-              <input type="file" id="npc-avatar-file" accept="image/*" style="display: none;" onchange="handleNpcAvatarFile(this)">
-              <button class="btn btn-small" onclick="document.getElementById('npc-avatar-file').click()">画像を選択</button>
-              <button class="btn btn-small btn-danger-small" style="padding: 6px 10px;" onclick="clearNpcAvatar()">削除</button>
+            <div style="display: flex; align-items: flex-start; gap: 12px;">
+              <div id="npc-editor-avatar-preview" style="width: 84px; height: 84px; flex-shrink: 0; border-radius: 8px; background-color: var(--bg-input); background-size: cover; background-position: center top; border: 1px solid var(--border-color); ${avatarStyle}"></div>
+              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
+                <input type="file" id="npc-avatar-file" accept="image/*" style="display: none;" onchange="handleNpcAvatarFile(this)">
+                <div style="display: flex; gap: 6px;">
+                  <button class="btn btn-small" onclick="document.getElementById('npc-avatar-file').click()">画像を選択</button>
+                  <button class="btn btn-small btn-danger-small" style="padding: 6px 10px;" onclick="clearNpcAvatar()">削除</button>
+                </div>
+                <span id="npc-avatar-info" style="font-size: 0.7rem; color: var(--text-secondary); line-height: 1.4;">保存時に長辺1024pxへ自動縮小されます</span>
+              </div>
             </div>
           </div>
         </div>
@@ -2704,11 +2837,17 @@
         <div style="border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; background-color: rgba(0,0,0,0.15); box-sizing: border-box; width: 100%;">
           <span class="form-label" style="display: block; margin-bottom: 8px; font-weight: 700; color: var(--text-primary);">${escapeHTML(sys.abilityBoxLabel)}</span>
 
-          <div class="status-grid-8">
+          <div style="display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 250px;">
+              <div class="status-grid-8">
 ${abilitiesHTML}
+              </div>
+            </div>
+            <!-- 能力値の偏りを一目で見るためのレーダーチャート -->
+            <div id="npc-radar" style="flex-shrink: 0; margin: 0 auto;">${buildRadarChartSVG(npc)}</div>
           </div>
 
-          <div class="status-grid-8" style="margin-top: 10px;">
+          <div class="status-grid-8" style="margin-top: 12px;">
 ${derivedHTML}
           </div>
         </div>
@@ -2752,7 +2891,12 @@ ${derivedHTML}
     function recalcDerived() {
       const sys = currentSystem();
       const npc = currentNpcs.find(n => n.id === selectedNpcId);
-      if (!npc || !npc.status || !sys.autoCalc) return;
+      if (!npc || !npc.status) return;
+
+      // 能力値が変わったらチャートも追従させる
+      refreshRadarChart();
+
+      if (!sys.autoCalc) return;
 
       const vals = {};
       sys.abilities.forEach(ab => {
@@ -2780,16 +2924,26 @@ ${derivedHTML}
       const file = input.files[0];
       if (!file) return;
       
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        const base64Data = e.target.result;
-        updateNpcField('avatarUrl', base64Data);
-        
-        // プレビューの更新
-        const preview = document.getElementById('npc-editor-avatar-preview');
-        if (preview) preview.style.backgroundImage = `url('${base64Data}')`;
-      };
-      reader.readAsDataURL(file);
+      // 原寸で保存すると数枚で保存領域を使い切るため、必ず縮小してから持つ
+      shrinkImageFile(file)
+        .then(res => {
+          updateNpcField('avatarUrl', res.dataUrl);
+
+          const preview = document.getElementById('npc-editor-avatar-preview');
+          if (preview) preview.style.backgroundImage = `url('${res.dataUrl}')`;
+
+          // 縮小の効果を見せる（容量が苦しくなったときの判断材料になる）
+          const info = document.getElementById('npc-avatar-info');
+          if (info) {
+            const kb = n => Math.round(n / 1024).toLocaleString() + 'KB';
+            info.innerText = res.width + '×' + res.height + 'px　'
+              + kb(res.beforeBytes) + ' → ' + kb(res.afterBytes);
+          }
+
+          saveToLocal();
+          refreshRadarChart();
+        })
+        .catch(err => alert('画像を読み込めませんでした:\n\n' + err.message));
     }
 
     function clearNpcAvatar() {
@@ -2798,6 +2952,9 @@ ${derivedHTML}
       if (preview) preview.style.backgroundImage = '';
       const fileInput = document.getElementById('npc-avatar-file');
       if (fileInput) fileInput.value = '';
+      const info = document.getElementById('npc-avatar-info');
+      if (info) info.innerText = '保存時に長辺1024pxへ自動縮小されます';
+      saveToLocal();
     }
 
     function addNewNpc() {
@@ -3229,6 +3386,30 @@ ${resultsHTML}            </div>
       }
 
       // 通常（フル版）NPCカード表示
+      //
+      // 能力値・派生値の項目はシステムごとに違うので定義から組み立てる。
+      // 以前はエモクロアの8能力値とHP/MP/共鳴度を直接書いていた。
+      const cardSys = currentSystem();
+
+      const derivedLine = cardSys.derived.map(d =>
+        `<span style="margin-right: 10px; white-space: nowrap;"><strong>${escapeHTML(d.label.replace(/\s*\(.*\)$/, ''))}:</strong> ${escapeHTML(npc.status[d.key] || '―')}</span>`
+      ).join('');
+
+      const abilityLine = cardSys.abilities.map(ab =>
+        `<span style="margin-right: 8px; white-space: nowrap;">${escapeHTML(String(ab.label).split(' ')[0])}:${escapeHTML(npc.status[ab.key] || '―')}</span>`
+      ).join('');
+
+      // 紙に印刷されることを踏まえ、白地で読める配色にする
+      const radar = buildRadarChartSVG(npc, {
+        size: 168, pad: 28, fontSize: 8,
+        gridColor: '#cbd5e1', labelColor: '#475569',
+        fill: 'rgba(37,99,235,0.28)', stroke: '#2563eb'
+      });
+
+      const emotionsBlock = cardSys.hasEmotions
+        ? `<div class="npc-card-emotions"><strong>共鳴感情:</strong> ${escapeHTML(emotions)}</div>`
+        : '';
+
       return `
         <div class="npc-card">
           <div class="npc-card-header">
@@ -3238,21 +3419,17 @@ ${resultsHTML}            </div>
               <div class="npc-card-profile">年齢: ${escapeHTML(age)} / 性別: ${escapeHTML(gender)} / 職業: ${escapeHTML(occupation)}</div>
             </div>
           </div>
-          <div class="npc-card-stats" style="grid-template-columns: repeat(3, 1fr) 3.5fr;">
-            <div><strong>HP:</strong> ${escapeHTML(hp)}</div>
-            <div><strong>MP:</strong> ${escapeHTML(mp)}</div>
-            <div><strong>共鳴度:</strong> ${escapeHTML(res)}</div>
-            <div style="font-size: 0.75rem; line-height: 1.3;">
-              身体:${escapeHTML(str)} 敏捷:${escapeHTML(agi)} 器用:${escapeHTML(dex)} 精神:${escapeHTML(spi)}<br>
-              五感:${escapeHTML(sen)} 知性:${escapeHTML(int)} 魅力:${escapeHTML(cha)} 社会:${escapeHTML(soc)}
+          <div style="display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; margin: 8px 0;">
+            <div style="flex: 1; min-width: 190px; font-size: 0.8rem; line-height: 1.7;">
+              <div>${derivedLine}</div>
+              <div style="margin-top: 4px; font-size: 0.75rem;">${abilityLine}</div>
             </div>
+            <div style="flex-shrink: 0; margin: 0 auto;">${radar}</div>
           </div>
           <div class="npc-card-skills">
             <strong>所持技能:</strong> ${escapeHTML(skills)}
           </div>
-          <div class="npc-card-emotions">
-            <strong>共鳴感情:</strong> ${escapeHTML(emotions)}
-          </div>
+          ${emotionsBlock}
           <div class="npc-card-memo">
             ${memo}
           </div>
