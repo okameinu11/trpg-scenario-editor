@@ -195,20 +195,48 @@
 - キーワード: 結果テキスト</code></pre>
 
     <h4>判定成功度（キーワード）とカラーバッジのマッピング</h4>
+    <p>
+      <code>-</code> の直後からコロンまでの文字列がキーワードとして解釈される。
+      <strong>下表のいずれかに完全一致したときだけ</strong>バッジに変換される。
+      実装は <code>getBadgeInfo()</code>。
+    </p>
     <table>
       <thead>
-        <tr><th>成功度キーワード</th><th>変換後のバッジ文言</th><th>バッジ色（CSSクラス）</th></tr>
+        <tr><th>認識されるキーワード</th><th>表示されるバッジ文言</th><th>色</th><th>CSSクラス</th></tr>
       </thead>
       <tbody>
-        <tr><td><code>ミラクル</code></td><td>ミラクル</td><td>虹色／グラデーション</td></tr>
-        <tr><td><code>トリプル</code> / <code>極限</code> / <code>極限成功</code></td><td>極限成功</td><td>紫（<code>bg-triple</code>）</td></tr>
-        <tr><td><code>ダブル</code> / <code>効果的</code></td><td>効果的</td><td>青（<code>bg-double</code>）</td></tr>
-        <tr><td><code>シングル</code> / <code>通常</code> / <code>通常成功</code></td><td>通常成功</td><td>緑（<code>bg-single</code>）</td></tr>
-        <tr><td><code>失敗</code></td><td>失敗</td><td>灰（<code>bg-fail</code>）</td></tr>
-        <tr><td><code>ファンブル</code> / <code>致命的失敗</code></td><td>致命的失敗</td><td>赤（<code>bg-fumble</code>）</td></tr>
-        <tr><td><code>カタストロフィ</code> / <code>大惨事</code></td><td>大惨事</td><td>濃い赤（<code>bg-catastrophe</code>）</td></tr>
+        <tr><td><code>災厄級成功</code> / <code>災厄</code> / <code>カタストロフ</code></td><td>災厄級成功</td><td>濃い赤 <code>#7f1d1d</code></td><td><code>bg-catastrophe</code></td></tr>
+        <tr><td><code>奇跡的成功</code> / <code>奇跡</code> / <code>ミラクル</code></td><td>奇跡的成功</td><td>グラデーション（赤→紫→青）</td><td><code>bg-miracle</code></td></tr>
+        <tr><td><code>極限成功</code> / <code>極限</code> / <code>トリプル</code></td><td>極限成功</td><td>紫 <code>#7c3aed</code></td><td><code>bg-triple</code></td></tr>
+        <tr><td><code>効果的成功</code> / <code>効果的</code> / <code>ダブル</code></td><td>効果的成功</td><td>青 <code>#2563eb</code></td><td><code>bg-double</code></td></tr>
+        <tr><td><code>成功</code> / <code>通常成功</code> / <code>通常</code> / <code>single</code></td><td>成功</td><td>緑 <code>#10b981</code></td><td><code>bg-single</code></td></tr>
+        <tr><td><code>失敗</code></td><td>失敗</td><td>グレー <code>#64748b</code></td><td><code>bg-fail</code></td></tr>
+        <tr><td><code>致命的失敗</code> / <code>致命的</code> / <code>ファンブル</code></td><td>致命的失敗</td><td>赤 <code>#ef4444</code></td><td><code>bg-fumble</code></td></tr>
       </tbody>
     </table>
+
+    <div class="callout warn">
+      <strong>表に無いキーワードは、入力した文字列のまま「失敗」と同じグレーのバッジで表示される。</strong>
+      成功を表す語であっても失敗色になるため、卓上で意味が逆に伝わる。
+      <br><br>
+      ダイス目由来の呼称のうち、<strong>次の3語だけが認識されない</strong>
+      （「ダブル」「トリプル」「ファンブル」は使えるのに、これらは使えない）。
+      <ul>
+        <li><code>シングル</code> → <code>成功</code> と書く</li>
+        <li><code>カタストロフィ</code>（末尾が「ィ」）→ <code>カタストロフ</code> と書く</li>
+        <li><code>大惨事</code> → <code>災厄級成功</code> と書く</li>
+      </ul>
+      🎲技能判定ダイアログから挿入した場合は認識される形式（<code>- 成功:</code> など）が入るため、
+      この問題は<strong>手打ちしたときだけ</strong>起きる。
+    </div>
+
+    <div class="callout">
+      <strong>2026-08-31: この表を実装に合わせて訂正した。</strong>
+      それ以前の記述は <code>シングル</code> / <code>カタストロフィ</code> / <code>大惨事</code> を
+      有効なキーワードとして挙げ、バッジ文言も「通常成功」「効果的」「大惨事」などと書いていたが、
+      いずれも実装と一致していなかった。
+      キーワードを増やすのではなく仕様書側を実装に合わせる方針を選んでいる。
+    </div>
   </section>
 
   <section>
@@ -242,7 +270,7 @@
   </nav>
 
   <footer class="pagefoot">
-    最終更新: 2026-08-31（GAS脱却の実装完了に伴い、§1・§2.1・§2.4・§5 を現状に合わせて更新）
+    最終更新: 2026-08-31（GAS脱却の実装完了に伴い §1・§2.1・§2.4・§5 を更新。あわせて §4.2 のバッジ対応表を実装に合わせて訂正）
   </footer>
 
 </div>
