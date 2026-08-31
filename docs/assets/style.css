@@ -1,0 +1,67 @@
+:root {
+  --color-bg: #f7f7f5;
+  --color-surface: #ffffff;
+  --color-border: #e2e2df;
+  --color-text: #22201d;
+  --color-text-sub: #5c5850;
+  --color-accent: #b8892b;
+  --color-accent-bg: #fbf1de;
+  --color-code-bg: #2b2823;
+  --color-code-text: #f2ead9;
+  --color-danger: #a3402f;
+  --color-danger-bg: #fbeae6;
+  --color-warn: #96591c;
+  --color-warn-bg: #fdf0e0;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Segoe UI", sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.75;
+}
+.page { max-width: 880px; margin: 0 auto; padding: 40px 24px 80px; }
+header.hero { border-bottom: 3px solid var(--color-accent); padding-bottom: 20px; margin-bottom: 32px; }
+header.hero .eyebrow { color: var(--color-accent); font-weight: 700; letter-spacing: 0.08em; font-size: 0.85rem; }
+h1 { font-size: 1.9rem; margin: 8px 0 4px; }
+h2 { font-size: 1.3rem; margin-top: 40px; padding-left: 12px; border-left: 5px solid var(--color-accent); }
+h3 { font-size: 1.05rem; margin-top: 28px; color: var(--color-text); }
+p, li { color: var(--color-text); }
+.lead { color: var(--color-text-sub); font-size: 1rem; }
+table { width: 100%; border-collapse: collapse; margin: 16px 0; background: var(--color-surface); font-size: 0.92rem; }
+th, td { border: 1px solid var(--color-border); padding: 10px 12px; text-align: left; vertical-align: top; }
+th { background: var(--color-accent-bg); color: #6b4c14; }
+code { background: var(--color-accent-bg); padding: 1px 6px; border-radius: 4px; font-size: 0.9em; font-family: "SFMono-Regular", Consolas, monospace; }
+pre { background: var(--color-code-bg); color: var(--color-code-text); padding: 16px 18px; border-radius: 8px; overflow-x: auto; font-size: 0.85rem; line-height: 1.6; }
+pre code { background: none; padding: 0; color: inherit; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 24px 0; }
+.card { display: block; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 10px; padding: 18px 20px; text-decoration: none; color: var(--color-text); transition: border-color 0.15s, transform 0.15s; }
+.card:hover { border-color: var(--color-accent); transform: translateY(-2px); }
+.card .num { display: inline-block; font-size: 0.75rem; font-weight: 700; color: var(--color-accent); letter-spacing: 0.05em; }
+.card h3 { margin: 4px 0 6px; font-size: 1.05rem; }
+.card p { margin: 0; font-size: 0.88rem; color: var(--color-text-sub); }
+.callout { background: var(--color-accent-bg); border: 1px solid #e9d3a3; border-radius: 8px; padding: 14px 18px; margin: 20px 0; }
+.callout.warn { background: var(--color-warn-bg); border-color: #e7c096; color: var(--color-warn); }
+.callout.danger { background: var(--color-danger-bg); border-color: #eabdb2; color: var(--color-danger); }
+.do-dont { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+.do-dont > div { border-radius: 8px; padding: 14px 16px; border: 1px solid var(--color-border); }
+.do-dont .do { border-color: #a9c9a1; background: #f2f8ef; }
+.do-dont .dont { border-color: #eabdb2; background: var(--color-danger-bg); }
+.do-dont .label { font-weight: 700; font-size: 0.8rem; letter-spacing: 0.05em; }
+.do-dont .do .label { color: #3f6b31; }
+.do-dont .dont .label { color: var(--color-danger); }
+.badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; }
+.badge.required { background: var(--color-danger-bg); color: var(--color-danger); }
+.badge.recommended { background: var(--color-accent-bg); color: #6b4c14; }
+.badge.optional { background: #eef0ea; color: #5c5850; }
+.checklist { list-style: none; padding: 0; margin: 16px 0; }
+.checklist li { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; padding: 10px 14px 10px 40px; margin-bottom: 8px; position: relative; }
+.checklist li::before { content: "\2610"; position: absolute; left: 12px; top: 10px; color: var(--color-accent); font-size: 1.1rem; }
+ol.steps { padding-left: 20px; }
+ol.steps li { margin-bottom: 8px; }
+.pagenav { display: flex; justify-content: space-between; margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--color-border); font-size: 0.9rem; }
+.pagenav a { color: var(--color-accent); text-decoration: none; }
+.pagenav a:hover { text-decoration: underline; }
+footer.pagefoot { margin-top: 40px; font-size: 0.8rem; color: var(--color-text-sub); }
+@media (max-width: 600px) { .do-dont { grid-template-columns: 1fr; } }

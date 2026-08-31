@@ -1,0 +1,218 @@
+{
+  "//": "開発環境基盤(devenv)の設定。リポジトリルートに devenv.config.json として置く。",
+
+  "project": {
+    "name": "サンプルプロジェクト",
+    "language": "ja"
+  },
+
+  "//syncRules": [
+    "「Aを変更したならBも同じコミットに含まれていること」を機械的に検査する。",
+    "level=block はコミットを中断する。誤検知がほぼ無いものだけに使うこと。",
+    "判断を伴うもの（本当に更新が必要か人が決めるもの）は必ず level=warn にする。",
+    "trigger.diffFilter: A=追加 C=コピー D=削除 M=変更 R=リネーム。既定はACMR。",
+    "  『新規追加・削除されたときだけ』を見たいなら AD を指定する。",
+    "trigger.containsAdded: 追加行がこの正規表現に当たるファイルだけを対象にする。",
+    "  ファイル名だけでは変更の種類が判別できないときに使う（同じマイグレーションでも",
+    "  RLSポリシーを作る差分とインデックスを足す差分では要求が違う）。",
+    "require は省略できる。省略すると trigger に当たった時点で message を出すだけになる。",
+    "  containsAdded が無ければ level に関わらず警告。あれば block も書ける（§禁止パターン）。",
+    "一覧は `perl scripts/devenv/check-doc-sync.pl --summary` でMarkdownの表として出力できる。",
+    "  CLAUDE.md にはその出力を貼ること。手で書き写すと必ず実態からずれる。"
+  ],
+  "syncRules": [
+    {
+      "id": "db-doc-sync",
+      "level": "block",
+      "trigger": { "changed": ["db/migrations/**/*.sql", "supabase/migrations/**/*.sql"] },
+      "require": { "all": ["docs/06_DB設計書.html"] },
+      "message": "DBスキーマを変更したら docs/06_DB設計書.html も同じコミットで更新すること。",
+      "identifierWarning": {
+        "extract": [
+          "CREATE TABLE\\s+(?:IF NOT EXISTS\\s+)?\"?(?:public\\.)?\"?(\\w+)\"?",
+          "ADD COLUMN\\s+(?:IF NOT EXISTS\\s+)?\"?(\\w+)\"?"
+        ],
+        "searchIn": ["docs/06_DB設計書.html"],
+        "message": "以下の新規テーブル/カラム名が docs/06_DB設計書.html に見当たりません。"
+      }
+    },
+    {
+      "id": "rls-test-sync",
+      "level": "warn",
+      "trigger": {
+        "changed": ["db/migrations/**/*.sql", "supabase/migrations/**/*.sql"],
+        "containsAdded": ["CREATE\\s+POLICY", "ENABLE\\s+ROW\\s+LEVEL\\s+SECURITY"]
+      },
+      "require": { "any": ["supabase/tests/**", "db/tests/**"] },
+      "message": [
+        "行レベルセキュリティ(RLS)の定義を変更しましたが、テストが同じコミットにありません。",
+        "「誰が見えて誰が見えないか」は読んで確かめられないため、pgTAP等のテストで固定してください。"
+      ]
+    },
+    {
+      "id": "screen-doc-sync",
+      "level": "block",
+      "trigger": { "changed": ["src/app/**/page.tsx"], "diffFilter": "AD" },
+      "require": { "all": ["docs/13_画面詳細設計書.html", "docs/15_全体画面遷移図.html"] },
+      "message": "画面(page.tsx)を新規追加・削除したら、画面詳細設計書と画面遷移図の両方を同じコミットで更新すること。",
+      "identifierWarning": {
+        "//": "止めるのは追加・削除だけだが、記述漏れの走査は変更された画面すべてに掛ける。",
+        "scope": { "diffFilter": "ACMR" },
+        "extract": ["export\\s+default\\s+(?:async\\s+)?function\\s+(\\w+)"],
+        "searchIn": ["docs/13_画面詳細設計書.html"],
+        "message": "以下の画面コンポーネント名が docs/13_画面詳細設計書.html に見当たりません。"
+      }
+    },
+    {
+      "id": "knowledge-index-sync",
+      "level": "block",
+      "trigger": {
+        "changed": ["knowledge/**"],
+        "exclude": ["knowledge/INDEX.html"],
+        "diffFilter": "ACDMR"
+      },
+      "require": { "all": ["knowledge/INDEX.html"] },
+      "message": "knowledge/ にファイルを追加・削除・移動したら knowledge/INDEX.html も同じコミットで更新すること。"
+    },
+    {
+      "id": "docs-index-sync",
+      "level": "block",
+      "trigger": { "changed": ["docs/**/*.html"], "exclude": ["docs/00_INDEX.html", "docs/assets/**", "docs/_TEMPLATE.html"], "diffFilter": "AD" },
+      "require": { "all": ["docs/00_INDEX.html"] },
+      "message": "ドキュメントを追加・削除したら docs/00_INDEX.html の一覧も同じコミットで更新すること。"
+    },
+    {
+      "id": "docs-reminder",
+      "level": "warn",
+      "trigger": {
+        "changed": ["src/**"],
+        "exclude": ["**/__tests__/**", "**/*.test.*", "**/*.spec.*"]
+      },
+      "require": { "any": ["docs/**"] },
+      "message": [
+        "実装に変更がありますが、このコミットに docs/ の更新が含まれていません。",
+        "関連ドキュメント（機能一覧・画面仕様・コンポーネント設計 等）の更新要否を確認してください。",
+        "更新不要と判断したならそのまま進めて構いません。判断に迷う場合は docs-sync-reviewer サブエージェントを使ってください。"
+      ]
+    },
+    {
+      "//": "require を省略した通知だけのルール。同じコミットに含めるべきファイルが無い合図に使う。",
+      "id": "frontend-quality-reminder",
+      "trigger": { "changed": ["src/components/**"] },
+      "message": [
+        "UIコンポーネントを変更しました。frontend-design スキルの観点で見直す価値があるか検討してください。",
+        "見直し不要と判断したならそのまま進めて構いません。"
+      ]
+    },
+    {
+      "//": [
+        "禁止パターンの検査。containsAdded があるルールは require が無くても level を尊重する。",
+        "『差分に書いてはいけないものが入った』という具体的な検知だからである。",
+        "誤検知が無いことを運用で確かめてから level:block に上げること。"
+      ],
+      "id": "no-native-dialogs",
+      "level": "warn",
+      "trigger": {
+        "changed": ["src/**/*.ts", "src/**/*.tsx"],
+        "exclude": ["**/*.test.*", "**/*.spec.*"],
+        "containsAdded": ["(?<![\\w.])(?:window\\.)?(?:alert|confirm|prompt)\\s*\\("]
+      },
+      "message": [
+        "ブラウザ標準の alert / confirm / prompt が追加されています。",
+        "これらはテーマに従わず、利用者が『今後表示しない』で無効化できてしまうため、",
+        "確認なしに破壊的操作が進む恐れがあります。プロジェクトのダイアログコンポーネントを使ってください。"
+      ]
+    }
+  ],
+
+  "//referenceRules": [
+    "ドキュメントが指しているファイルが実在するかを見る（常に警告のみ）。",
+    "syncRules は『同じコミットに入っているか』しか見ないため、スクリプトやスキルを",
+    "改名・削除したときに、それを指しているドキュメント側の記述が黙って壊れる。",
+    "壊れた側は今回の差分に含まれないので、差分だけを見るチェックでは検知できない。",
+    "trigger に当たったときだけ全ドキュメントを走査する（毎コミット走らせると古い参照を報告し続けて読まれなくなる）。",
+    "prefixes: 参照とみなす書き出し。ignore: 実在しなくてよいもの（生成物・gitignore対象）。"
+  ],
+  "referenceRules": [
+    {
+      "id": "doc-path-refs",
+      "trigger": {
+        "changed": ["scripts/**", ".claude/**"],
+        "diffFilter": "ADR"
+      },
+      "scanIn": ["docs/**/*.html", "CLAUDE.md"],
+      "prefixes": ["scripts/", ".claude/"],
+      "ignore": [".claude/logs/**", ".claude/settings.local.json"],
+      "message": [
+        "ドキュメントが存在しないファイルを指しています。改名・削除への追従漏れです。",
+        "参照先を新しいパスに直すか、記述そのものを削除してください。",
+        "エージェントは書いてある場所を実際に探しに行くため、古い参照はそのまま手戻りになります。"
+      ]
+    }
+  ],
+
+  "//guardedCommands": [
+    "PreToolUseフックで実行前に拒否するコマンド。取り返しのつかない操作だけを入れる。",
+    "pattern はコマンド文字列に対する正規表現（JSON内なのでバックスラッシュは二重に書く）。",
+    "requires / unless で例外を書ける（語彙は auditLog.extraLabels と同じ）。",
+    "  例: 秘密ファイルの閲覧を止めつつ、サンプルは通す",
+    "  { \"id\": \"secret-file\", \"pattern\": \"\\\\b(cat|less)\\\\s+[^|;&]*\\\\.env\\\\b\",",
+    "    \"unless\": \"\\\\.env\\\\.example\", \"reason\": \"…\" }",
+    "この配列が空か、設定ファイル自体が読めないときは、フック側の BASELINE",
+    "（force push と ルート/ホームの再帰削除）だけが働く。設定の破損で保護が消えないようにするため。"
+  ],
+  "guardedCommands": [
+    {
+      "id": "supabase-db-push",
+      "pattern": "supabase\\s+db\\s+push",
+      "reason": "本番(リモート)DBへスキーマを直接適用するコマンドです。ローカル検証には `npx supabase migration up` を使い、本番適用が必要な場合はユーザーに直接確認してから実行してください。"
+    },
+    {
+      "id": "git-force-push",
+      "pattern": "git\\s+push\\s+(?:[^|;&]*\\s)?(?:--force(?!-with-lease)|-f)\\b",
+      "reason": "共有ブランチの履歴を壊す可能性があります。どうしても必要なら --force-with-lease を使い、ユーザーに確認してから実行してください。"
+    },
+    {
+      "id": "rm-rf-root",
+      "pattern": "\\brm\\s+-[a-zA-Z]*[rf][a-zA-Z]*\\s+(?:/|~|\\$HOME)(?:\\s|;|&|\\||$)",
+      "reason": "ファイルシステムのルートまたはホームディレクトリを再帰削除しようとしています。対象パスを具体的に指定し直してください。"
+    }
+  ],
+
+  "//auditLog": [
+    "エージェントの実行記録。何もブロックせず記録だけ行う。",
+    "rotate: daily（既定）で日付ごとにファイルを分ける。none にすると1ファイルに追記し続ける。",
+    "  オートモードでは実測で 200KB/日 近く増えるため、点検できる大きさに保つには分割が要る。",
+    "  日付は記録本文のタイムスタンプと同じローカル時刻で決まる（ファイル名と中身がずれないように）。",
+    "extraLabels でプロジェクト固有の『見返したい操作』に印を付ける。",
+    "requires/unless は誤検知を避けるための条件（例: 鍵を使っただけで書き込み印を付けない）。",
+    "記録を読む手順は .claude/skills/audit-log-check を参照。"
+  ],
+  "auditLog": {
+    "enabled": true,
+    "file": ".claude/logs/agent-actions.log",
+    "rotate": "daily",
+    "extraLabels": [
+      {
+        "label": "DB-WRITE",
+        "pattern": "\\.\\s*(update|insert|upsert|delete)\\s*\\(",
+        "requires": "createClient|\\.from\\s*\\(|\\.rpc\\s*\\("
+      },
+      {
+        "label": "DB-KEY",
+        "pattern": "SERVICE_ROLE_KEY|ADMIN_API_KEY",
+        "unless": "\\.\\s*(update|insert|upsert|delete)\\s*\\("
+      }
+    ]
+  },
+
+  "//feedback": [
+    "開発環境そのものへの改善記録の置き場所。",
+    "改善はまずこのリポジトリの devenv に対して行い、その内容をこのファイルに記録する。",
+    "任意のタイミングでこのファイルを claude_basement へ持ち帰り、devenv-import スキルで取り込む。",
+    "claude_basement の絶対パスは環境ごとに違うため、設定には持たせない。"
+  ],
+  "feedback": {
+    "file": "devenv.feedback.json"
+  }
+}

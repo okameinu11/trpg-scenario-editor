@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>要件定義書 | TRPGシナリオ執筆エディタ</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="page">
+
+  <header class="hero">
+    <div class="eyebrow">TRPG SCENARIO EDITOR / 要件定義</div>
+    <h1>要件定義書</h1>
+    <p class="lead">Androidタブレットでの執筆作業を円滑に進めるための、個人利用向け「TRPGシナリオ執筆エディタ」が何を満たすべきかを定める。エモクロアTRPGのシナリオ執筆・NPC管理・保存の安定性・PDF出力に特化する。</p>
+  </header>
+
+  <div class="callout warn">
+    <strong>この文書の §1 と §2.1 は現行方針と食い違っている。</strong>
+    2026-08-31 に、Google Apps Script + スプレッドシートによるクラウド保存から
+    <strong>localStorage への一本化</strong>へ移行することを決定した。端末間のデータ移動は
+    JSON のエクスポート／インポートで行い、公開先は GitHub Pages とする。
+    移行作業の完了時にこの文書を更新すること。決定の経緯は <code>CLAUDE.md</code> の「注意事項」にある。
+  </div>
+
+  <section>
+    <h2>1. システム構成・動作環境</h2>
+    <p>
+      個人での利用および共有の容易さを考慮し、Google Apps Script (GAS) と Google スプレッドシートをベースとした
+      Webアプリケーションとして構築する。
+    </p>
+
+    <table>
+      <thead><tr><th>項目</th><th>仕様</th></tr></thead>
+      <tbody>
+        <tr><td><strong>プラットフォーム</strong></td><td>Webアプリケーション（Google Apps Script Web App として公開）</td></tr>
+        <tr><td><strong>想定クライアント</strong></td><td>Androidタブレット（Google Chrome などのモバイルブラウザ）</td></tr>
+        <tr><td><strong>データベース</strong></td><td>Google スプレッドシート（シナリオデータ、NPCデータの永続化）</td></tr>
+        <tr><td><strong>ファイル保存先</strong></td><td>Google ドライブ（画像アセットやバックアップHTML等の保存用）</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      上記のうち<strong>データベースとファイル保存先は移行対象</strong>。移行後はシナリオ・NPCデータともに
+      ブラウザの localStorage に保存し、Googleドライブは使用しない。
+      想定クライアントがAndroidタブレットである点は変わらない。
+    </div>
+  </section>
+
+  <section>
+    <h2>2. 機能要件</h2>
+
+    <h3>2.1 シナリオ管理機能</h3>
+    <p>複数のシナリオをクラウド上で管理できるようにする。</p>
+    <ul>
+      <li><strong>シナリオ一覧表示</strong> — 保存済みのシナリオタイトル一覧を表示し、選択して編集を開始できる。</li>
+      <li><strong>新規シナリオ作成</strong> — 新しいシナリオを作成し、タイトルを決定してエディタを開く。</li>
+      <li><strong>シナリオ削除</strong> — 不要になったシナリオを一覧およびスプレッドシートから削除する。</li>
+      <li><strong>クラウド保存（手動）</strong> — 「クラウドに保存」ボタンで、現在編集中のデータをGoogleスプレッドシートに書き込む。</li>
+    </ul>
+    <div class="callout warn">
+      移行後、保存先はスプレッドシートではなく localStorage になり、UI文言も「クラウド保存」から変更される。
+      加えて<strong>端末間のデータ移動のためのJSONエクスポート／インポート機能</strong>が要件に追加される。
+    </div>
+
+    <h3>2.2 シナリオエディタ機能（Markdown入力 ＆ プレビュー）</h3>
+    <p>キーボード入力とタッチ操作のハイブリッドで執筆できる快適なエディタを提供する。</p>
+    <ul>
+      <li><strong>Markdownテキストエリア</strong> — 左側に広いテキスト入力エリアを配置し、標準的なMarkdownおよび独自拡張記法で執筆する。</li>
+      <li><strong>リアルタイムプレビュー</strong> — 執筆中のテキストを解析し、左右2カラムのプレビュー（HTMLレンダリング）をリアルタイム表示する。</li>
+      <li>
+        <strong>サイドカラム紐付け（<code>&gt;&gt;</code> 記法）</strong>
+        <ul>
+          <li>行または段落内で <code>&gt;&gt;</code> を使用して右側のテキストを記述する。</li>
+          <li>レンダリング時、メイン（左）とサイド（右）が同じ行高さでペアとして表示され、サイドビューが上に詰まる問題を回避する。</li>
+        </ul>
+      </li>
+      <li>
+        <strong>ローカル自動保存（LocalStorage）</strong>
+        <ul>
+          <li>執筆中、キー入力などのタイミングでブラウザの LocalStorage に即座に自動保存する。</li>
+          <li>通信切断やタブレットの予期せぬシャットダウンから執筆データを保護する。</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h3>2.3 執筆アシスタントパネル（タッチ操作支援）</h3>
+    <p>キーボードを接続していない、タブレットのタッチ操作のみの環境でも円滑に執筆できるようにする。</p>
+    <ul>
+      <li>
+        <strong>テンプレートワンタップ挿入</strong> —
+        「情景描写」「DL情報」「TIPS/補足」等のボタンを配置し、タップするとカーソル位置に
+        対応するMarkdownタグ（<code>&gt;</code> や <code>📋</code> など）が自動挿入される。
+      </li>
+      <li>
+        <strong>エモクロアTRPG専用・入力支援ダイアログ</strong>
+        <ul>
+          <li><strong>[🎲 技能判定]</strong> — エモクロアの標準技能（〈観察眼〉〈心理〉など）のリストから技能を選択すると、対応する判定Markdownテンプレートが自動挿入される。</li>
+          <li><strong>[🌀 共鳴判定]</strong> — 「強度」「上昇値」「共鳴感情（感情候補リストから選択可能）」を入力すると <code>[共鳴:強度/上昇/感情]</code> が自動挿入される。</li>
+        </ul>
+      </li>
+    </ul>
+
+    <h3>2.4 NPC管理機能</h3>
+    <p>シナリオに登場するNPCの情報をエディタと紐付けて管理する。</p>
+    <ul>
+      <li><strong>NPCシート登録</strong> — 各シナリオに紐づくNPCを複数登録できる。</li>
+      <li>
+        <strong>管理項目</strong>
+        <ul>
+          <li>NPC名、肩書き／属性</li>
+          <li>能力値・ステータス（HP、MP、共鳴度など）</li>
+          <li>技能（NPCが所持している技能）</li>
+          <li>メモ・設定（プロフィール、セリフ例、立ち絵画像URLなど）</li>
+        </ul>
+      </li>
+      <li><strong>データ連動</strong> — NPCデータはシナリオデータと共にGoogleスプレッドシートに永続化される。</li>
+    </ul>
+
+    <h3>2.5 PDF出力機能</h3>
+    <p>印刷用のCSSを最適化し、執筆したシナリオを美しいレイアウトのままPDF化する。</p>
+    <ul>
+      <li><strong>印刷用プレビュー生成</strong> — 入力フォームやアシスタントパネルなどの不要なUIを排除した、シナリオ本文のみの印刷用プレビューを別ウィンドウで生成する。</li>
+      <li><strong>ブラウザ印刷機能の呼び出し</strong> — <code>window.print()</code> を起動し、Androidタブレット標準の印刷メニュー（「PDFとして保存」）へシームレスに繋げる。</li>
+      <li><strong>印刷スタイル（<code>@media print</code>）</strong> — 2カラムのグリッドレイアウト、見出し、各種バッジ（成功度など）の色彩やフォント（明朝体・ゴシック体の使い分け）が崩れないよう最適化した印刷用CSSを適用する。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>3. UI・画面構成案</h2>
+    <p>
+      Androidタブレットでの操作性を重視し、画面比率に合わせたレスポンシブデザイン
+      （タッチ領域の確保、スクロールの最小化）を採用する。
+    </p>
+
+    <h3>3.1 編集画面レイアウト</h3>
+<pre><code>+-------------------------------------------------------------------+
+|  [◀ 戻る]  シナリオタイトル: 「シナリオ名」        [☁ クラウド保存] |
++------------------------------------+------------------------------+
+| 📝 エディタ領域 (左側)             | 👀 プレビュー領域 (右側)     |
+|                                    |                              |
+| # 導入パート                       |  🎬 導入パート               |
+| &gt; 窓の外は激しい雨。               |  +------------------------+  |
+| &gt;&gt; 💡 天候の描写を入れる          |  | 窓の外は激しい雨。 | 💡  |
+|                                    |  +------------------------+  |
+| [判定:観察眼]                      |  🎲 判定：観察眼             |
+| - ダブル: 隠し部屋に気づく         |  +--+---------------------+  |
+| - シングル: 扉の隙間に気づく       |  |青| 隠し部屋に気づく     |  |
+|                                    |  |緑| 扉の隙間に気づく     |  |
+|                                    |  +--+---------------------+  |
++------------------------------------+------------------------------+
+| 🛠 執筆アシスタント（下部またはスライドパネル）                     |
+| [🎬 見出し] [💬 情景] [📋 DL情報] [🎲 判定] [🌀 共鳴] [👥 NPC管理]  |
++-------------------------------------------------------------------+</code></pre>
+  </section>
+
+  <section>
+    <h2>4. Markdown独自拡張 ＆ 表示スタイル定義</h2>
+    <p>
+      テストエディタ <code>knowledge/test.html</code>（リポジトリには含まれないローカル資料）のスタイル定義に基づき、
+      本エディタでパースする記法ルールを策定する。
+    </p>
+
+    <h3>4.1 基本要素のマッピング</h3>
+    <table>
+      <thead>
+        <tr><th>画面表示タイプ</th><th>Markdown記法</th><th>CSSクラス・HTMLレンダリング</th><th>スタイル特徴</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>通常文章</strong></td><td>通常入力</td><td><code>&lt;p&gt;</code></td><td>標準ゴシック、行間広め（1.8）</td></tr>
+        <tr><td><strong>情景描写・セリフ</strong></td><td>行頭に <code>&gt;</code></td><td><code>&lt;div class="read-text"&gt;</code></td><td>背景薄グレー、左に太線、フォント明朝</td></tr>
+        <tr><td><strong>DL情報</strong></td><td>行頭に <code>📋</code> または <code>[DL]</code></td><td><code>&lt;div class="dl-info"&gt;</code></td><td>背景薄黄、黄色境界線、角丸、「📋 DL情報」見出し自動付与</td></tr>
+        <tr><td><strong>共鳴判定</strong></td><td><code>[共鳴:強度/上昇/感情]</code></td><td><code>&lt;div class="resonance-box"&gt;</code></td><td>背景薄赤、左に赤太線、「🌀 共鳴判定…」自動付与</td></tr>
+        <tr><td><strong>TIPS・補足</strong>（右）</td><td><code>&gt;&gt; 💡</code> または <code>&gt;&gt; [TIPS]</code></td><td><code>&lt;div class="side-note"&gt;</code></td><td>背景薄緑、上に緑太線、「💡 TIPS/補足」自動付与</td></tr>
+        <tr><td><strong>通常文章</strong>（右）</td><td><code>&gt;&gt;</code> の後ろに記述</td><td><code>&lt;p&gt;</code></td><td>右側カラム用の通常文章</td></tr>
+      </tbody>
+    </table>
+
+    <h3>4.2 技能判定ブロックの構造化</h3>
+    <p>技能判定ブロックは、複数行の判定結果バッジに対応する。</p>
+<pre><code>[判定:技能名]
+- キーワード: 結果テキスト</code></pre>
+
+    <h4>判定成功度（キーワード）とカラーバッジのマッピング</h4>
+    <table>
+      <thead>
+        <tr><th>成功度キーワード</th><th>変換後のバッジ文言</th><th>バッジ色（CSSクラス）</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>ミラクル</code></td><td>ミラクル</td><td>虹色／グラデーション</td></tr>
+        <tr><td><code>トリプル</code> / <code>極限</code> / <code>極限成功</code></td><td>極限成功</td><td>紫（<code>bg-triple</code>）</td></tr>
+        <tr><td><code>ダブル</code> / <code>効果的</code></td><td>効果的</td><td>青（<code>bg-double</code>）</td></tr>
+        <tr><td><code>シングル</code> / <code>通常</code> / <code>通常成功</code></td><td>通常成功</td><td>緑（<code>bg-single</code>）</td></tr>
+        <tr><td><code>失敗</code></td><td>失敗</td><td>灰（<code>bg-fail</code>）</td></tr>
+        <tr><td><code>ファンブル</code> / <code>致命的失敗</code></td><td>致命的失敗</td><td>赤（<code>bg-fumble</code>）</td></tr>
+        <tr><td><code>カタストロフィ</code> / <code>大惨事</code></td><td>大惨事</td><td>濃い赤（<code>bg-catastrophe</code>）</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>5. 非機能要件</h2>
+    <ul>
+      <li>
+        <strong>レスポンシブ／モバイルファースト</strong> —
+        Androidタブレット（横向き・縦向き）に最適化し、ボタンのサイズは最小でも
+        <code>44px × 44px</code> を確保してタップミスを防ぐ。
+      </li>
+      <li>
+        <strong>オフライン・低通信状態への耐性</strong>
+        <ul>
+          <li>GASへの保存APIリクエストに失敗した場合でも、LocalStorageに最新データが残るため、通信復帰時に再試行できる仕組みにする。</li>
+          <li>スプレッドシート保存処理中はインジケータ（「保存中…」など）を表示し、誤って画面を閉じるのを防ぐ。</li>
+        </ul>
+      </li>
+    </ul>
+
+    <div class="callout">
+      オフライン耐性は、localStorage への一本化によって<strong>そもそも通信を伴わなくなる</strong>ため自然に満たされる。
+      移行後に残る課題は通信ではなく<strong>localStorage の容量上限</strong>（おおむね5MB）である。
+      NPCのアバター画像を base64 で保持しているため上限に達しやすい点に注意すること。
+    </div>
+  </section>
+
+  <nav class="pagenav">
+    <a href="00_INDEX.html">← 目次</a>
+    <a href="02_開発計画書.html">開発計画・設計書 →</a>
+  </nav>
+
+  <footer class="pagefoot">
+    最終更新: 2026-08-31（Markdownからの移行。本文は移行前の内容を保持し、方針変更箇所に注記を追加）
+  </footer>
+
+</div>
+</body>
+</html>

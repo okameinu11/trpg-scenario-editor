@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ドキュメント名 | プロジェクト名</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="page">
+
+  <header class="hero">
+    <div class="eyebrow">PROJECT / CATEGORY</div>
+    <h1>ドキュメント名</h1>
+    <p class="lead">このドキュメントが何を定めるものか、誰がいつ読むのかを1〜2文で。</p>
+  </header>
+
+  <section>
+    <h2>1. 見出し</h2>
+    <p>本文。段落は短く、判断の根拠（なぜそうしたか・何を却下したか）を残すこと。</p>
+
+    <div class="callout">
+      補足・注意事項。読み飛ばすと事故になる情報をここに置く。
+    </div>
+
+    <div class="callout danger">
+      強い警告。取り返しのつかない操作・法令や課金に関わるものだけに使う。
+    </div>
+  </section>
+
+  <section>
+    <h2>2. 対比で示す</h2>
+    <div class="do-dont">
+      <div class="do">
+        <div class="label">DO</div>
+        <p>推奨する書き方・進め方。</p>
+      </div>
+      <div class="dont">
+        <div class="label">DON'T</div>
+        <p>避けるべき書き方・進め方と、その理由。</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. 表・チェックリスト</h2>
+    <table>
+      <thead><tr><th>項目</th><th>内容</th><th>区分</th></tr></thead>
+      <tbody>
+        <tr><td>項目A</td><td>説明</td><td><span class="badge required">必須</span></td></tr>
+        <tr><td>項目B</td><td>説明</td><td><span class="badge recommended">推奨</span></td></tr>
+        <tr><td>項目C</td><td>説明</td><td><span class="badge optional">任意</span></td></tr>
+      </tbody>
+    </table>
+
+    <ul class="checklist">
+      <li>実行前に確認すること</li>
+      <li>実行後に確認すること</li>
+    </ul>
+
+    <ol class="steps">
+      <li>手順1</li>
+      <li>手順2</li>
+    </ol>
+  </section>
+
+  <nav class="pagenav">
+    <a href="00_INDEX.html">← 目次</a>
+    <a href="02_次のドキュメント.html">次のドキュメント →</a>
+  </nav>
+
+  <footer class="pagefoot">
+    最終更新: YYYY-MM-DD
+  </footer>
+
+</div>
+</body>
+</html>

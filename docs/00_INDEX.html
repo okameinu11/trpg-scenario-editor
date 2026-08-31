@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ドキュメント目次 | TRPGシナリオ執筆エディタ</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="page">
+
+  <header class="hero">
+    <div class="eyebrow">TRPG SCENARIO EDITOR / DOCS</div>
+    <h1>ドキュメント目次</h1>
+    <p class="lead">このプロジェクト自体の仕様書・設計書・運用方針。実装に着手する前に、対象機能に関連するものを読むこと。</p>
+  </header>
+
+  <section>
+    <h2>このフォルダの役割</h2>
+    <p>
+      <code>docs/</code> は<strong>このプロジェクト自体</strong>の仕様・設計・運用方針を置く場所。
+      エモクロアTRPGのルールやココフォリアの仕様など、外部ツール・外部ルールの資料は
+      <code>knowledge/</code> に分ける。
+    </p>
+    <div class="callout">
+      同じ説明を2箇所以上に書かないこと。書き写したくなったら、それは「集約先のドキュメントが不足している」サイン。
+    </div>
+    <div class="callout warn">
+      <strong><code>knowledge/</code> はリポジトリに含まれない。</strong>
+      TRPGルールブック由来の資料を含むため <code>.gitignore</code> で除外しており、
+      クローンしても付いてこない（公開もされない）。ローカルの作業ディレクトリにのみ存在し、
+      エージェントは参照できる。目次は <code>knowledge/INDEX.html</code> にある。
+    </div>
+  </section>
+
+  <section>
+    <h2>一覧</h2>
+    <div class="card-grid">
+      <a class="card" href="01_要件定義書.html">
+        <span class="num">01</span>
+        <h3>要件定義書</h3>
+        <p>何を作るのか・誰のためか。機能要件、UI構成案、Markdown独自記法の定義</p>
+      </a>
+      <a class="card" href="02_開発計画書.html">
+        <span class="num">02</span>
+        <h3>開発計画・設計書</h3>
+        <p>技術スタック、データ設計、アプリケーション設計、フェーズ別ロードマップ</p>
+      </a>
+    </div>
+  </section>
+
+  <section>
+    <h2>現在の方針転換について</h2>
+    <div class="callout warn">
+      2026-08-31 に <strong>Google Apps Script + スプレッドシートからの脱却</strong>を決定した。
+      保存先を localStorage に一本化し、端末間のデータ移動はJSONのエクスポート／インポートで行う。
+      公開先は GitHub Pages（publicリポジトリ）。
+      <br><br>
+      上記2文書は<strong>移行前の記述を保持したまま、影響箇所に注記を付けた状態</strong>である。
+      移行の実装が完了した時点で本文を更新すること。作業項目は
+      <a href="02_開発計画書.html">開発計画・設計書</a> のフェーズ6にまとめてある。
+    </div>
+  </section>
+
+  <footer class="pagefoot">
+    最終更新: 2026-08-31
+  </footer>
+
+</div>
+</body>
+</html>

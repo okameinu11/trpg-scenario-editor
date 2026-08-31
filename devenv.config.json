@@ -1,0 +1,166 @@
+{
+  "//": "開発環境基盤(devenv)の設定。ルールを変更したら CLAUDE.md の表を貼り直すこと（perl scripts/devenv/check-doc-sync.pl --summary）。",
+
+  "project": {
+    "name": "TRPGシナリオ執筆エディタ",
+    "language": "ja"
+  },
+
+  "//syncRules": [
+    "「Aを変更したならBも同じコミットに含まれていること」を機械的に検査する。",
+    "このプロジェクトはアプリ本体が index.html 1枚、ドキュメントが docs/ と knowledge/ という構成。",
+    "後付け導入のため、機械的に判定できる目次同期だけ block とし、判断を伴うものは warn にしている。",
+    "trigger.diffFilter: A=追加 C=コピー D=削除 M=変更 R=リネーム。既定はACMR。"
+  ],
+  "syncRules": [
+    {
+      "id": "docs-index-sync",
+      "level": "block",
+      "trigger": {
+        "changed": ["docs/**/*.html"],
+        "exclude": ["docs/00_INDEX.html", "docs/assets/**", "docs/_TEMPLATE.html"],
+        "diffFilter": "ADR"
+      },
+      "require": { "all": ["docs/00_INDEX.html"] },
+      "message": "ドキュメントを追加・削除・改名したら docs/00_INDEX.html の一覧も同じコミットで更新すること。目次から辿れないドキュメントは無いのと同じになる。"
+    },
+    {
+      "//": "アプリ本体は index.html 1枚に全て入っている。ここが変わったのに docs/ が無変更なら、仕様と実装がずれた可能性がある。判断は人がするため warn。",
+      "id": "app-doc-sync",
+      "level": "warn",
+      "trigger": { "changed": ["index.html"] },
+      "require": { "any": ["docs/**"] },
+      "message": [
+        "index.html を変更したら docs/ の仕様書の更新要否を確認すること（このコミットには docs/ の更新が含まれていません）。",
+        "機能の追加/削除、保存方式やデータ構造の変更、UIの増減があれば、要件定義書・開発計画書を更新してください。",
+        "文言修正やリファクタリングなど仕様に影響しない変更であれば、更新不要と判断してそのまま進めて構いません。",
+        "判断に迷う場合は docs-sync-reviewer サブエージェントを使ってください。"
+      ]
+    },
+    {
+      "//": "require を省略した通知だけのルール。knowledge-doc-writer の手順では .md は下書きであり、HTML化したら削除する。下書きのままコミットされるのを防ぐ。",
+      "id": "md-draft-leftover",
+      "trigger": {
+        "changed": ["docs/**/*.md"],
+        "diffFilter": "A"
+      },
+      "message": [
+        "docs/ のドキュメントはHTMLで持つこと。.md は下書き専用で、コミットには含めない。",
+        "HTMLにするのは、意味づけコンポーネントで重要度の差を表現でき、斜め読みでも重要箇所を拾えるためです。",
+        "HTML化して .md を削除してからコミットしてください。",
+        "手順は .claude/skills/doc-html-writer/SKILL.md および knowledge-doc-writer/SKILL.md にあります。"
+      ]
+    }
+  ],
+
+  "//referenceRules": [
+    "ドキュメントが指しているファイルが実在するかを見る（常に警告のみ）。",
+    "syncRules は『同じコミットに入っているか』しか見ないため、スクリプトやスキルを",
+    "改名・削除したときに、それを指しているドキュメント側の記述が黙って壊れる。"
+  ],
+  "referenceRules": [
+    {
+      "id": "doc-path-refs",
+      "trigger": {
+        "changed": ["scripts/**", ".claude/**"],
+        "diffFilter": "ADR"
+      },
+      "scanIn": ["docs/**/*.html", "knowledge/**/*.html", "CLAUDE.md"],
+      "prefixes": ["scripts/", ".claude/"],
+      "ignore": [".claude/logs/**", ".claude/settings.local.json"],
+      "message": [
+        "ドキュメント中のファイル参照を、改名・削除に追従させること（存在しないファイルを指しています）。",
+        "参照先を新しいパスに直すか、記述そのものを削除してください。",
+        "エージェントは書いてある場所を実際に探しに行くため、古い参照はそのまま手戻りになります。"
+      ]
+    }
+  ],
+
+  "//guardedCommands": [
+    "PreToolUseフックで実行前に拒否するコマンド。取り返しのつかない操作だけを入れる。",
+    "このプロジェクト固有の事情:",
+    "  1. アプリ本体が index.html 1枚に集約されており、これを失うと全機能が失われる。",
+    "  2. GitHub Pages での一般公開を予定しており、公開は取り消せない一方通行の操作である。",
+    "  3. knowledge/ のTRPGルールブック由来の資料は .gitignore で除外済み。他に公開範囲の判断が要るものが無いか、接続・公開の前に人が確認する。",
+    "いずれも日常的には使わないコマンドなので、遮断しても通常の作業は妨げない。"
+  ],
+  "guardedCommands": [
+    {
+      "id": "git-force-push",
+      "pattern": "git\\s+push\\s+(?:[^|;&]*\\s)?(?:--force(?!-with-lease)|-f)\\b",
+      "reason": "共有ブランチの履歴を壊す可能性があります。どうしても必要なら --force-with-lease を使い、ユーザーに確認してから実行してください。"
+    },
+    {
+      "id": "rm-rf-root",
+      "pattern": "\\brm\\s+-[a-zA-Z]*[rf][a-zA-Z]*\\s+(?:/|~|\\$HOME)(?:\\s|;|&|\\||$)",
+      "reason": "ファイルシステムのルートまたはホームディレクトリを再帰削除しようとしています。対象パスを具体的に指定し直してください。"
+    },
+    {
+      "id": "destroy-app-file",
+      "pattern": "\\brm\\s+[^|;&]*\\b(?:index\\.html|Code\\.gs)\\b|(?<!>)>\\s*(?:\\./)?(?:index\\.html|Code\\.gs)\\b",
+      "reason": "アプリ本体(index.html)またはGASスクリプト(Code.gs)を削除・空書きしようとしています。このプロジェクトは index.html 1枚に全機能が入っているため、未コミットの状態で失うと復元できません。編集は Edit ツールで行い、全面的な書き換えが必要な場合は先に `git add -A && git commit` で退避するか、ユーザーに確認してください。"
+    },
+    {
+      "id": "git-clean-force",
+      "pattern": "\\bgit\\s+clean\\s+(?:[^|;&]*\\s)?-[a-zA-Z]*f",
+      "reason": "未追跡ファイルを完全に削除します。git の履歴にも残らないため復元できません。まず `git clean -n` で削除対象を確認し、必要なファイルだけを個別に削除するか、ユーザーに確認してから実行してください。"
+    },
+    {
+      "id": "git-reset-hard",
+      "pattern": "\\bgit\\s+reset\\s+(?:[^|;&]*\\s)?--hard\\b",
+      "reason": "未コミットの変更を全て破棄します。編集中の index.html の内容が失われます。退避するなら `git stash`、特定ファイルだけ戻すなら `git restore <file>` を使ってください。"
+    },
+    {
+      "id": "remove-git-dir",
+      "pattern": "\\brm\\s+-[a-zA-Z]*[rf][a-zA-Z]*\\s+[^|;&]*\\.git(?![\\w-])",
+      "reason": "リポジトリの全履歴が消え、復元できません。作業をやり直したいだけなら `git reset` や `git checkout` で足ります。リポジトリを作り直す必要が本当にあるなら、ユーザーに確認してください。"
+    },
+    {
+      "id": "git-remote-add",
+      "pattern": "\\bgit\\s+remote\\s+(?:add|set-url)\\b",
+      "reason": "このリポジトリを外部のリモートへ接続します。接続先が public リポジトリの場合、次の push で全履歴が一般公開され、取り消せません。knowledge/ は .gitignore で除外済みですが、それ以外に公開したくないものが無いか、接続前にユーザーと確認してください。"
+    },
+    {
+      "id": "gh-repo-publish",
+      "pattern": "\\bgh\\s+repo\\s+(?:create[^|;&]*--public|edit[^|;&]*--visibility\\s+public)",
+      "reason": "リポジトリを一般公開します。一度公開すると検索エンジンのキャッシュや第三者のフォークに残るため、非公開に戻しても完全な取り消しはできません。公開して良い内容かをユーザーと確認してから実行してください。"
+    },
+    {
+      "id": "gh-repo-delete",
+      "pattern": "\\bgh\\s+repo\\s+delete\\b",
+      "reason": "リポジトリを完全に削除します。Issue・PR・GitHub Pages の設定も失われ、復元できません。ユーザーに確認してください。"
+    }
+  ],
+
+  "//auditLog": [
+    "エージェントの実行記録。何もブロックせず記録だけ行う。",
+    "extraLabels はBashコマンド文字列に対して評価される（ファイル編集は audit-log-edit がパスのみ記録する）。",
+    "印は絞ること。全部に印が付くと目印として機能しなくなる。",
+    "記録を読む手順は .claude/skills/audit-log-check を参照。"
+  ],
+  "auditLog": {
+    "enabled": true,
+    "file": ".claude/logs/agent-actions.log",
+    "rotate": "daily",
+    "extraLabels": [
+      {
+        "//": "アプリ本体をシェル経由で書き換えた操作。Edit ツール経由の編集は別フックが記録するため、ここではシェルからの直接改変だけを拾う。",
+        "label": "APP-EDIT",
+        "pattern": "\\bsed\\s+-i[^|;&]*\\b(?:index\\.html|Code\\.gs)\\b|\\btee\\s+(?:-a\\s+)?(?:\\./)?(?:index\\.html|Code\\.gs)\\b|>\\s*(?:\\./)?(?:index\\.html|Code\\.gs)\\b"
+      },
+      {
+        "//": "外部公開に関わる操作。GitHub Pages 公開を予定しているため、いつ何を外に出したかを追えるようにする。",
+        "label": "PUBLISH",
+        "pattern": "\\bgh\\s+(?:repo|release|api|workflow)\\b|\\bgit\\s+remote\\s+(?:add|set-url)\\b"
+      }
+    ]
+  },
+
+  "//feedback": [
+    "開発環境そのものへの改善記録の置き場所。",
+    "改善はまずこのリポジトリの devenv に対して行い、その内容をこのファイルに記録する。"
+  ],
+  "feedback": {
+    "file": "devenv.feedback.json"
+  }
+}

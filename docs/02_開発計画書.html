@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>開発計画・設計書 | TRPGシナリオ執筆エディタ</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="page">
+
+  <header class="hero">
+    <div class="eyebrow">TRPG SCENARIO EDITOR / 設計</div>
+    <h1>開発計画・設計書</h1>
+    <p class="lead">本エディタの技術構成、データベース設計、API設計、および段階的な開発スケジュールを定める。実装に着手する前に、対象フェーズの節を読むこと。</p>
+  </header>
+
+  <div class="callout warn">
+    <strong>§1・§2・§3.1 は現行方針と食い違っている。</strong>
+    2026-08-31 に Google Apps Script + スプレッドシートからの脱却を決定した。
+    以下に記載されたバックエンドAPI設計とスプレッドシート設計は<strong>実装されたが、これから撤去される</strong>。
+    §3.2 のフロントエンド設計と §4 のロードマップ（フェーズ1〜5）は引き続き有効である。
+    経緯は <code>CLAUDE.md</code> の「注意事項」にある。
+  </div>
+
+  <section>
+    <h2>1. 技術スタック</h2>
+    <p>
+      個人利用として手軽に運用でき、かつAndroidタブレットで高速に動作するWebアプリを実現するため、
+      以下の技術を採用する。
+    </p>
+
+    <table>
+      <thead><tr><th>レイヤー</th><th>技術／サービス</th><th>役割</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>フロントエンド</strong></td>
+          <td>HTML5, CSS3, Vanilla JavaScript (ES6)</td>
+          <td>UIレイアウト、Markdownパース、エディタ制御、LocalStorage自動保存、印刷スタイル設定</td>
+        </tr>
+        <tr>
+          <td><strong>バックエンド</strong></td>
+          <td>Google Apps Script (GAS)</td>
+          <td>APIサーバー（doGet / doPost によるJSONデータ送受信）</td>
+        </tr>
+        <tr>
+          <td><strong>データベース</strong></td>
+          <td>Google スプレッドシート</td>
+          <td>シナリオ本文およびNPCデータの保存用データベース</td>
+        </tr>
+        <tr>
+          <td><strong>ホスティング</strong></td>
+          <td>GAS ウェブアプリ (HTML Service)</td>
+          <td>アプリケーション全体の配信（Googleのクラウド環境で直接実行）</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      移行後は<strong>フロントエンドの行だけが残る</strong>。バックエンドとデータベースは無くなり、
+      ホスティングは GitHub Pages（静的配信）になる。
+      「フレームワーク・ビルドツールを使わない単一ファイル構成」という方針自体は変わらない。
+    </div>
+  </section>
+
+  <section>
+    <h2>2. データベース・スプレッドシート設計</h2>
+    <p>
+      1つのGoogleスプレッドシート内に以下の2つのシートを用意し、
+      シナリオデータとNPCデータをリレーショナルに管理する。
+    </p>
+
+    <h3>2.1 <code>scenarios</code> シート（シナリオデータ）</h3>
+    <p>各シナリオの基本情報と、Markdown形式の本文を保存する。</p>
+    <table>
+      <thead><tr><th>カラム名</th><th>型</th><th>説明</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>文字列 (UUID)</td><td>シナリオを一意に特定するID（主キー）</td></tr>
+        <tr><td><code>title</code></td><td>文字列</td><td>シナリオのタイトル</td></tr>
+        <tr><td><code>content</code></td><td>文字列 (TEXT)</td><td>Markdown形式のシナリオ本文</td></tr>
+        <tr><td><code>created_at</code></td><td>日時</td><td>シナリオ作成日時</td></tr>
+        <tr><td><code>updated_at</code></td><td>日時</td><td>最終保存日時</td></tr>
+      </tbody>
+    </table>
+
+    <h3>2.2 <code>npcs</code> シート（NPCデータ）</h3>
+    <p>シナリオに紐づくNPCのステータス情報などを保存する。</p>
+    <table>
+      <thead><tr><th>カラム名</th><th>型</th><th>説明</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>文字列 (UUID)</td><td>NPCを一意に特定するID（主キー）</td></tr>
+        <tr><td><code>scenario_id</code></td><td>文字列 (UUID)</td><td>紐づくシナリオのID（外部キー）</td></tr>
+        <tr><td><code>name</code></td><td>文字列</td><td>NPC名</td></tr>
+        <tr><td><code>avatar_url</code></td><td>文字列</td><td>立ち絵などの画像URL</td></tr>
+        <tr><td><code>status_json</code></td><td>文字列 (JSON)</td><td>能力値やステータス（HP/MP/共鳴度/技能）のJSONデータ</td></tr>
+        <tr><td><code>memo</code></td><td>文字列 (TEXT)</td><td>NPCのプロフィールやセリフ例などの自由メモ</td></tr>
+        <tr><td><code>created_at</code></td><td>日時</td><td>NPC作成日時</td></tr>
+        <tr><td><code>updated_at</code></td><td>日時</td><td>最終更新日時</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout danger">
+      <strong>この設計に起因する既知の不具合がある。</strong>
+      スプレッドシート側のカラム名は <code>status_json</code> だが、フロントエンドの
+      <code>API.saveScenario()</code> は localStorage 経路で <code>status</code>（オブジェクト）というキーで保存する。
+      一方 <code>selectScenario()</code> は読み込み時に <code>statusJson</code> を読もうとするため、
+      <strong>localStorage経路ではNPCの能力値が復元されない</strong>。
+      保存層に手を入れる際に必ず併せて直すこと。
+    </div>
+  </section>
+
+  <section>
+    <h2>3. アプリケーション設計</h2>
+
+    <h3>3.1 GASバックエンド (API) 設計</h3>
+    <p>
+      Webアプリとスプレッドシートを繋ぐAPIを実装する。
+      全て <code>ContentService</code> を利用してJSON形式でクライアントとやり取りする。
+    </p>
+
+    <h4>エンドポイント定義</h4>
+    <ul>
+      <li>
+        <strong><code>doGet(e)</code></strong> — 画面初期表示用のHTMLファイルを返却する（WebアプリとしてのURL）。
+        <ul>
+          <li><code>action=listScenarios</code> — 保存されているシナリオのIDとタイトルの一覧を取得。</li>
+          <li><code>action=loadScenario&amp;id={id}</code> — 指定されたIDのシナリオ本文および関連するNPCリストを取得。</li>
+        </ul>
+      </li>
+      <li>
+        <strong><code>doPost(e)</code></strong> — クライアントからのデータ保存および削除リクエストを処理する。
+        <ul>
+          <li><code>action=saveScenario</code> — シナリオ本文およびNPCデータをスプレッドシートに保存（存在すれば更新、なければ新規追加）。</li>
+          <li><code>action=deleteScenario&amp;id={id}</code> — 指定されたIDのシナリオとNPCデータをスプレッドシートから物理削除。</li>
+        </ul>
+      </li>
+    </ul>
+
+    <div class="callout warn">
+      実装は <code>Code.gs</code> にある。ただし実際の実装は上記の <code>action</code> パラメータ方式ではなく、
+      <code>google.script.run</code> による関数直接呼び出しになっている（設計と実装のずれ）。
+      いずれにせよ撤去対象のため、このずれを解消する作業は不要。
+    </div>
+
+    <h3>3.2 フロントエンド・アーキテクチャ</h3>
+    <ul>
+      <li>
+        <strong>Markdownパーサの自作</strong>
+        <ul>
+          <li>重い外部ライブラリを避けるため、正規表現を用いた軽量なカスタムMarkdownパーサをJavaScriptで記述する。</li>
+          <li>改行コードや <code>&gt;&gt;</code> の位置に基づいて段落を切り分け、左右のカラム（<code>row</code> クラス）に自動でマッピングして出力する。</li>
+        </ul>
+      </li>
+      <li>
+        <strong>LocalStorage同期</strong>
+        <ul>
+          <li>入力エリアへの <code>input</code> イベントを検知し、数秒間入力が止まった段階（デバウンス処理）で現在データをキャッシュする。</li>
+        </ul>
+      </li>
+      <li>
+        <strong>PDF出力制御</strong>
+        <ul>
+          <li><code>window.print()</code> 実行時に、ナビゲーションや編集UIを <code>display: none</code> にし、印刷用レイアウトを有効化する。</li>
+        </ul>
+      </li>
+    </ul>
+
+    <div class="callout">
+      <strong>この節は移行後も有効である。</strong>
+      外部ライブラリを持たない自作パーサという判断が、GitHub Pages への静的配信をそのまま可能にしている。
+      ビルド工程が無いため、<code>index.html</code> を置くだけで動く。
+    </div>
+  </section>
+
+  <section>
+    <h2>4. 開発ロードマップ（フェーズ分け）</h2>
+    <p>Androidタブレットでの実用性を確認しながら進められるよう、段階的に開発を行う。</p>
+
+    <h3>フェーズ1 — エディタの基本機能 ＆ プレビュー・PDF化の実装</h3>
+    <p><strong>目標:</strong> まずはスタンドアロンで動くエディタを作り、Markdown入力から美しいプレビュー、PDF出力ができる状態を作る。</p>
+    <ul>
+      <li>HTML/CSS/JSによるエディタ＋プレビュー画面の実装。</li>
+      <li>2カラムレイアウト（段落ごとの <code>&gt;&gt;</code> 紐付け）のパース処理実装。</li>
+      <li>印刷用CSSの作成とPDF出力テスト。</li>
+    </ul>
+
+    <h3>フェーズ2 — GAS・スプレッドシート連携 ＆ シナリオ管理</h3>
+    <p><strong>目標:</strong> GAS上でWebアプリを公開し、スプレッドシートとの保存・読込・一覧管理機能を実現する。</p>
+    <ul>
+      <li>GASのセットアップと、スプレッドシートの作成。</li>
+      <li><code>scenarios</code> シートの保存・読込用APIの実装。</li>
+      <li>クラウド保存ボタン、シナリオ一覧切り替え画面の実装。</li>
+      <li>LocalStorage自動保存とクラウド保存のデータ調停処理。</li>
+    </ul>
+
+    <h3>フェーズ3 — エモクロアTRPG専用の入力支援 ＆ アシスタントパネル</h3>
+    <p><strong>目標:</strong> タッチ操作支援パネルと、エモクロアに特化した判定・共鳴の入力支援機能を実装する。</p>
+    <ul>
+      <li>執筆アシスタントパネルUIの実装。</li>
+      <li>各種Markdown記法の一発挿入機能。</li>
+      <li>エモクロア標準技能（リスト選択）や共鳴判定ダイアログの実装。</li>
+      <li>判定ブロックのカラーバッジ（ミラクル〜カタストロフィ）の自動レンダリング実装。</li>
+    </ul>
+
+    <h3>フェーズ4 — NPC管理機能の実装</h3>
+    <p><strong>目標:</strong> シナリオと連動したNPCシートの登録・管理機能を追加する。</p>
+    <ul>
+      <li><code>npcs</code> シートの保存・読込用APIの実装。</li>
+      <li>エディタ画面と切り替え可能な「NPC管理」タブ、またはモーダルUIの作成。</li>
+      <li>NPCのステータス・技能・画像登録フォームの実装。</li>
+    </ul>
+
+    <h3>フェーズ5 — 最終調整 ＆ タブレット実機でのUX最適化</h3>
+    <p><strong>目標:</strong> Androidタブレットでの動作をチェックし、タップしやすさ、フォントの綺麗さ、動作の軽さを磨き上げる。</p>
+    <ul>
+      <li>タブレットの仮想キーボード出現時のレイアウト崩れ対策。</li>
+      <li>印刷設定（A4・余白なし等）でのPDFレイアウトの最終確認。</li>
+      <li>各種不具合の修正とコードクリーンアップ。</li>
+    </ul>
+
+    <h3>フェーズ6 — GAS脱却とGitHub Pagesでの公開（2026-08-31 追加）</h3>
+    <p><strong>目標:</strong> バックエンドを撤去して静的アプリ化し、別端末からも使える状態にする。</p>
+    <ul>
+      <li><code>API</code> オブジェクトから <code>isGas</code> 判定と <code>google.script.run</code> の分岐を撤去する。</li>
+      <li>NPCの <code>status</code> / <code>statusJson</code> のキー不整合を修正する（§2.2 の既知不具合）。</li>
+      <li>シナリオデータのJSONエクスポート／インポート機能を追加し、端末間の持ち運び手段とする。</li>
+      <li>localStorage の容量超過（<code>QuotaExceededError</code>）を検知して利用者に伝える。</li>
+      <li>GitHub Pages（publicリポジトリ）で公開する。公開範囲は事前に確認すること。</li>
+    </ul>
+  </section>
+
+  <nav class="pagenav">
+    <a href="01_要件定義書.html">← 要件定義書</a>
+    <a href="00_INDEX.html">目次 →</a>
+  </nav>
+
+  <footer class="pagefoot">
+    最終更新: 2026-08-31（Markdownからの移行。本文は移行前の内容を保持し、方針変更箇所への注記とフェーズ6を追加）
+  </footer>
+
+</div>
+</body>
+</html>

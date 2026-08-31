@@ -1,0 +1,16 @@
+#!/bin/sh
+# 開発環境基盤(devenv)のコミットゲート。
+#
+# このファイルは git の core.hooksPath でフックディレクトリに指定されている。
+# .git/hooks/ に直接置かない理由は、.git/ が git 管理外でリポジトリに含められず、
+# 「コミット時に何が走るか」がリポジトリを見ても分からなくなるため。
+#
+# 実行に必要なのは git と Perl だけ（Perl は Git for Windows に同梱）。Node・npm は不要。
+perl scripts/devenv/check-doc-sync.pl
+
+# --- ここから下はプロジェクト固有 ---
+# 必要なものだけ有効化する。速いものから順に並べること
+# （遅いチェックを先頭に置くとコミットのたびに待たされ、--no-verify が常用される）。
+#
+# npx tsc --noEmit
+# npx lint-staged

@@ -1,0 +1,3052 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRPGシナリオエディタ</title>
+<!-- Google Fonts: Inter & Noto Serif JP (明朝体用 - オンライン時に適用) -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Noto+Serif+JP:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  /* === デザインシステム (CSS変数) === */
+  :root {
+    --bg-app: #0f1115;
+    --bg-card: #181c24;
+    --bg-input: #222834;
+    --border-color: #2e3646;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --accent-color: #3b82f6;
+    --accent-hover: #2563eb;
+    
+    /* プレビュー用 (シナリオ紙面風 - 強制的に明示) */
+    --preview-bg: #ffffff;
+    --preview-text: #2d3748;
+    --preview-border: #e2e8f0;
+    
+    /* エモクロアカラー */
+    --color-miracle: linear-gradient(135deg, #f43f5e, #a855f7, #3b82f6);
+    --color-triple: #7c3aed;
+    --color-double: #2563eb;
+    --color-single: #10b981;
+    --color-fail: #64748b;
+    --color-fumble: #ef4444;
+    --color-catastrophe: #7f1d1d;
+  }
+
+  /* === 全体レイアウト === */
+  body {
+    /* オフラインでも動作するように、OS標準の美しいフォント(游ゴシック・ヒラギノ角ゴ等)をフォールバックに指定 */
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", YuGothic, Meiryo, sans-serif;
+    background-color: var(--bg-app);
+    color: var(--text-primary);
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    height: 100dvh; /* モバイル/タブレットの仮想キーボード伸縮対策 */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* === ヘッダー === */
+  header.control-header {
+    background-color: var(--bg-card);
+    border-bottom: 1px solid var(--border-color);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 60px;
+    box-sizing: border-box;
+  }
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+  .app-logo {
+    font-size: 1.25rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #60a5fa, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+  .version-tag {
+    font-size: 0.7rem;
+    color: var(--text-secondary) !important;
+    font-weight: 600;
+    background-color: var(--bg-input);
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    display: inline-block;
+    -webkit-text-fill-color: initial !important; 
+  }
+  .scenario-title-input {
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    width: 250px;
+    transition: border-color 0.2s;
+  }
+  .scenario-title-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+  }
+  .header-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .btn {
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+  }
+  .btn:hover:not(:disabled) {
+    background-color: var(--border-color);
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .btn-primary {
+    background-color: var(--accent-color);
+    border-color: var(--accent-color);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background-color: var(--accent-hover);
+    border-color: var(--accent-hover);
+  }
+
+  /* === メインエディタ領域 === */
+  .workspace {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+  
+  /* 左側: エディタセクション */
+  .editor-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border-color);
+    background-color: var(--bg-app);
+  }
+  .editor-textarea {
+    flex: 1;
+    background-color: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-family: 'Consolas', 'Courier New', Courier, monospace;
+    font-size: 1.05rem;
+    line-height: 1.6;
+    padding: 20px;
+    resize: none;
+    outline: none;
+    box-sizing: border-box;
+  }
+
+  /* 右側: プレビューセクション */
+  .preview-section {
+    flex: 1;
+    background-color: #ffffff; /* プレビュー側全体の背景を白一色に統一 */
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .preview-paper {
+    background-color: #ffffff !important; /* 白一色で統一し、背景色境界のズレによる違和感を完全に解消 */
+    color: var(--preview-text) !important;
+    min-height: 100%;
+    box-sizing: border-box;
+    padding: 40px;
+  }
+
+  /* === プレビュー内のHTMLスタイル定義 === */
+  #preview-area {
+    font-size: 0.95rem;
+    line-height: 1.8;
+    color: var(--preview-text) !important;
+  }
+  #preview-area p {
+    margin: 0 0 16px 0;
+    color: var(--preview-text) !important;
+  }
+  #preview-area h2.scene-title {
+    /* オフラインでも美しい明朝体を表示できるように Windows標準の BIZ UD明朝 や 游明朝をフォールバック指定 */
+    font-family: 'Noto Serif JP', "BIZ UDMincho", "Hiragino Mincho ProN", "Yu Mincho", YuMincho, serif;
+    font-size: 1.5rem;
+    border-bottom: 2px solid var(--preview-text);
+    padding-bottom: 6px;
+    margin-top: 30px;
+    margin-bottom: 20px;
+    color: var(--preview-text) !important;
+  }
+
+  /* 📌 個別探索の小見出し (レベル2: ##) */
+  #preview-area h3.search-subtitle {
+    font-family: 'Noto Serif JP', "BIZ UDMincho", "Hiragino Mincho ProN", "Yu Mincho", YuMincho, serif;
+    font-size: 1.1rem;
+    color: var(--preview-text) !important;
+    border-left: 4px solid #0d9488 !important; /* ティールカラー(エモクロア風)のアクセント左線 */
+    padding-left: 8px;
+    margin-top: 24px;
+    margin-bottom: 12px;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+  
+  /* 2カラムレイアウト */
+  #preview-area .row {
+    display: grid;
+    grid-template-columns: 7.2fr 2.8fr;
+    gap: 24px;
+    align-items: start;
+    margin-bottom: 16px;
+  }
+  
+  /* 情景描写・セリフ */
+  #preview-area .read-text {
+    background-color: #f8fafc !important;
+    border-left: 4px solid #94a3b8 !important;
+    color: var(--preview-text) !important;
+    padding: 12px 16px;
+    font-family: 'Noto Serif JP', "BIZ UDMincho", "Hiragino Mincho ProN", "Yu Mincho", YuMincho, serif;
+    margin-bottom: 16px;
+    border-radius: 0 4px 4px 0;
+  }
+  
+  /* DL情報 */
+  #preview-area .dl-info {
+    background-color: #fffbeb !important;
+    border: 1px solid #fef3c7 !important;
+    border-left: 4px solid #f59e0b !important;
+    color: var(--preview-text) !important;
+    padding: 12px 16px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+  }
+  #preview-area .dl-info::before {
+    content: "📋 DL情報";
+    font-weight: 700;
+    color: #d97706 !important;
+    display: block;
+    font-size: 0.85rem;
+    margin-bottom: 6px;
+    border-bottom: 1px dashed #fde68a;
+    padding-bottom: 4px;
+  }
+  
+  /* 共鳴判定 */
+  #preview-area .resonance-box {
+    background-color: #fef2f2 !important;
+    border-left: 4px solid #ef4444 !important;
+    padding: 10px 14px;
+    margin-bottom: 16px;
+    font-weight: 700;
+    color: #991b1b !important;
+    border-radius: 0 4px 4px 0;
+  }
+  #preview-area .resonance-box::before {
+    content: "🌀 ";
+  }
+
+  /* 🔍 探索可能箇所リスト表示ボックス */
+  #preview-area .search-box {
+    background-color: #f0fdfa !important; /* 淡いティール背景 */
+    border: 1px solid #ccfbf1 !important;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 16px;
+  }
+  #preview-area .search-title {
+    color: #0f766e !important;
+    font-weight: 700;
+    font-size: 0.9rem;
+    margin-bottom: 8px;
+    border-bottom: 1px dashed #99f6e4;
+    padding-bottom: 4px;
+  }
+  #preview-area .search-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  #preview-area .search-item {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #334155 !important;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  }
+
+  /* 🎲 技能判定ボックス */
+  #preview-area .roll-box {
+    border: 1px solid #dbeafe !important;
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  #preview-area .roll-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #eff6ff !important;
+    color: #1e40af !important;
+    font-weight: 700;
+    padding: 8px 12px;
+    border-bottom: 1px solid #dbeafe !important;
+    font-size: 0.9rem;
+  }
+
+  /* 提示推奨・強制などの提示タイプバッジ（エモクロアTRPG） */
+  #preview-area .roll-type-badge {
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: #ffffff !important;
+    font-weight: bold;
+    line-height: 1.2;
+    display: inline-block;
+  }
+  #preview-area .roll-type-badge.type-forced {
+    background-color: #dc2626 !important; /* 赤 */
+  }
+  #preview-area .roll-type-badge.type-recommended {
+    background-color: #2563eb !important; /* 青 */
+  }
+  #preview-area .roll-type-badge.type-secret {
+    background-color: #7c3aed !important; /* 紫 */
+  }
+
+  #preview-area .roll-results {
+    background-color: #ffffff !important;
+    padding: 10px 12px;
+  }
+  #preview-area .result-item {
+    display: flex;
+    margin-bottom: 8px;
+    align-items: baseline;
+  }
+  #preview-area .result-item:last-child {
+    margin-bottom: 0;
+  }
+  #preview-area .result-label {
+    flex-shrink: 0;
+    width: 80px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #ffffff !important;
+    text-align: center;
+    padding: 2px 4px;
+    border-radius: 4px;
+    margin-right: 12px;
+  }
+  #preview-area .result-text {
+    flex-grow: 1;
+    font-size: 0.9rem;
+    color: var(--preview-text) !important;
+  }
+
+  /* 判定ラベルの背景色 */
+  #preview-area .bg-miracle { background: var(--color-miracle) !important; }
+  #preview-area .bg-triple { background-color: var(--color-triple) !important; }
+  #preview-area .bg-double { background-color: var(--color-double) !important; }
+  #preview-area .bg-single { background-color: var(--color-single) !important; }
+  #preview-area .bg-fail { background-color: var(--color-fail) !important; }
+  #preview-area .bg-fumble { background-color: var(--color-fumble) !important; }
+  #preview-area .bg-catastrophe { background-color: var(--color-catastrophe) !important; }
+
+  /* TIPS・補足 (サイド) */
+  #preview-area .side-note {
+    background-color: #f0fdf4 !important;
+    border-top: 3px solid #22c55e !important;
+    padding: 10px 12px;
+    border-radius: 0 0 6px 6px;
+    font-size: 0.85rem;
+    color: #166534 !important;
+    margin-bottom: 16px;
+  }
+  #preview-area .side-note::before {
+    content: "💡 TIPS / 補足";
+    font-weight: 700;
+    display: block;
+    margin-bottom: 4px;
+    border-bottom: 1px solid #bbf7d0;
+    padding-bottom: 2px;
+  }
+
+  /* 本文中NPCカード表示用CSS */
+  #preview-area .npc-card {
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px;
+    padding: 16px;
+    background-color: #f8fafc !important;
+    margin-bottom: 16px;
+    font-size: 0.85rem;
+    color: var(--preview-text) !important;
+    box-sizing: border-box;
+  }
+  #preview-area .npc-card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 8px;
+  }
+  #preview-area .npc-card-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 6px;
+    background-color: #cbd5e1;
+    background-size: cover;
+    background-position: center;
+    flex-shrink: 0;
+  }
+  #preview-area .npc-card-name {
+    font-size: 1.05rem;
+    font-weight: 700;
+  }
+  #preview-area .npc-card-profile {
+    font-size: 0.75rem;
+    color: #64748b !important;
+  }
+  #preview-area .npc-card-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr) 3.5fr;
+    gap: 8px;
+    background-color: #ffffff !important;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #e2e8f0 !important;
+    margin-bottom: 8px;
+  }
+  #preview-area .npc-card-skills, 
+  #preview-area .npc-card-emotions {
+    margin-bottom: 6px;
+  }
+  #preview-area .npc-card-memo {
+    color: #475569 !important;
+    font-style: italic;
+    border-top: 1px dashed #e2e8f0;
+    padding-top: 6px;
+    margin-top: 6px;
+  }
+
+  /* === アシスタントパネル (タッチ入力支援) === */
+  .assistant-panel {
+    background-color: var(--bg-card);
+    border-top: 1px solid var(--border-color);
+    padding: 10px 20px;
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    white-space: nowrap;
+    align-items: center;
+    height: 60px;
+    box-sizing: border-box;
+  }
+  .panel-label {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-right: 8px;
+  }
+  .btn-panel {
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-panel:hover {
+    background-color: var(--border-color);
+    border-color: var(--text-secondary);
+  }
+
+  /* === 自動保存ステータス === */
+  .save-status {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  /* === モーダル基本スタイル === */
+  .modal {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background-color: rgba(0,0,0,0.6);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal.active {
+    display: flex;
+  }
+  .modal-content {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    width: 95%;
+    max-width: 600px;
+    max-height: 85%;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+  }
+  .modal-header {
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .modal-header h3 {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+  }
+  .btn-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+  }
+  .modal-body {
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  /* 入力フォームの共通スタイル */
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .form-row {
+    display: flex;
+    gap: 12px;
+  }
+  .form-row .form-group {
+    flex: 1;
+  }
+  .form-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+  .form-input {
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.95rem;
+    outline: none;
+  }
+  .form-input:focus {
+    border-color: var(--accent-color);
+  }
+
+  /* 8能力値グリッド */
+  .status-grid-8 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  /* 選択肢ボタンのグリッドスタイル */
+  .selector-tabs {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 10px;
+  }
+  .tab-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+  }
+  .tab-btn.active {
+    color: var(--accent-color);
+    border-bottom-color: var(--accent-color);
+  }
+  .selector-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 8px;
+    max-height: 160px;
+    overflow-y: auto;
+    padding: 8px 0;
+    border: 1px dashed var(--border-color);
+    border-radius: 6px;
+    padding: 8px;
+    background-color: rgba(0,0,0,0.1);
+  }
+  .selector-item {
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    text-align: center;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: all 0.15s;
+  }
+  .selector-item:hover {
+    border-color: var(--accent-color);
+    background-color: var(--border-color);
+  }
+
+  /* 排他的選択ラジオボタングループのスタイリング */
+  .radio-tile-group {
+    display: flex;
+    gap: 8px;
+    width: 100%;
+  }
+  .radio-tile-group input[type="radio"] {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    opacity: 0;
+    cursor: pointer;
+    z-index: 2;
+  }
+  .radio-tile-label {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 8px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+  }
+  .radio-tile-label:hover {
+    background-color: var(--border-color);
+  }
+  .radio-tile-group input[type="radio"]:checked + .radio-tile-label {
+    background-color: var(--accent-color);
+    border-color: var(--accent-color);
+    color: #ffffff !important;
+  }
+
+  /* チェックボックスグリッド */
+  .checkbox-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  .checkbox-item input[type="checkbox"] {
+    accent-color: var(--accent-color);
+    width: 16px;
+    height: 16px;
+  }
+
+  /* リストコンテナ等 */
+  .modal-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .list-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 350px;
+    overflow-y: auto;
+    padding-right: 5px;
+  }
+  
+  /* スクロールバー装飾 */
+  .list-container::-webkit-scrollbar,
+  .preview-section::-webkit-scrollbar,
+  .selector-grid::-webkit-scrollbar,
+  .npc-editor-area::-webkit-scrollbar {
+    width: 6px;
+  }
+  .list-container::-webkit-scrollbar-thumb,
+  .preview-section::-webkit-scrollbar-thumb,
+  .selector-grid::-webkit-scrollbar-thumb,
+  .npc-editor-area::-webkit-scrollbar-thumb {
+    background-color: var(--border-color);
+    border-radius: 3px;
+  }
+
+  .scenario-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    transition: all 0.2s;
+  }
+  .scenario-list-item:hover {
+    border-color: var(--accent-color);
+  }
+  .scenario-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    cursor: pointer;
+    flex-grow: 1;
+  }
+  .scenario-item-title {
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .scenario-item-date {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+  .scenario-item-actions {
+    display: flex;
+    gap: 8px;
+    margin-left: 15px;
+  }
+  .btn-small {
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    border-radius: 4px;
+  }
+  .btn-danger-small {
+    background-color: #ef4444;
+    border-color: #ef4444;
+    color: #fff;
+  }
+  .btn-danger-small:hover {
+    background-color: #dc2626;
+    border-color: #dc2626;
+  }
+
+  /* === NPC管理モーダル個別スタイル === */
+  .npc-sidebar {
+    width: 220px;
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-right: 15px;
+    flex-shrink: 0;
+  }
+  .npc-editor-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    overflow-y: auto;
+    padding-right: 5px;
+  }
+  .npc-list-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .npc-list-item:hover {
+    border-color: var(--accent-color);
+  }
+  .npc-list-item.active {
+    background-color: rgba(59, 130, 246, 0.15);
+    border-color: var(--accent-color);
+  }
+  .npc-avatar-thumb {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: var(--border-color);
+    background-size: cover;
+    background-position: center;
+    flex-shrink: 0;
+  }
+  .npc-name-span {
+    font-size: 0.85rem;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .npc-skill-badge {
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .npc-skill-badge .remove-btn {
+    cursor: pointer;
+    color: #ef4444;
+    font-weight: bold;
+  }
+
+  /* === モバイル/タブレット向けレスポンシブ (縦画面対応) === */
+  @media (max-width: 768px) {
+    .workspace {
+      flex-direction: column-reverse; /* 縦画面時は入力欄が下になるようリバース */
+    }
+    .editor-section {
+      border-right: none;
+      border-top: 1px solid var(--border-color); /* プレビューとの境界線を上に */
+      border-bottom: none;
+      height: 50%;
+    }
+    .preview-section {
+      height: 50%;
+    }
+    #preview-area .row {
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+    .modal-content-npc {
+      height: 95% !important;
+    }
+    .modal-body-npc {
+      flex-direction: column !important;
+    }
+    .npc-sidebar {
+      width: 100% !important;
+      height: 150px !important;
+      border-right: none !important;
+      border-bottom: 1px solid var(--border-color) !important;
+      padding-right: 0 !important;
+      padding-bottom: 15px !important;
+    }
+  }
+
+  /* === 印刷用スタイル (@media print) === */
+  @media print {
+    @page {
+      size: A4;
+      margin: 15mm; /* 標準的な印刷余白設定 */
+    }
+    body {
+      background-color: #ffffff !important;
+      color: #000000 !important;
+      overflow: visible !important;
+      height: auto !important;
+    }
+    .control-header,
+    .editor-section,
+    .assistant-panel,
+    .no-print,
+    .modal {
+      display: none !important;
+    }
+    .workspace {
+      display: block !important;
+      overflow: visible !important;
+      height: auto !important;
+    }
+    .preview-section {
+      display: block !important;
+      width: 100% !important;
+      height: auto !important;
+      overflow: visible !important;
+      background-color: #ffffff !important;
+    }
+    .preview-paper {
+      box-shadow: none !important;
+      padding: 0 !important;
+      background-color: #ffffff !important;
+    }
+    #preview-area .row {
+      display: grid !important;
+      grid-template-columns: 7.2fr 2.8fr !important;
+      gap: 20px !important;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+  }
+
+  /* === ショートカットキー設定モーダル個別スタイル === */
+  .shortcut-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-height: 48px;
+    box-sizing: border-box;
+  }
+  .shortcut-row:hover:not(.recording) {
+    border-color: var(--accent-color);
+    background-color: rgba(59, 130, 246, 0.05);
+  }
+  .shortcut-row.recording {
+    border-color: #eab308;
+    background-color: rgba(234, 179, 8, 0.08);
+    box-shadow: 0 0 10px rgba(234, 179, 8, 0.2);
+    animation: shortcut-recording-pulse 1.5s infinite alternate;
+  }
+  @keyframes shortcut-recording-pulse {
+    0% { border-color: rgba(234, 179, 8, 0.4); }
+    100% { border-color: rgba(234, 179, 8, 1); }
+  }
+  .shortcut-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .shortcut-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+  .shortcut-desc {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+  }
+  .shortcut-keys {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .kbd-badge {
+    background-color: var(--bg-app);
+    border: 1px solid var(--border-color);
+    border-bottom: 2px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Consolas', monospace;
+    font-size: 0.75rem;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.2);
+  }
+  .shortcut-recording-text {
+    font-size: 0.75rem;
+    color: #eab308;
+    font-weight: bold;
+    animation: text-blink 1s infinite alternate;
+  }
+  @keyframes text-blink {
+    0% { opacity: 0.4; }
+    100% { opacity: 1; }
+  }
+  .btn-shortcut-clear {
+    background: none;
+    border: none;
+    color: #ef4444;
+    cursor: pointer;
+    font-size: 1.1rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+  }
+  .btn-shortcut-clear:hover {
+    background-color: rgba(239, 68, 68, 0.15);
+  }
+</style>
+</head>
+<body>
+
+  <!-- ヘッダー -->
+  <header class="control-header">
+    <div class="header-left">
+      <div class="app-logo" onclick="openListModal()" title="シナリオ一覧を表示">
+        <span>📂</span> <span>一覧</span>
+      </div>
+      <span class="version-tag">v1.2.1</span>
+      <input type="text" id="scenario-title" class="scenario-title-input" value="無題のシナリオ" placeholder="シナリオタイトルを入力">
+      <span class="save-status" id="save-status">✓ 自動保存有効</span>
+    </div>
+    <div class="header-actions">
+      <button class="btn" onclick="openShortcutModal()">⌨️ ショートカット設定</button>
+      <button class="btn btn-primary" id="btn-cloud-save" onclick="saveToCloud()">☁ クラウド保存</button>
+      <button class="btn" onclick="triggerPrint()">🖨 PDF出力</button>
+    </div>
+  </header>
+
+  <!-- メインワークスペース -->
+  <div class="workspace">
+    
+    <!-- 左側：エディタ -->
+    <section class="editor-section">
+      <textarea id="editor" class="editor-textarea" placeholder="ここにシナリオを記述します... (Markdown記法が使えます)"></textarea>
+    </section>
+
+    <!-- 右側：プレビュー -->
+    <section class="preview-section">
+      <div class="preview-paper">
+        <div id="preview-area"></div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- 下部：執筆アシスタントパネル -->
+  <footer class="assistant-panel">
+    <span class="panel-label">クイック挿入:</span>
+    <button id="btn-shortcut-scene" class="btn-panel" onmousedown="event.preventDefault(); insertTemplate('scene')">🎬 シーン見出し</button>
+    <button id="btn-shortcut-search-title" class="btn-panel" onmousedown="event.preventDefault(); insertTemplate('search-title')">📌 探索小見出し</button>
+    <button id="btn-shortcut-search-list" class="btn-panel" onmousedown="event.preventDefault(); insertTemplate('search-list')">🔍 探索一覧</button>
+    <button id="btn-shortcut-read" class="btn-panel" onmousedown="event.preventDefault(); insertTemplate('read')">💬 情景描写</button>
+    <button id="btn-shortcut-dl" class="btn-panel" onmousedown="event.preventDefault(); insertTemplate('dl')">📋 DL情報</button>
+    <button id="btn-shortcut-roll" class="btn-panel" onmousedown="event.preventDefault(); openRollModal()">🎲 技能判定</button>
+    <button id="btn-shortcut-resonance" class="btn-panel" onmousedown="event.preventDefault(); openResonanceModal()">🌀 共鳴判定</button>
+    <button id="btn-shortcut-tips" class="btn-panel" onmousedown="event.preventDefault(); insertTemplate('tips')">💡 TIPS/補足</button>
+    <button id="btn-shortcut-npc" class="btn-panel" style="background-color: #1e293b; border-color: #3b82f6;" onmousedown="event.preventDefault(); openNpcModal()">👥 NPC管理</button>
+  </footer>
+
+  <!-- シナリオ一覧モーダル -->
+  <div id="list-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>📂 シナリオ一覧</h3>
+        <button class="btn-close" onclick="closeListModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-actions">
+          <button class="btn btn-primary" onclick="createNewScenario()">➕ 新規シナリオ作成</button>
+          <span id="modal-status" style="font-size: 0.85rem; color: var(--text-secondary);"></span>
+        </div>
+        <div id="scenario-list-container" class="list-container">
+          <!-- JSで動的に追加 -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🎲 技能判定モーダル -->
+  <div id="roll-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>🎲 技能判定の挿入</h3>
+        <button class="btn-close" onclick="closeRollModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="roll-skill-name">判定する技能名</label>
+          <input type="text" id="roll-skill-name" class="form-input" placeholder="例: 観察眼 または 調査">
+        </div>
+        
+        <!-- 技能クイックセレクタ -->
+        <div class="form-group">
+          <span class="form-label">エモクロア技能クイック選択（複数選択・押した順に結合）</span>
+          <div class="selector-tabs" id="skill-tabs">
+            <!-- カテゴリタブ -->
+          </div>
+          <div class="selector-grid" id="skill-grid">
+            <!-- 技能一覧ボタン -->
+          </div>
+        </div>
+
+        <!-- 提示タイプ (強制、提示推奨、非提示推奨) の選択欄 -->
+        <div class="form-group">
+          <span class="form-label">提示タイプ（エモクロアTRPG用）</span>
+          <div class="radio-tile-group">
+            <div style="flex: 1; position: relative;">
+              <input type="radio" id="type-none" name="roll-display-type" value="" checked>
+              <label for="type-none" class="radio-tile-label">設定なし</label>
+            </div>
+            <div style="flex: 1; position: relative;">
+              <input type="radio" id="type-forced" name="roll-display-type" value="強制">
+              <label for="type-forced" class="radio-tile-label">強制</label>
+            </div>
+            <div style="flex: 1; position: relative;">
+              <input type="radio" id="type-rec" name="roll-display-type" value="提示推奨">
+              <label for="type-rec" class="radio-tile-label">提示推奨</label>
+            </div>
+            <div style="flex: 1; position: relative;">
+              <input type="radio" id="type-secret" name="roll-display-type" value="非提示推奨">
+              <label for="type-secret" class="radio-tile-label">非提示推奨</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <span class="form-label">作成する成功度の枠（チェックをいれたものを生成）</span>
+          <div class="checkbox-grid">
+            <label class="checkbox-item"><input type="checkbox" id="check-miracle"> 奇跡的成功</label>
+            <label class="checkbox-item"><input type="checkbox" id="check-catastrophe"> 災厄級成功</label>
+            <label class="checkbox-item"><input type="checkbox" id="check-triple"> 極限成功</label>
+            <label class="checkbox-item"><input type="checkbox" id="check-double" checked> 効果的成功</label>
+            <label class="checkbox-item"><input type="checkbox" id="check-single" checked> 成功</label>
+            <label class="checkbox-item"><input type="checkbox" id="check-fail" checked> 失敗</label>
+            <label class="checkbox-item"><input type="checkbox" id="check-fumble"> 致命的失敗</label>
+          </div>
+        </div>
+
+        <div class="modal-actions" style="justify-content: flex-end; margin-top: 10px;">
+          <button class="btn btn-primary" onmousedown="event.preventDefault(); insertRollBlock()">決定（エディタへ挿入）</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🌀 共鳴判定モーダル -->
+  <div id="res-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>🌀 共鳴判定の挿入</h3>
+        <button class="btn-close" onclick="closeRollModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="res-intensity">判定強度</label>
+            <input type="number" id="res-intensity" class="form-input" value="5" min="1">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="res-up">上昇値</label>
+            <input type="number" id="res-up" class="form-input" value="1" min="0">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="res-emotion">共鳴感情</label>
+          <input type="text" id="res-emotion" class="form-input" placeholder="例: 憧憬（理想） / 恐怖（情念）">
+        </div>
+
+        <!-- 感情クイックセレクタ -->
+        <div class="form-group">
+          <span class="form-label">感情ルーツ クイック選択</span>
+          <div class="selector-tabs" id="emotion-tabs">
+            <!-- カテゴリタブ -->
+          </div>
+          <div class="selector-grid" id="emotion-grid" style="grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));">
+            <!-- 感情ボタン -->
+          </div>
+        </div>
+
+        <div class="modal-actions" style="justify-content: flex-end; margin-top: 10px;">
+          <button class="btn btn-primary" onmousedown="event.preventDefault(); insertResonanceBlock()">決定（エディタへ挿入）</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 👥 NPC管理モーダル -->
+  <div id="npc-modal" class="modal">
+    <div class="modal-content modal-content-npc" style="max-width: 800px; height: 85%;">
+      <div class="modal-header">
+        <h3>👥 NPC管理</h3>
+        <button class="btn-close" onclick="closeNpcModal()">&times;</button>
+      </div>
+      <div class="modal-body modal-body-npc" style="flex-direction: row; gap: 20px; padding: 15px; overflow: hidden; height: 100%;">
+        
+        <!-- NPC一覧サイドバー -->
+        <div class="npc-sidebar">
+          <button class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="addNewNpc()">➕ NPCを追加</button>
+          <div id="npc-list-container" class="list-container" style="flex: 1; overflow-y: auto;">
+            <!-- JSで追加 -->
+          </div>
+        </div>
+        
+        <!-- NPC編集エリア -->
+        <div id="npc-editor-area" class="npc-editor-area">
+          <p style="color: var(--text-secondary); text-align: center; margin-top: 100px;">左側のリストからNPCを選択するか、新規追加してください。</p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ⌨️ ショートカット設定モーダル -->
+  <div id="shortcut-modal" class="modal">
+    <div class="modal-content" style="max-width: 500px; height: 80%; display: flex; flex-direction: column;">
+      <div class="modal-header">
+        <h3>⌨️ ショートカットキー設定</h3>
+        <button class="btn-close" onclick="closeShortcutModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 15px;">
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0; line-height: 1.5;">
+          各挿入アクションや操作にキーボードショートカットを割り当てられます。<br>
+          <strong style="color: #eab308;">【登録ルール】:</strong> 修飾キー（<kbd class="kbd-badge">Ctrl</kbd> または <kbd class="kbd-badge">Alt</kbd>）との組み合わせ、またはファンクションキー等の特殊キー単体である必要があります（執筆時の文字入力を妨げないため）。
+        </p>
+        
+        <div id="shortcut-alert" style="display: none; padding: 10px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; line-height: 1.4; background-color: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171;"></div>
+        
+        <div id="shortcut-list-container" class="list-container" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
+          <!-- JavaScriptで動的に追加 -->
+        </div>
+      </div>
+      <div class="modal-footer" style="padding: 15px; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; background-color: var(--bg-card);">
+        <button class="btn" onclick="resetShortcutsToDefault()">デフォルトに戻す</button>
+        <button class="btn btn-primary" onclick="closeShortcutModal()">完了</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- スクリプト -->
+  <script>
+    // 1. ヘルパー関数 (最優先で定義してホイスティング/未定義エラーを防止)
+    function generateUUID() {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    }
+
+    function escapeHTML(str) {
+      if (!str) return '';
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // エモクロアTRPG技能データ定義 (公式の7種別ごとに細分化)
+    const EMOKLORE_SKILLS = {
+      "調査系": ["＊調査", "検索", "洞察", "マッピング", "直感", "鑑定"],
+      "知覚系": ["＊知覚", "観察眼", "聞き耳", "毒見", "危機察知", "霊感"],
+      "交渉系": ["＊交渉", "社交術", "ディベート", "魅了", "心理"],
+      "情報系": ["＊知識", "＊ニュース", "専門知識", "事情通", "業界"],
+      "運動系": ["＊運動", "＊格闘", "＊投擲", "スピード", "ストレングス", "アクロバット", "ダイブ", "武術", "奥義", "射撃"],
+      "生存系": ["＊生存", "＊自我", "＊手当て", "耐久", "根性", "医術", "蘇生"],
+      "特殊系": ["＊細工", "＊幸運", "技巧", "芸術", "操縦", "暗号", "電脳", "隠匿", "強運"]
+    };
+
+    // 共鳴感情データ定義 (属性別に細分化)
+    const EMOKLORE_EMOTIONS = {
+      "欲望": ["自己顕示", "所有", "本能", "破壊", "優越感", "怠惰", "逃避", "好奇心", "スリル"],
+      "情念": ["喜び", "怒り", "哀しみ", "幸福", "不安", "嫌悪", "恐怖", "嫉妬", "恨み"],
+      "理想": ["正義", "崇拝", "善悪", "希望", "向上", "理性", "勝利", "秩序", "憧憬", "無我"],
+      "関係": ["友情", "愛", "恋", "依存", "尊敬", "軽蔑", "庇護", "支配", "奉仕", "甘え"],
+      "傷": ["後悔", "孤独", "諦観", "絶望", "否定", "疑念", "罪悪感", "狂気", "劣等感"]
+    };
+
+    // 2. グローバルステート
+    let currentScenarioId = generateUUID();
+    let currentNpcs = []; // 現在のNPCデータ一覧
+    let selectedNpcId = null; // 選択中のNPC ID
+    let isSaving = false;
+    let debounceTimer;
+    
+    // 判定モーダルでの複数技能選択状態管理 (押した順番)
+    let rollModalSelectedSkills = [];
+
+    // === ショートカットキー設定 ===
+    const DEFAULT_SHORTCUTS = {
+      'scene': { key: '1', altKey: true, ctrlKey: false, shiftKey: false, label: '🎬 シーン見出し', desc: '行頭に # を挿入' },
+      'search-title': { key: '2', altKey: true, ctrlKey: false, shiftKey: false, label: '📌 探索小見出し', desc: '行頭に ## を挿入' },
+      'search-list': { key: '3', altKey: true, ctrlKey: false, shiftKey: false, label: '🔍 探索一覧', desc: '探索箇所ブロックを挿入' },
+      'read': { key: '4', altKey: true, ctrlKey: false, shiftKey: false, label: '💬 情景描写', desc: '行頭に > を挿入' },
+      'dl': { key: '5', altKey: true, ctrlKey: false, shiftKey: false, label: '📋 DL情報', desc: '行頭に [DL] を挿入' },
+      'roll': { key: '6', altKey: true, ctrlKey: false, shiftKey: false, label: '🎲 技能判定', desc: '技能判定モーダルを開く' },
+      'resonance': { key: '7', altKey: true, ctrlKey: false, shiftKey: false, label: '🌀 共鳴判定', desc: '共鳴判定モーダルを開く' },
+      'tips': { key: '8', altKey: true, ctrlKey: false, shiftKey: false, label: '💡 TIPS/補足', desc: '行末に >> [TIPS] を挿入' },
+      'npc': { key: '9', altKey: true, ctrlKey: false, shiftKey: false, label: '👥 NPC管理', desc: 'NPC管理モーダルを開く' },
+      'cloud-save': { key: 's', altKey: false, ctrlKey: true, shiftKey: false, label: '☁ クラウド保存', desc: '編集データをクラウド保存' }
+    };
+
+    let shortcuts = {};
+    let recordingActionId = null; // キーバインド記録中のアクションID
+
+    // DOM要素の保持用変数
+    let editor, previewArea, scenarioTitle, saveStatus;
+    let listModal, scenarioListContainer, modalStatus, btnCloudSave;
+    let rollModal, resModal, npcModal, npcListContainer, npcEditorArea;
+    let shortcutModal, shortcutListContainer, shortcutAlert;
+
+    // === API 抽象化レイヤー ===
+    const API = {
+      isGas: typeof google !== 'undefined' && google.script && google.script.run,
+      
+      listScenarios() {
+        return new Promise((resolve, reject) => {
+          if (this.isGas) {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(reject)
+              .listScenarios();
+          } else {
+            const db = JSON.parse(localStorage.getItem('trpg_mock_db_scenarios') || '[]');
+            resolve(db.map(s => ({
+              id: s.id,
+              title: s.title,
+              updated_at: s.updated_at
+            })));
+          }
+        });
+      },
+      
+      loadScenario(id) {
+        return new Promise((resolve, reject) => {
+          if (this.isGas) {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(reject)
+              .loadScenario(id);
+          } else {
+            const db = JSON.parse(localStorage.getItem('trpg_mock_db_scenarios') || '[]');
+            const sc = db.find(s => s.id === id);
+            if (sc) {
+              resolve(sc);
+            } else {
+              reject(new Error('シナリオが見つかりません。'));
+            }
+          }
+        });
+      },
+      
+      saveScenario(id, title, content, npcsData = []) {
+        return new Promise((resolve, reject) => {
+          if (this.isGas) {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(reject)
+              .saveScenario(id, title, content, npcsData);
+          } else {
+            const db = JSON.parse(localStorage.getItem('trpg_mock_db_scenarios') || '[]');
+            const index = db.findIndex(s => s.id === id);
+            const now = new Date().toISOString();
+            const data = { id, title, content, npcs: npcsData, updated_at: now };
+            
+            if (index !== -1) {
+              db[index] = data;
+            } else {
+              db.push(data);
+            }
+            localStorage.setItem('trpg_mock_db_scenarios', JSON.stringify(db));
+            resolve({ success: true, updated_at: now });
+          }
+        });
+      },
+      
+      deleteScenario(id) {
+        return new Promise((resolve, reject) => {
+          if (this.isGas) {
+            google.script.run
+              .withSuccessHandler(resolve)
+              .withFailureHandler(reject)
+              .deleteScenario(id);
+          } else {
+            let db = JSON.parse(localStorage.getItem('trpg_mock_db_scenarios') || '[]');
+            db = db.filter(s => s.id !== id);
+            localStorage.setItem('trpg_mock_db_scenarios', JSON.stringify(db));
+            resolve({ success: true });
+          }
+        });
+      }
+    };
+
+    // 初期起動時の復元
+    window.addEventListener('DOMContentLoaded', () => {
+      try {
+        // DOM要素のバインド
+        editor = document.getElementById('editor');
+        previewArea = document.getElementById('preview-area');
+        scenarioTitle = document.getElementById('scenario-title');
+        saveStatus = document.getElementById('save-status');
+        listModal = document.getElementById('list-modal');
+        scenarioListContainer = document.getElementById('scenario-list-container');
+        modalStatus = document.getElementById('modal-status');
+        btnCloudSave = document.getElementById('btn-cloud-save');
+        rollModal = document.getElementById('roll-modal');
+        resModal = document.getElementById('res-modal');
+        npcModal = document.getElementById('npc-modal');
+        npcListContainer = document.getElementById('npc-list-container');
+        npcEditorArea = document.getElementById('npc-editor-area');
+        shortcutModal = document.getElementById('shortcut-modal');
+        shortcutListContainer = document.getElementById('shortcut-list-container');
+        shortcutAlert = document.getElementById('shortcut-alert');
+
+        const lastId = localStorage.getItem('trpg_current_id');
+        const cachedContent = localStorage.getItem('trpg_scenario_content');
+        const cachedTitle = localStorage.getItem('trpg_scenario_title');
+        const cachedNpcs = localStorage.getItem('trpg_npcs_cache');
+        
+        if (lastId) currentScenarioId = lastId;
+        if (cachedContent !== null && editor) editor.value = cachedContent;
+        if (cachedTitle !== null && scenarioTitle) scenarioTitle.value = cachedTitle;
+        
+        try {
+          if (cachedNpcs) {
+            currentNpcs = JSON.parse(cachedNpcs);
+          } else {
+            currentNpcs = [];
+          }
+        } catch (e) {
+          console.error("NPCキャッシュのデコードに失敗しました:", e);
+          currentNpcs = [];
+        }
+        
+        if (btnCloudSave) {
+          if (API.isGas) {
+            btnCloudSave.innerText = '☁ クラウド保存';
+          } else {
+            btnCloudSave.innerText = '💾 クラウド保存 (ローカルデバッグ中)';
+          }
+        }
+        
+        updatePreview();
+        initRollModalData();
+        initResonanceModalData();
+        
+        if (editor) editor.addEventListener('input', handleInput);
+        if (scenarioTitle) scenarioTitle.addEventListener('input', handleInput);
+        
+        // 技能入力欄の手動入力時に選択バッジ状態を連動リセット
+        const skillInput = document.getElementById('roll-skill-name');
+        if (skillInput) {
+          skillInput.addEventListener('input', () => {
+            rollModalSelectedSkills = [];
+            const activeTab = document.querySelector('#skill-tabs .tab-btn.active');
+            if (activeTab) {
+              renderSkillGrid(activeTab.innerText);
+            }
+          });
+        }
+
+        // ショートカット設定のロードとラベル初期化、およびリスナー追加
+        loadShortcuts();
+        updateAssistantPanelShortcutLabels();
+        window.addEventListener('keydown', handleGlobalKeydown);
+      } catch (e) {
+        console.error("アプリケーション初期化エラー:", e);
+        const errorArea = document.getElementById('preview-area');
+        if (errorArea) {
+          errorArea.innerHTML = `<div style="color: #ef4444; padding: 20px; font-weight: bold; background: white;">初期化エラーが発生しました: ${e.message}<br>ブラウザのキャッシュをクリアして再試行してください。</div>`;
+        }
+      }
+    });
+
+    // 入力監視とLocalStorage自動保存
+    function handleInput() {
+      if (saveStatus) saveStatus.innerText = '● 入力中...';
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        saveToLocal();
+        updatePreview();
+      }, 500);
+    }
+
+    function saveToLocal() {
+      if (!editor || !scenarioTitle) return;
+      localStorage.setItem('trpg_current_id', currentScenarioId);
+      localStorage.setItem('trpg_scenario_content', editor.value);
+      localStorage.setItem('trpg_scenario_title', scenarioTitle.value);
+      localStorage.setItem('trpg_npcs_cache', JSON.stringify(currentNpcs));
+      
+      const now = new Date();
+      const timeStr = now.toTimeString().split(' ')[0].substring(0, 5);
+      if (saveStatus) saveStatus.innerText = `✓ ローカル自動保存済み (${timeStr})`;
+    }
+
+    function updatePreview() {
+      if (!previewArea || !editor) return;
+      const markdownText = editor.value;
+      previewArea.innerHTML = parseMarkdown(markdownText);
+    }
+
+    // クラウド保存
+    function saveToCloud() {
+      if (isSaving || !editor || !scenarioTitle) return;
+      isSaving = true;
+      if (btnCloudSave) {
+        btnCloudSave.disabled = true;
+        btnCloudSave.innerText = '保存中...';
+      }
+      if (saveStatus) saveStatus.innerText = '● クラウドへ保存中...';
+
+      const title = scenarioTitle.value || '無題のシナリオ';
+      const content = editor.value;
+
+      API.saveScenario(currentScenarioId, title, content, currentNpcs)
+        .then(res => {
+          const now = new Date(res.updated_at);
+          const timeStr = now.toTimeString().split(' ')[0].substring(0, 5);
+          if (saveStatus) saveStatus.innerText = `✓ クラウド保存完了 (${timeStr})`;
+          saveToLocal();
+        })
+        .catch(err => {
+          alert('クラウド保存に失敗しました:\n' + err.message);
+          if (saveStatus) saveStatus.innerText = '❌ 保存失敗';
+        })
+        .finally(() => {
+          isSaving = false;
+          if (btnCloudSave) {
+            btnCloudSave.disabled = false;
+            btnCloudSave.innerText = API.isGas ? '☁ クラウド保存' : '💾 クラウド保存 (デバッグ)';
+          }
+        });
+    }
+
+    // シナリオ一覧モーダル制御
+    function openListModal() {
+      if (!listModal) return;
+      listModal.classList.add('active');
+      if (modalStatus) modalStatus.innerText = '読み込み中...';
+      if (scenarioListContainer) scenarioListContainer.innerHTML = '';
+      
+      API.listScenarios()
+        .then(scenarios => {
+          if (modalStatus) modalStatus.innerText = '';
+          if (!scenarioListContainer) return;
+          
+          if (scenarios.length === 0) {
+            scenarioListContainer.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">保存されているシナリオはありません。</div>';
+            return;
+          }
+          
+          scenarios.forEach(s => {
+            const date = s.updated_at ? new Date(s.updated_at).toLocaleString('ja-JP', { hour12: false }) : '不明';
+            const item = document.createElement('div');
+            item.className = 'scenario-list-item';
+            
+            item.innerHTML = `
+              <div class="scenario-item-info" onclick="selectScenario('${s.id}')">
+                <span class="scenario-item-title">${escapeHTML(s.title || '無題のシナリオ')}</span>
+                <span class="scenario-item-date">最終更新: ${date}</span>
+              </div>
+              <div class="scenario-item-actions">
+                <button class="btn btn-small btn-danger-small" onclick="deleteScenario('${s.id}', event)">削除</button>
+              </div>
+            `;
+            scenarioListContainer.appendChild(item);
+          });
+        })
+        .catch(err => {
+          if (modalStatus) modalStatus.innerText = 'エラーが発生しました。';
+          if (scenarioListContainer) {
+            scenarioListContainer.innerHTML = `<div style="color: #ef4444; padding: 10px;">${escapeHTML(err.message)}</div>`;
+          }
+        });
+    }
+
+    function closeListModal() {
+      if (listModal) listModal.classList.remove('active');
+    }
+
+    function createNewScenario() {
+      if (!editor || !scenarioTitle) return;
+      if (editor.value.trim() && !confirm('現在編集中の内容は上書きされますがよろしいですか？\n(必要であれば先にクラウド保存してください)')) {
+        return;
+      }
+      currentScenarioId = generateUUID();
+      scenarioTitle.value = '無題のシナリオ';
+      editor.value = '';
+      currentNpcs = [];
+      selectedNpcId = null;
+      saveToLocal();
+      updatePreview();
+      closeListModal();
+    }
+
+    function selectScenario(id) {
+      if (!editor || !scenarioTitle) return;
+      if (editor.value.trim() && !confirm('現在編集中の内容は上書きされますがよろしいですか？\n(必要であれば先にクラウド保存してください)')) {
+        return;
+      }
+      if (modalStatus) modalStatus.innerText = '読み込み中...';
+      API.loadScenario(id)
+        .then(res => {
+          currentScenarioId = res.id;
+          scenarioTitle.value = res.title || '無題のシナリオ';
+          editor.value = res.content || '';
+          
+          if (res.npcs && Array.isArray(res.npcs)) {
+            currentNpcs = res.npcs.map(n => {
+              let status = {};
+              try {
+                status = typeof n.statusJson === 'string' ? JSON.parse(n.statusJson) : n.statusJson;
+              } catch(e) {
+                status = {};
+              }
+              return {
+                id: n.id,
+                name: n.name,
+                avatarUrl: n.avatarUrl,
+                status: status,
+                memo: n.memo
+              };
+            });
+          } else {
+            currentNpcs = [];
+          }
+          selectedNpcId = null;
+          
+          saveToLocal();
+          updatePreview();
+          closeListModal();
+        })
+        .catch(err => {
+          alert('読み込みに失敗しました:\n' + err.message);
+          if (modalStatus) modalStatus.innerText = '';
+        });
+    }
+
+    function deleteScenario(id, event) {
+      if (!editor || !scenarioTitle) return;
+      event.stopPropagation();
+      if (!confirm('本当にこのシナリオを削除しますか？\nこの操作は取り消せません。')) {
+        return;
+      }
+      if (modalStatus) modalStatus.innerText = '削除中...';
+      API.deleteScenario(id)
+        .then(() => {
+          if (currentScenarioId === id) {
+            currentScenarioId = generateUUID();
+            scenarioTitle.value = '無題のシナリオ';
+            editor.value = '';
+            currentNpcs = [];
+            selectedNpcId = null;
+            saveToLocal();
+            updatePreview();
+          }
+          openListModal();
+        })
+        .catch(err => {
+          alert('削除に失敗しました:\n' + err.message);
+          if (modalStatus) modalStatus.innerText = '';
+        });
+    }
+
+    // === 🎲 技能判定モーダル制御・データ初期化 ===
+    function initRollModalData() {
+      const tabsContainer = document.getElementById('skill-tabs');
+      if (!tabsContainer) return;
+      tabsContainer.innerHTML = '';
+      
+      let isFirst = true;
+      for (const category in EMOKLORE_SKILLS) {
+        const tabBtn = document.createElement('button');
+        tabBtn.className = `tab-btn ${isFirst ? 'active' : ''}`;
+        tabBtn.innerText = category;
+        tabBtn.onmousedown = (e) => {
+          e.preventDefault();
+          document.querySelectorAll('#skill-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+          tabBtn.classList.add('active');
+          renderSkillGrid(category);
+        };
+        tabsContainer.appendChild(tabBtn);
+        
+        if (isFirst) {
+          renderSkillGrid(category);
+          isFirst = false;
+        }
+      }
+    }
+
+    function renderSkillGrid(category) {
+      const gridContainer = document.getElementById('skill-grid');
+      if (!gridContainer) return;
+      gridContainer.innerHTML = '';
+      
+      const skills = EMOKLORE_SKILLS[category];
+      skills.forEach(skill => {
+        const item = document.createElement('div');
+        
+        // 複数選択の状態判定
+        const idx = rollModalSelectedSkills.indexOf(skill);
+        const isSelected = idx !== -1;
+        
+        item.className = `selector-item ${isSelected ? 'active' : ''}`;
+        
+        // 選択された順番を示すバッジ（数字）のHTMLを生成
+        let badgeHTML = '';
+        if (isSelected) {
+          badgeHTML = `<span style="position: absolute; top: -5px; right: -5px; background-color: var(--accent-hover); color: #ffffff; border-radius: 50%; width: 16px; height: 16px; font-size: 0.65rem; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 1px solid #ffffff; z-index: 10;">${idx + 1}</span>`;
+          item.style.borderColor = 'var(--accent-color)';
+          item.style.backgroundColor = 'rgba(59, 130, 246, 0.15)';
+        }
+        item.style.position = 'relative'; // バッジ用
+
+        item.innerHTML = `<span>${skill}</span>${badgeHTML}`;
+        
+        item.onmousedown = (e) => {
+          e.preventDefault();
+          toggleSkillSelection(skill, category);
+        };
+        gridContainer.appendChild(item);
+      });
+    }
+
+    // 複数選択トグル ＆ 押した順番に自動結合
+    function toggleSkillSelection(skill, category) {
+      const idx = rollModalSelectedSkills.indexOf(skill);
+      if (idx !== -1) {
+        // すでに選択されていれば解除
+        rollModalSelectedSkills.splice(idx, 1);
+      } else {
+        // 未選択なら最後に追加（押した順）
+        rollModalSelectedSkills.push(skill);
+      }
+
+      // テキストボックスの値を 押した順番で "または" 結合して自動更新
+      const input = document.getElementById('roll-skill-name');
+      if (input) {
+        input.value = rollModalSelectedSkills.join(' または ');
+      }
+
+      // グリッドを更新して選択状態とインデックス数字バッジを反映
+      renderSkillGrid(category);
+    }
+
+    function openRollModal() {
+      if (rollModal) {
+        rollModal.classList.add('active');
+        document.getElementById('roll-skill-name').value = '';
+        document.getElementById('type-none').checked = true; // 提示タイプをリセット
+        rollModalSelectedSkills = []; // 選択中の技能をクリア
+        
+        const activeTab = document.querySelector('#skill-tabs .tab-btn.active');
+        if (activeTab) {
+          renderSkillGrid(activeTab.innerText);
+        }
+      }
+    }
+
+    function closeRollModal() {
+      if (rollModal) rollModal.classList.remove('active');
+    }
+
+    function insertRollBlock() {
+      const skillName = document.getElementById('roll-skill-name').value.trim() || '技能名';
+      
+      // 提示タイプ取得
+      const typeElements = document.getElementsByName('roll-display-type');
+      let displayType = '';
+      for (const el of typeElements) {
+        if (el.checked) {
+          displayType = el.value;
+          break;
+        }
+      }
+
+      const tagSuffix = displayType ? `/${displayType}` : '';
+      let template = `\n\n[判定:${skillName}${tagSuffix}]\n`;
+      if (document.getElementById('check-miracle').checked) template += '- 奇跡的成功: \n';
+      if (document.getElementById('check-catastrophe').checked) template += '- 災厄級成功: \n';
+      if (document.getElementById('check-triple').checked) template += '- 極限成功: \n';
+      if (document.getElementById('check-double').checked) template += '- 効果的成功: \n';
+      if (document.getElementById('check-single').checked) template += '- 成功: \n';
+      if (document.getElementById('check-fail').checked) template += '- 失敗: \n';
+      if (document.getElementById('check-fumble').checked) template += '- 致命的失敗: \n';
+
+      insertAtCursor(template);
+      closeRollModal();
+      handleInput();
+    }
+
+    // === 🌀 共鳴判定モーダル制御・データ初期化 ===
+    function initResonanceModalData() {
+      const tabsContainer = document.getElementById('emotion-tabs');
+      if (!tabsContainer) return;
+      tabsContainer.innerHTML = '';
+      
+      let isFirst = true;
+      for (const category in EMOKLORE_EMOTIONS) {
+        const tabBtn = document.createElement('button');
+        tabBtn.className = `tab-btn ${isFirst ? 'active' : ''}`;
+        tabBtn.innerText = category;
+        tabBtn.onmousedown = (e) => {
+          e.preventDefault();
+          document.querySelectorAll('#emotion-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+          tabBtn.classList.add('active');
+          renderEmotionGrid(category);
+        };
+        tabsContainer.appendChild(tabBtn);
+        
+        if (isFirst) {
+          renderEmotionGrid(category);
+          isFirst = false;
+        }
+      }
+    }
+
+    function renderEmotionGrid(category) {
+      const gridContainer = document.getElementById('emotion-grid');
+      if (!gridContainer) return;
+      gridContainer.innerHTML = '';
+      
+      const emotions = EMOKLORE_EMOTIONS[category];
+      emotions.forEach(emotion => {
+        const item = document.createElement('div');
+        item.className = 'selector-item';
+        item.innerText = emotion;
+        item.onmousedown = (e) => {
+          e.preventDefault();
+          document.getElementById('res-emotion').value = `${emotion}（${category}）`;
+        };
+        gridContainer.appendChild(item);
+      });
+    }
+
+    function openResonanceModal() {
+      if (resModal) {
+        resModal.classList.add('active');
+        document.getElementById('res-emotion').value = '';
+        document.getElementById('res-intensity').value = '5';
+        document.getElementById('res-up').value = '1';
+      }
+    }
+
+    function closeResModal() {
+      if (resModal) resModal.classList.remove('active');
+    }
+
+    function insertResonanceBlock() {
+      const intensity = document.getElementById('res-intensity').value || '5';
+      const up = document.getElementById('res-up').value || '1';
+      const emotion = document.getElementById('res-emotion').value.trim() || '感情';
+      
+      const template = `\n\n[共鳴:${intensity}/${up}/${emotion}]\n`;
+      
+      insertAtCursor(template);
+      closeResModal();
+      handleInput();
+    }
+
+    // === 👥 NPC管理モーダル制御 ===
+    function openNpcModal() {
+      if (npcModal) {
+        npcModal.classList.add('active');
+        renderNpcList();
+        renderNpcEditor();
+      }
+    }
+
+    function closeNpcModal() {
+      if (npcModal) npcModal.classList.remove('active');
+      saveToLocal();
+      updatePreview(); // 本文内のNPCカード描画をリフレッシュ
+    }
+
+    function renderNpcList() {
+      if (!npcListContainer) return;
+      npcListContainer.innerHTML = '';
+      
+      if (currentNpcs.length === 0) {
+        npcListContainer.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 10px; font-size: 0.8rem;">登録されたNPCはいません。</div>';
+        return;
+      }
+      
+      currentNpcs.forEach(npc => {
+        const item = document.createElement('div');
+        item.className = `npc-list-item ${selectedNpcId === npc.id ? 'active' : ''}`;
+        item.onclick = () => {
+          selectedNpcId = npc.id;
+          renderNpcList();
+          renderNpcEditor();
+        };
+        
+        const avatarStyle = npc.avatarUrl ? `background-image: url('${escapeHTML(npc.avatarUrl)}');` : '';
+        
+        item.innerHTML = `
+          <div class="npc-avatar-thumb" style="${avatarStyle}"></div>
+          <span class="npc-name-span">${escapeHTML(npc.name || '新規NPC')}</span>
+        `;
+        npcListContainer.appendChild(item);
+      });
+    }
+
+    // NPC詳細エディタのレンダリング (共鳴者シート準拠 - 8能力値版)
+    function renderNpcEditor() {
+      if (!npcEditorArea) return;
+      if (!selectedNpcId) {
+        npcEditorArea.innerHTML = '<p style="color: var(--text-secondary); text-align: center; margin-top: 100px;">左側のリストからNPCを選択するか、追加してください。</p>';
+        return;
+      }
+      
+      const npc = currentNpcs.find(n => n.id === selectedNpcId);
+      if (!npc) {
+        selectedNpcId = null;
+        renderNpcEditor();
+        return;
+      }
+      
+      // データ初期化/下位互換性確保
+      if (!npc.status) npc.status = {};
+      if (!npc.status.skills) npc.status.skills = [];
+      if (!npc.status.emotions) npc.status.emotions = [];
+      
+      // 共鳴者8能力値
+      const str = npc.status.str || '';
+      const agi = npc.status.agi || '';
+      const dex = npc.status.dex || '';
+      const spi = npc.status.spi || '';
+      const sen = npc.status.sen || '';
+      const int = npc.status.int || '';
+      const cha = npc.status.cha || '';
+      const soc = npc.status.soc || '';
+      
+      // 基本プロフィール
+      const gender = npc.status.gender || '';
+      const age = npc.status.age || '';
+      const occupation = npc.status.occupation || '';
+      
+      // 技能バッジ生成
+      let skillsHTML = '';
+      npc.status.skills.forEach((skill, index) => {
+        skillsHTML += `
+          <span class="npc-skill-badge">
+            ${escapeHTML(skill)}
+            <span class="remove-btn" onclick="removeNpcSkill(${index})">&times;</span>
+          </span>
+        `;
+      });
+
+      // 共鳴感情バッジ生成
+      let emotionsHTML = '';
+      npc.status.emotions.forEach((emotion, index) => {
+        emotionsHTML += `
+          <span class="npc-skill-badge" style="background-color: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3);">
+            ${escapeHTML(emotion)}
+            <span class="remove-btn" onclick="removeNpcEmotion(${index})">&times;</span>
+          </span>
+        `;
+      });
+
+      const avatarStyle = npc.avatarUrl ? `background-image: url('${escapeHTML(npc.avatarUrl)}');` : '';
+
+      npcEditorArea.innerHTML = `
+        <!-- 本文挿入ヘルパーパネル -->
+        <div style="background-color: var(--bg-input); border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
+          <span style="font-size: 0.8rem; font-weight: 700; color: var(--accent-color);">✍️ 本文への挿入ヘルパー</span>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button class="btn btn-small btn-primary" onclick="insertNpcTextHelper('profile')">📝 プロフィールを挿入</button>
+            <button class="btn btn-small" style="background-color: #1e293b;" onclick="insertNpcTextHelper('card')">🏷️ NPCカード記法を挿入</button>
+            <button class="btn btn-small" style="background-color: #0f172a;" onclick="insertNpcTextHelper('quote')">🗣️ セリフ用タグを挿入</button>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group" style="flex: 2;">
+            <label class="form-label">NPC名</label>
+            <input type="text" class="form-input" value="${escapeHTML(npc.name || '')}" oninput="updateNpcField('name', this.value)">
+          </div>
+          <div class="form-group">
+            <label class="form-label">年齢</label>
+            <input type="text" class="form-input" value="${escapeHTML(age)}" placeholder="例: 17" oninput="updateNpcStatusField('age', this.value)">
+          </div>
+          <div class="form-group">
+            <label class="form-label">性別</label>
+            <input type="text" class="form-input" value="${escapeHTML(gender)}" placeholder="例: 女性" oninput="updateNpcStatusField('gender', this.value)">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group" style="flex: 2;">
+            <label class="form-label">職業</label>
+            <input type="text" class="form-input" value="${escapeHTML(occupation)}" placeholder="例: 高校生" oninput="updateNpcStatusField('occupation', this.value)">
+          </div>
+          
+          <!-- アバター画像ローカル読み込み (URL入力欄を廃止し、ローカルファイル読み込みに一本化) -->
+          <div class="form-group" style="flex: 2;">
+            <label class="form-label">立ち絵画像</label>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div id="npc-editor-avatar-preview" style="width: 40px; height: 40px; border-radius: 50%; background-color: var(--bg-input); background-size: cover; background-position: center; border: 1px solid var(--border-color); ${avatarStyle}"></div>
+              <input type="file" id="npc-avatar-file" accept="image/*" style="display: none;" onchange="handleNpcAvatarFile(this)">
+              <button class="btn btn-small" onclick="document.getElementById('npc-avatar-file').click()">画像を選択</button>
+              <button class="btn btn-small btn-danger-small" style="padding: 6px 10px;" onclick="clearNpcAvatar()">削除</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 8能力値 (はみ出しを防ぐため4列×2行のグリッドレイアウト) -->
+        <div style="border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; background-color: rgba(0,0,0,0.15); box-sizing: border-box; width: 100%;">
+          <span class="form-label" style="display: block; margin-bottom: 8px; font-weight: 700; color: var(--text-primary);">📊 能力値（共鳴者ステータス）</span>
+          
+          <div class="status-grid-8">
+            <div class="form-group">
+              <label class="form-label" style="font-size: 0.75rem;">身体</label>
+              <input type="number" id="npc-str" class="form-input" style="padding: 6px 8px; font-size: 0.85rem;" value="${escapeHTML(str)}" min="1" max="10" oninput="updateNpcStatusField('str', this.value); calculateHpMp();">
+            </div>
+            <div class="form-group">
+              <label class="form-label" style="font-size: 0.75rem;">敏捷</label>
+              <input type="number" class="form-input" style="padding: 6px 8px; font-size: 0.85rem;" value="${escapeHTML(agi)}" min="1" max="10" oninput="updateNpcStatusField('agi', this.value)">
+            </div>
+            <div class="form-group">
+              <label class="form-label" style="font-size: 0.75rem;">器用</label>
+              <input type="number" class="form-input" style="padding: 6px 8px; font-size: 0.85rem;" value="${escapeHTML(dex)}" min="1" max="10" oninput="updateNpcStatusField('dex', this.value)">
+            </div>
+            <div class="form-group">
+              <label class="form-label" style="font-size: 0.75rem;">精神</label>
+              <input type="number" id="npc-spi" class="form-input" style="padding: 6px 8px; font-size: 0.85rem;" value="${escapeHTML(spi)}" min="1" max="10" oninput="updateNpcStatusField('spi', this.value); calculateHpMp();">
+            </div>
+            <div class="form-group">
+              <label class="form-label" style="font-size: 0.75rem;">五感</label>
+              <input type="number" class="form-input" style="padding: 6px 8px; font-size: 0.85rem;" value="${escapeHTML(sen)}" min="1" max="10" oninput="updateNpcStatusField('sen', this.value)">
+            </div>
+            <div class="form-group">
+              <label class="form-label" style="font-size: 0.75rem;">知性</label>
+              <input type="number" class="form-input" style="padding: 6px 8px; font-size: 0.85rem;" value="${escapeHTML(int)}" min="1" max="10" oninput="updateNpcStatusField('int', this.value)">
+            </div>
+            <div class="form-group">
+              <label class="form-label" style="font-size: 0.75rem;">魅力</label>
+              <input type="number" class="form-input" style="padding: 6px 8px; font-size: 0.85rem;" value="${escapeHTML(cha)}" min="1" max="10" oninput="updateNpcStatusField('cha', this.value)">
+            </div>
+            <div class="form-group">
+              <label class="form-label" style="font-size: 0.75rem;">社会</label>
+              <input type="number" class="form-input" style="padding: 6px 8px; font-size: 0.85rem;" value="${escapeHTML(soc)}" min="1" max="10" oninput="updateNpcStatusField('soc', this.value)">
+            </div>
+          </div>
+          
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">耐久値 (HP)</label>
+              <input type="number" id="npc-hp" class="form-input" value="${escapeHTML(npc.status.hp || '')}" placeholder="身体×2" oninput="updateNpcStatusField('hp', this.value)">
+            </div>
+            <div class="form-group">
+              <label class="form-label">精神値 (MP)</label>
+              <input type="number" id="npc-mp" class="form-input" value="${escapeHTML(npc.status.mp || '')}" placeholder="精神×2" oninput="updateNpcStatusField('mp', this.value)">
+            </div>
+            <div class="form-group">
+              <label class="form-label">共鳴度</label>
+              <input type="number" class="form-input" value="${escapeHTML(npc.status.resonance || '')}" placeholder="初期値: 1" oninput="updateNpcStatusField('resonance', this.value)">
+            </div>
+          </div>
+        </div>
+        
+        <!-- 所持技能 -->
+        <div class="form-group">
+          <label class="form-label">所持技能</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="npc-new-skill" class="form-input" style="flex: 1;" placeholder="例: 観察眼:Lv2 (決定で追加)">
+            <button class="btn btn-primary" style="padding: 6px 12px;" onclick="addNpcSkill()">追加</button>
+          </div>
+          <div id="npc-skills-list" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
+            ${skillsHTML || '<span style="font-size: 0.8rem; color: var(--text-secondary);">追加された技能はありません。</span>'}
+          </div>
+        </div>
+
+        <!-- 共鳴感情 -->
+        <div class="form-group">
+          <label class="form-label">共鳴感情</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="npc-new-emotion" class="form-input" style="flex: 1;" placeholder="例: 執着（欲望） (決定で追加)">
+            <button class="btn btn-primary" style="padding: 6px 12px;" onclick="addNpcEmotion()">追加</button>
+          </div>
+          <div id="npc-emotions-list" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
+            ${emotionsHTML || '<span style="font-size: 0.8rem; color: var(--text-secondary);">追加された感情はありません。</span>'}
+          </div>
+        </div>
+        
+        <!-- メモ -->
+        <div class="form-group" style="flex: 1; display: flex; flex-direction: column;">
+          <label class="form-label">設定メモ / 主要セリフ / キャラクター背景</label>
+          <textarea class="form-input" style="flex: 1; min-height: 80px; resize: none;" placeholder="キャラクターの背景や性格、シナリオ上の役割など自由に入力してください。" oninput="updateNpcField('memo', this.value)">${escapeHTML(npc.memo || '')}</textarea>
+        </div>
+        
+        <div style="display: flex; justify-content: flex-end; margin-top: 10px;">
+          <button class="btn btn-danger-small" style="padding: 8px 16px;" onclick="deleteNpc('${npc.id}')">🗑 このNPCを削除</button>
+        </div>
+      `;
+      
+      const skillInput = document.getElementById('npc-new-skill');
+      if (skillInput) {
+        skillInput.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') addNpcSkill();
+        });
+      }
+
+      const emotionInput = document.getElementById('npc-new-emotion');
+      if (emotionInput) {
+        emotionInput.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') addNpcEmotion();
+        });
+      }
+    }
+
+    // 能力値変更時のHP/MPの自動計算（エモクロアTRPGルール：HP=身体×2, MP=精神×2）
+    function calculateHpMp() {
+      const strVal = document.getElementById('npc-str').value;
+      const spiVal = document.getElementById('npc-spi').value;
+      
+      const str = parseInt(strVal) || 0;
+      const spi = parseInt(spiVal) || 0;
+      
+      if (str > 0) {
+        const hpInput = document.getElementById('npc-hp');
+        if (hpInput) {
+          hpInput.value = str * 2;
+          updateNpcStatusField('hp', str * 2);
+        }
+      }
+      if (spi > 0) {
+        const mpInput = document.getElementById('npc-mp');
+        if (mpInput) {
+          mpInput.value = spi * 2;
+          updateNpcStatusField('mp', spi * 2);
+        }
+      }
+    }
+
+    // ローカル画像ファイルの取り扱い (Base64エンコード化して保存)
+    function handleNpcAvatarFile(input) {
+      const file = input.files[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const base64Data = e.target.result;
+        updateNpcField('avatarUrl', base64Data);
+        
+        // プレビューの更新
+        const preview = document.getElementById('npc-editor-avatar-preview');
+        if (preview) preview.style.backgroundImage = `url('${base64Data}')`;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function clearNpcAvatar() {
+      updateNpcField('avatarUrl', '');
+      const preview = document.getElementById('npc-editor-avatar-preview');
+      if (preview) preview.style.backgroundImage = '';
+      const fileInput = document.getElementById('npc-avatar-file');
+      if (fileInput) fileInput.value = '';
+    }
+
+    function addNewNpc() {
+      const newId = generateUUID();
+      const newNpc = {
+        id: newId,
+        name: '新規NPC',
+        avatarUrl: '',
+        status: { 
+          hp: '', mp: '', resonance: '', 
+          skills: [], emotions: [],
+          gender: '', age: '', occupation: '',
+          str: '', agi: '', dex: '', spi: '', sen: '', int: '', cha: '', soc: ''
+        },
+        memo: ''
+      };
+      
+      currentNpcs.push(newNpc);
+      selectedNpcId = newId;
+      
+      renderNpcList();
+      renderNpcEditor();
+    }
+
+    function deleteNpc(id) {
+      if (!confirm('本当にこのNPCを削除しますか？')) return;
+      
+      currentNpcs = currentNpcs.filter(n => n.id !== id);
+      selectedNpcId = null;
+      
+      renderNpcList();
+      renderNpcEditor();
+    }
+
+    // 1箇所のDOM更新のみで軽快に動作するよう更新
+    function updateNpcField(field, value) {
+      const npc = currentNpcs.find(n => n.id === selectedNpcId);
+      if (!npc) return;
+      
+      npc[field] = value;
+      
+      if (field === 'name' || field === 'avatarUrl') {
+        const item = document.querySelector(`.npc-list-item.active .npc-name-span`);
+        if (item) item.innerText = value || '新規NPC';
+        
+        if (field === 'avatarUrl') {
+          const avatar = document.querySelector(`.npc-list-item.active .npc-avatar-thumb`);
+          if (avatar) avatar.style.backgroundImage = value ? `url('${value}')` : '';
+        }
+      }
+    }
+
+    function updateNpcStatusField(field, value) {
+      const npc = currentNpcs.find(n => n.id === selectedNpcId);
+      if (!npc) return;
+      if (!npc.status) npc.status = {};
+      
+      npc.status[field] = value;
+    }
+
+    function addNpcSkill() {
+      const input = document.getElementById('npc-new-skill');
+      if (!input) return;
+      const value = input.value.trim();
+      if (!value) return;
+      
+      const npc = currentNpcs.find(n => n.id === selectedNpcId);
+      if (!npc) return;
+      if (!npc.status) npc.status = {};
+      if (!npc.status.skills) npc.status.skills = [];
+      
+      npc.status.skills.push(value);
+      input.value = '';
+      
+      renderNpcEditor();
+    }
+
+    function removeNpcSkill(index) {
+      const npc = currentNpcs.find(n => n.id === selectedNpcId);
+      if (!npc) return;
+      if (!npc.status || !npc.status.skills) return;
+      
+      npc.status.skills.splice(index, 1);
+      
+      renderNpcEditor();
+    }
+
+    // 重複なく綺麗に状態更新
+    function addNpcEmotion() {
+      const input = document.getElementById('npc-new-emotion');
+      if (!input) return;
+      const value = input.value.trim();
+      if (!value) return;
+      
+      const npc = currentNpcs.find(n => n.id === selectedNpcId);
+      if (!npc) return;
+      if (!npc.status) npc.status = {};
+      if (!npc.status.emotions) npc.status.emotions = [];
+      
+      npc.status.emotions.push(value);
+      input.value = '';
+      
+      renderNpcEditor();
+    }
+
+    function removeNpcEmotion(index) {
+      const npc = currentNpcs.find(n => n.id === selectedNpcId);
+      if (!npc) return;
+      if (!npc.status || !npc.status.emotions) return;
+      
+      npc.status.emotions.splice(index, 1);
+      
+      renderNpcEditor();
+    }
+
+    // === 本文へのNPC情報挿入ヘルパー ===
+    function insertNpcTextHelper(mode) {
+      const npc = currentNpcs.find(n => n.id === selectedNpcId);
+      if (!npc) return;
+
+      let template = '';
+      const name = npc.name || 'NPC名';
+
+      if (mode === 'profile') {
+        const age = npc.status.age || '―';
+        const gender = npc.status.gender || '―';
+        const occupation = npc.status.occupation || '―';
+        const hp = npc.status.hp || '―';
+        const mp = npc.status.mp || '―';
+        const res = npc.status.resonance || '―';
+        
+        const str = npc.status.str || '―';
+        const agi = npc.status.agi || '―';
+        const dex = npc.status.dex || '―';
+        const spi = npc.status.spi || '―';
+        const sen = npc.status.sen || '―';
+        const int = npc.status.int || '―';
+        const cha = npc.status.cha || '―';
+        const soc = npc.status.soc || '―';
+
+        const skills = (npc.status.skills && npc.status.skills.length > 0) ? npc.status.skills.join(', ') : 'なし';
+        const emotions = (npc.status.emotions && npc.status.emotions.length > 0) ? npc.status.emotions.join(', ') : 'なし';
+        const memo = npc.memo || '特記事項なし';
+
+        template = `\n\n[DL] 【NPC紹介：${name}】\n・プロフィール：年齢 ${age} / 性別 ${gender} / 職業 ${occupation}\n・能力値：身体 ${str} / 敏捷 ${agi} / 器用 ${dex} / 精神 ${spi} / 五感 ${sen} / 知性 ${int} / 魅力 ${cha} / 社会 ${soc}\n・ステータス：耐久値(HP) ${hp} / 精神値(MP) ${mp} / 共鳴度 ${res}\n・所持技能：${skills}\n・共鳴感情：${emotions}\n・設定メモ：${memo}\n`;
+        insertAtCursor(template);
+      } 
+      else if (mode === 'card') {
+        template = `\n\n[NPC:${name}]\n`;
+        insertAtCursor(template);
+      } 
+      else if (mode === 'quote') {
+        // セリフ挿入ヘルパーの改善（「」の間に自動フォーカス ＆ 余計な文字を排除）
+        if (!editor) return;
+        const startPos = editor.selectionStart;
+        const endPos = editor.selectionEnd;
+        const originalText = editor.value;
+
+        const prefix = `\n\n> 「`;
+        const suffix = `」 >> [NPC:${name}]\n`;
+        const quoteTemplate = prefix + suffix;
+
+        editor.value = originalText.substring(0, startPos) + quoteTemplate + originalText.substring(endPos);
+        
+        // カーソル位置を prefix の直後 (「 の次) に移動
+        const newCursorPos = startPos + prefix.length;
+        editor.selectionStart = newCursorPos;
+        editor.selectionEnd = newCursorPos;
+      }
+
+      saveToLocal();
+      updatePreview();
+      
+      if (editor) editor.focus();
+    }
+
+    // === カスタムMarkdownパーサ ===
+    function parseMarkdown(text) {
+      if (!text.trim()) return '<p style="color: #94a3b8; font-style: italic;">テキストを入力するとここにプレビューが表示されます。</p>';
+
+      const normalizedText = text.replace(/\r\n/g, '\n');
+      const blocks = normalizedText.split(/\n{2,}/);
+      let html = '';
+
+      for (let block of blocks) {
+        block = block.trim();
+        if (!block) continue;
+
+        // 1. シーン見出し (レベル1: #) ＆ 個別探索用小見出し (レベル2: ##)
+        if (block.startsWith('#')) {
+          if (block.startsWith('##')) {
+            const subtitle = block.replace(/^##\s*/, '');
+            html += `<h3 class="search-subtitle">${escapeHTML(subtitle)}</h3>\n`;
+          } else {
+            const title = block.replace(/^#\s*/, '');
+            html += `<h2 class="scene-title">${escapeHTML(title)}</h2>\n`;
+          }
+          continue;
+        }
+
+        // 2. 段落 (メインカラム・サイドカラムに分解)
+        let mainText = '';
+        let sideText = '';
+
+        const splitIndex = block.indexOf('>>');
+        if (splitIndex !== -1) {
+          mainText = block.substring(0, splitIndex).trim();
+          sideText = block.substring(splitIndex + 2).trim();
+        } else {
+          mainText = block;
+        }
+
+        const mainHTML = parseElement(mainText, 'main');
+        const sideHTML = parseElement(sideText, 'side');
+
+        html += `
+<div class="row">
+  <div class="main-content">
+    ${mainHTML}
+  </div>
+  <div class="side-content">
+    ${sideHTML}
+  </div>
+</div>\n`;
+      }
+      return html;
+    }
+
+    // 各要素のパース (絵文字判定を廃止し、[DL] や [TIPS] の英数字に統一)
+    function parseElement(text, type) {
+      if (!text) return '';
+      let html = escapeHTML(text);
+
+      if (type === 'main') {
+        // 情景描写・セリフ (行頭 '>')
+        if (html.startsWith('&gt;')) {
+          const content = html.substring(4).trim().replace(/\n/g, '<br>');
+          return `<div class="read-text">${content}</div>`;
+        }
+
+        // DL情報 (行頭 '[DL]')
+        if (html.startsWith('[DL]')) {
+          const content = html.substring(4).trim().replace(/\n/g, '<br>');
+          return `<div class="dl-info">${content}</div>`;
+        }
+
+        // 探索可能箇所一覧 [探索:エリア名] または [探索]
+        if (html.startsWith('[探索') || html.startsWith('[調査')) {
+          const lines = html.split('\n');
+          const headerLine = lines[0];
+          
+          let areaName = 'このエリア';
+          const headerMatch = headerLine.match(/^\[(?:探索|調査)(?::\s*([^\]]+))?\]/);
+          if (headerMatch && headerMatch[1]) {
+            areaName = headerMatch[1].trim();
+          }
+
+          let itemsHTML = '';
+          for (let i = 1; i < lines.length; i++) {
+            let line = lines[i].trim();
+            // 先頭の '-' や '・' や '*' を除去
+            if (line.startsWith('-') || line.startsWith('・') || line.startsWith('*')) {
+              line = line.substring(1).trim();
+            }
+            if (!line) continue;
+            itemsHTML += `<span class="search-item">${escapeHTML(line)}</span>`;
+          }
+
+          return `
+          <div class="search-box">
+            <div class="search-title">🔍 探索可能箇所：${areaName}</div>
+            <div class="search-list">
+              ${itemsHTML}
+            </div>
+          </div>`;
+        }
+
+        // 本文中NPCカード [NPC:NPC名] (簡易指定 /簡易 にも対応)
+        const npcMatch = html.match(/^\[NPC:\s*([^\]/]+)(?:\/簡易)?\]/);
+        if (npcMatch) {
+          const npcName = npcMatch[1].trim();
+          const isMini = html.includes('/簡易');
+          return generateNpcCardHTML(npcName, isMini);
+        }
+
+        // 共鳴判定 [共鳴:強度/上昇/感情]
+        const resonanceMatch = html.match(/^\[共鳴:\s*([^\/]+)\s*\/\s*([^\/]+)\s*\/\s*([^\]]+)\]/);
+        if (resonanceMatch) {
+          const intensity = resonanceMatch[1];
+          const up = resonanceMatch[2];
+          const emotion = resonanceMatch[3];
+          return `<div class="resonance-box">共鳴判定（強度${intensity}/上昇${up}）/ ∞共鳴感情：[${emotion}]</div>`;
+        }
+
+        // 技能判定 [判定:技能名] または [判定:技能名/提示タイプ]
+        if (html.startsWith('[判定:')) {
+          const lines = html.split('\n');
+          const headerLine = lines[0];
+          const headerMatch = headerLine.match(/^\[判定:\s*([^\]]+)\]/);
+          
+          let skillName = '技能';
+          let displayType = '';
+          if (headerMatch) {
+            const parts = headerMatch[1].split('/');
+            skillName = parts[0].trim();
+            if (parts[1]) {
+              displayType = parts[1].trim();
+            }
+          }
+
+          let badgeHTML = '';
+          if (displayType) {
+            let badgeClass = '';
+            if (displayType === '強制') badgeClass = 'type-forced';
+            else if (displayType === '提示推奨') badgeClass = 'type-recommended';
+            else if (displayType === '非提示推奨') badgeClass = 'type-secret';
+            
+            badgeHTML = `<span class="roll-type-badge ${badgeClass}">${escapeHTML(displayType)}</span>`;
+          }
+
+          let resultsHTML = '';
+          for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line.startsWith('-')) continue;
+
+            const colonIndex = line.indexOf(':');
+            if (colonIndex === -1) continue;
+
+            const key = line.substring(1, colonIndex).trim();
+            const val = line.substring(colonIndex + 1).trim();
+
+            const badgeInfo = getBadgeInfo(key);
+            resultsHTML += `            <div class="result-item"><span class="result-label ${badgeInfo.class}">${badgeInfo.label}</span><span class="result-text">${val}</span></div>\n`;
+          }
+
+          // 🎲 判定：技能名 を完全に左詰めにしてバグ（space-betweenで技能名が右寄せになる問題）を修正
+          return `
+          <div class="roll-box">
+            <div class="roll-title">
+              <div>🎲 判定： <span>${skillName}</span></div>
+              ${badgeHTML}
+            </div>
+            <div class="roll-results">
+${resultsHTML}            </div>
+          </div>`;
+        }
+
+        // 通常文章
+        return `<p>${html.replace(/\n/g, '<br>')}</p>`;
+      } else {
+        // サイドカラム側のパース
+        // TIPS/補足 (行頭 '[TIPS]')
+        if (html.startsWith('[TIPS]')) {
+          const content = html.substring(6).trim().replace(/\n/g, '<br>');
+          return `<div class="side-note">${content}</div>`;
+        }
+
+        // サイド内のNPCカード表記 (サイドカラム時は常に簡易版カードを描画)
+        const npcMatch = html.match(/^\[NPC:\s*([^\]/]+)(?:\/簡易)?\]/);
+        if (npcMatch) {
+          const npcName = npcMatch[1].trim();
+          return generateNpcCardHTML(npcName, true); // サイドカラム時は常に true (isMini) を渡す
+        }
+
+        // 通常文章
+        return `<p>${html.replace(/\n/g, '<br>')}</p>`;
+      }
+    }
+
+    // 本文中にNPCカードを埋め込むためのHTMLジェネレータ
+    function generateNpcCardHTML(name, isMini = false) {
+      const npc = currentNpcs.find(n => n.name === name);
+      if (!npc) {
+        return `<div class="npc-card mini" style="border-color: #ef4444 !important; background-color: #fef2f2 !important; padding: 8px 12px; font-size: 0.8rem; border-radius: 6px;">⚠️ NPC「<strong>${escapeHTML(name)}</strong>」未登録</div>`;
+      }
+
+      const avatarStyle = npc.avatarUrl ? `background-image: url('${escapeHTML(npc.avatarUrl)}');` : '';
+      const gender = npc.status.gender || '―';
+      const age = npc.status.age || '―';
+      const occupation = npc.status.occupation || '―';
+      
+      const str = npc.status.str || '―';
+      const agi = npc.status.agi || '―';
+      const dex = npc.status.dex || '―';
+      const spi = npc.status.spi || '―';
+      const sen = npc.status.sen || '―';
+      const int = npc.status.int || '―';
+      const cha = npc.status.cha || '―';
+      const soc = npc.status.soc || '―';
+      
+      const hp = npc.status.hp || '―';
+      const mp = npc.status.mp || '―';
+      const res = npc.status.resonance || '―';
+      
+      const skills = (npc.status.skills && npc.status.skills.length > 0) ? npc.status.skills.join(', ') : 'なし';
+      const emotions = (npc.status.emotions && npc.status.emotions.length > 0) ? npc.status.emotions.join(', ') : 'なし';
+      const memo = npc.memo ? npc.memo.replace(/\n/g, '<br>') : '―';
+
+      // 簡易版NPCカード表示 (セリフ用サイドカラム等に最適)
+      if (isMini) {
+        return `
+          <div class="npc-card mini" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1 !important; background-color: #f8fafc !important; margin-bottom: 12px; font-size: 0.8rem;">
+            <div class="npc-card-header" style="margin-bottom: 0; border-bottom: none; padding-bottom: 0; gap: 8px;">
+              <div class="npc-card-avatar" style="width: 32px; height: 32px; border-radius: 4px; ${avatarStyle}"></div>
+              <div class="npc-card-meta" style="overflow: hidden;">
+                <div class="npc-card-name" style="font-size: 0.9rem; font-weight: 700; line-height: 1.2;">${escapeHTML(npc.name)}</div>
+                <div class="npc-card-profile" style="font-size: 0.7rem; color: #64748b !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(age)}歳 / ${escapeHTML(gender)} / ${escapeHTML(occupation)}</div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // 通常（フル版）NPCカード表示
+      return `
+        <div class="npc-card">
+          <div class="npc-card-header">
+            <div class="npc-card-avatar" style="${avatarStyle}"></div>
+            <div class="npc-card-meta">
+              <div class="npc-card-name">${escapeHTML(npc.name)}</div>
+              <div class="npc-card-profile">年齢: ${escapeHTML(age)} / 性別: ${escapeHTML(gender)} / 職業: ${escapeHTML(occupation)}</div>
+            </div>
+          </div>
+          <div class="npc-card-stats" style="grid-template-columns: repeat(3, 1fr) 3.5fr;">
+            <div><strong>HP:</strong> ${escapeHTML(hp)}</div>
+            <div><strong>MP:</strong> ${escapeHTML(mp)}</div>
+            <div><strong>共鳴度:</strong> ${escapeHTML(res)}</div>
+            <div style="font-size: 0.75rem; line-height: 1.3;">
+              身体:${escapeHTML(str)} 敏捷:${escapeHTML(agi)} 器用:${escapeHTML(dex)} 精神:${escapeHTML(spi)}<br>
+              五感:${escapeHTML(sen)} 知性:${escapeHTML(int)} 魅力:${escapeHTML(cha)} 社会:${escapeHTML(soc)}
+            </div>
+          </div>
+          <div class="npc-card-skills">
+            <strong>所持技能:</strong> ${escapeHTML(skills)}
+          </div>
+          <div class="npc-card-emotions">
+            <strong>共鳴感情:</strong> ${escapeHTML(emotions)}
+          </div>
+          <div class="npc-card-memo">
+            ${memo}
+          </div>
+        </div>
+      `;
+    }
+
+    // 成功度キーワードのカラーマッピング（最新のエモクロアTRPG判定定義に同期）
+    function getBadgeInfo(key) {
+      const k = key.trim();
+      // 奇跡的成功 (ミラクル)
+      if (k.match(/^(奇跡的成功|奇跡|ミラクル)$/)) {
+        return { label: '奇跡的成功', class: 'bg-miracle' };
+      }
+      // 災厄級成功 (カタストロフ)
+      if (k.match(/^(災厄級成功|災厄|カタストロフ)$/)) {
+        return { label: '災厄級成功', class: 'bg-catastrophe' };
+      }
+      // 極限成功 (トリプル)
+      if (k.match(/^(極限成功|極限|トリプル)$/)) {
+        return { label: '極限成功', class: 'bg-triple' };
+      }
+      // 効果的成功 (ダブル)
+      if (k.match(/^(効果的成功|効果的|ダブル)$/)) {
+        return { label: '効果的成功', class: 'bg-double' };
+      }
+      // 成功 (シングル)
+      if (k.match(/^(成功|通常成功|通常|single)$/)) {
+        return { label: '成功', class: 'bg-single' };
+      }
+      // 失敗
+      if (k.match(/^(失敗)$/)) {
+        return { label: '失敗', class: 'bg-fail' };
+      }
+      // 致命的失敗 (ファンブル)
+      if (k.match(/^(致命的失敗|致命的|ファンブル)$/)) {
+        return { label: '致命的失敗', class: 'bg-fumble' };
+      }
+      return { label: k, class: 'bg-fail' };
+    }
+
+    // アシスタントパネル：テンプレート挿入 (プレースホルダーを削除し、タグ記号のみに最適化)
+    function insertTemplate(type) {
+      let template = '';
+      
+      switch(type) {
+        case 'scene':
+          template = '\n\n# ';
+          break;
+        case 'search-title':
+          template = '\n\n## ';
+          break;
+        case 'search-list':
+          template = '\n\n[探索:エリア名]\n- 探索可能箇所1\n- 探索可能箇所2\n';
+          break;
+        case 'read':
+          template = '\n\n> ';
+          break;
+        case 'dl':
+          template = '\n\n[DL] ';
+          break;
+        case 'tips':
+          template = ' >> [TIPS] ';
+          break;
+      }
+
+      insertAtCursor(template);
+      handleInput();
+    }
+
+    // カーソル位置へのテキスト挿入
+    function insertAtCursor(text) {
+      if (!editor) return;
+      const startPos = editor.selectionStart;
+      const endPos = editor.selectionEnd;
+      const originalText = editor.value;
+
+      editor.value = originalText.substring(0, startPos) + text + originalText.substring(endPos);
+      
+      const newCursorPos = startPos + text.length;
+      editor.selectionStart = newCursorPos;
+      editor.selectionEnd = newCursorPos;
+      editor.focus();
+    }
+
+    // === ショートカットキーのロード ===
+    function loadShortcuts() {
+      try {
+        const cached = localStorage.getItem('trpg_shortcuts');
+        if (cached) {
+          shortcuts = JSON.parse(cached);
+          // デフォルトにあってロードしたデータにないアクションを補完
+          for (const key in DEFAULT_SHORTCUTS) {
+            if (!shortcuts[key]) {
+              shortcuts[key] = { ...DEFAULT_SHORTCUTS[key] };
+            }
+          }
+        } else {
+          // キャッシュがなければデフォルトを複製
+          shortcuts = {};
+          for (const key in DEFAULT_SHORTCUTS) {
+            shortcuts[key] = { ...DEFAULT_SHORTCUTS[key] };
+          }
+        }
+      } catch (e) {
+        console.error("ショートカットのロードに失敗しました:", e);
+        shortcuts = {};
+        for (const key in DEFAULT_SHORTCUTS) {
+          shortcuts[key] = { ...DEFAULT_SHORTCUTS[key] };
+        }
+      }
+    }
+
+    // === デフォルトにリセット ===
+    function resetShortcutsToDefault() {
+      if (confirm('すべてのショートカットキー設定をデフォルトに戻しますか？')) {
+        shortcuts = {};
+        for (const key in DEFAULT_SHORTCUTS) {
+          shortcuts[key] = { ...DEFAULT_SHORTCUTS[key] };
+        }
+        localStorage.setItem('trpg_shortcuts', JSON.stringify(shortcuts));
+        updateAssistantPanelShortcutLabels();
+        renderShortcutList();
+        showAlert('設定をデフォルトにリセットしました。', false);
+      }
+    }
+
+    // === ショートカットの文字列表現を取得 ===
+    function getShortcutString(shortcut) {
+      if (!shortcut || !shortcut.key) return '未設定';
+      const parts = [];
+      if (shortcut.ctrlKey) parts.push('Ctrl');
+      if (shortcut.altKey) parts.push('Alt');
+      if (shortcut.shiftKey) parts.push('Shift');
+      
+      let keyName = shortcut.key;
+      if (keyName === ' ') keyName = 'Space';
+      else if (keyName.length === 1) keyName = keyName.toUpperCase();
+      
+      parts.push(keyName);
+      return parts.join(' + ');
+    }
+
+    // === アシスタントパネルのショートカットキー表示更新 ===
+    function updateAssistantPanelShortcutLabels() {
+      const actions = {
+        'scene': { id: 'btn-shortcut-scene', baseText: '🎬 シーン見出し' },
+        'search-title': { id: 'btn-shortcut-search-title', baseText: '📌 探索小見出し' },
+        'search-list': { id: 'btn-shortcut-search-list', baseText: '🔍 探索一覧' },
+        'read': { id: 'btn-shortcut-read', baseText: '💬 情景描写' },
+        'dl': { id: 'btn-shortcut-dl', baseText: '📋 DL情報' },
+        'roll': { id: 'btn-shortcut-roll', baseText: '🎲 技能判定' },
+        'resonance': { id: 'btn-shortcut-resonance', baseText: '🌀 共鳴判定' },
+        'tips': { id: 'btn-shortcut-tips', baseText: '💡 TIPS/補足' },
+        'npc': { id: 'btn-shortcut-npc', baseText: '👥 NPC管理' }
+      };
+
+      for (const actionId in actions) {
+        const el = document.getElementById(actions[actionId].id);
+        if (el) {
+          const shortcut = shortcuts[actionId];
+          const shortcutStr = shortcut && shortcut.key ? ` (${getShortcutString(shortcut)})` : '';
+          el.innerText = actions[actionId].baseText + shortcutStr;
+        }
+      }
+    }
+
+    // === グローバルキーイベントハンドラ ===
+    function handleGlobalKeydown(e) {
+      // 1. キーバインド記録中の場合
+      if (recordingActionId !== null) {
+        handleShortcutRecording(e);
+        return;
+      }
+
+      // 2. モーダルが開いている場合（NPC管理、判定モーダル、シナリオ一覧など）は、
+      // 基本的な誤爆を防ぐため、クラウド保存（Ctrl+S）以外のショートカット挿入はブロックする
+      const isAnyModalOpen = document.querySelector('.modal.active') !== null;
+      
+      // 3. ショートカットの照合
+      for (const actionId in shortcuts) {
+        const s = shortcuts[actionId];
+        if (!s || !s.key) continue;
+
+        const keyMatched = e.key.toLowerCase() === s.key.toLowerCase();
+        const ctrlMatched = e.ctrlKey === !!s.ctrlKey;
+        const altMatched = e.altKey === !!s.altKey;
+        const shiftMatched = e.shiftKey === !!s.shiftKey;
+
+        if (keyMatched && ctrlMatched && altMatched && shiftMatched) {
+          // モーダルが開いている時は、クラウド保存アクションのみ実行可能にする
+          if (isAnyModalOpen && actionId !== 'cloud-save') {
+            continue;
+          }
+          
+          e.preventDefault();
+          executeShortcutAction(actionId);
+          break;
+        }
+      }
+    }
+
+    // === ショートカットアクションの実行 ===
+    function executeShortcutAction(actionId) {
+      switch(actionId) {
+        case 'scene':
+          insertTemplate('scene');
+          break;
+        case 'search-title':
+          insertTemplate('search-title');
+          break;
+        case 'search-list':
+          insertTemplate('search-list');
+          break;
+        case 'read':
+          insertTemplate('read');
+          break;
+        case 'dl':
+          insertTemplate('dl');
+          break;
+        case 'roll':
+          openRollModal();
+          break;
+        case 'resonance':
+          openResonanceModal();
+          break;
+        case 'tips':
+          insertTemplate('tips');
+          break;
+        case 'npc':
+          openNpcModal();
+          break;
+        case 'cloud-save':
+          saveToCloud();
+          break;
+      }
+    }
+
+    // === モーダル表示制御 ===
+    function openShortcutModal() {
+      if (shortcutModal) {
+        shortcutAlert.style.display = 'none';
+        shortcutModal.classList.add('active');
+        recordingActionId = null;
+        renderShortcutList();
+      }
+    }
+
+    function closeShortcutModal() {
+      if (shortcutModal) {
+        shortcutModal.classList.remove('active');
+        recordingActionId = null;
+      }
+    }
+
+    // === ショートカットリストのレンダリング ===
+    function renderShortcutList() {
+      if (!shortcutListContainer) return;
+      shortcutListContainer.innerHTML = '';
+
+      for (const actionId in DEFAULT_SHORTCUTS) {
+        const defaultInfo = DEFAULT_SHORTCUTS[actionId];
+        const s = shortcuts[actionId];
+        const isRecording = recordingActionId === actionId;
+
+        const row = document.createElement('div');
+        row.className = `shortcut-row ${isRecording ? 'recording' : ''}`;
+        
+        // 録音中であればクリックイベントを変える
+        if (!isRecording) {
+          row.onclick = () => startRecordingShortcut(actionId);
+        }
+
+        // ラベルと説明
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'shortcut-info';
+        infoDiv.innerHTML = `
+          <span class="shortcut-name">${escapeHTML(defaultInfo.label)}</span>
+          <span class="shortcut-desc">${escapeHTML(defaultInfo.desc)}</span>
+        `;
+        row.appendChild(infoDiv);
+
+        // キーバインド表示部分
+        const keysDiv = document.createElement('div');
+        keysDiv.className = 'shortcut-keys';
+
+        if (isRecording) {
+          keysDiv.innerHTML = `<span class="shortcut-recording-text">キーを押してください...</span>`;
+        } else if (s && s.key) {
+          const keyStr = getShortcutString(s);
+          const parts = keyStr.split(' + ');
+          let badgeHTML = parts.map(p => `<kbd class="kbd-badge">${escapeHTML(p)}</kbd>`).join(' + ');
+          
+          keysDiv.innerHTML = badgeHTML;
+          
+          // クリアボタンの追加
+          const clearBtn = document.createElement('button');
+          clearBtn.className = 'btn-shortcut-clear';
+          clearBtn.innerHTML = '&times;';
+          clearBtn.title = 'ショートカットを解除';
+          clearBtn.onclick = (e) => clearShortcut(actionId, e);
+          keysDiv.appendChild(clearBtn);
+        } else {
+          keysDiv.innerHTML = `<span style="color: var(--text-secondary); font-size: 0.8rem; font-style: italic;">未設定</span>`;
+        }
+        
+        row.appendChild(keysDiv);
+        shortcutListContainer.appendChild(row);
+      }
+    }
+
+    // === キー記録処理の制御 ===
+    function startRecordingShortcut(actionId) {
+      recordingActionId = actionId;
+      shortcutAlert.style.display = 'none';
+      renderShortcutList();
+    }
+
+    // === ショートカット設定のクリア ===
+    function clearShortcut(actionId, event) {
+      if (event) event.stopPropagation();
+      shortcuts[actionId] = { key: null, ctrlKey: false, altKey: false, shiftKey: false };
+      localStorage.setItem('trpg_shortcuts', JSON.stringify(shortcuts));
+      updateAssistantPanelShortcutLabels();
+      renderShortcutList();
+      showAlert(`${DEFAULT_SHORTCUTS[actionId].label} のショートカットを解除しました。`, false);
+    }
+
+    // === キー記録中のイベント処理（特殊キーの制限・バリデーション） ===
+    function handleShortcutRecording(e) {
+      e.preventDefault();
+
+      // 1. ESCキーならキャンセル
+      if (e.key === 'Escape') {
+        stopRecordingShortcut();
+        return;
+      }
+
+      // 2. Backspace または Delete なら設定をクリア
+      if (e.key === 'Backspace' || e.key === 'Delete') {
+        clearShortcut(recordingActionId, null);
+        stopRecordingShortcut();
+        return;
+      }
+
+      // 3. 修飾キー単体の押し下げは無視
+      if (e.key === 'Control' || e.key === 'Alt' || e.key === 'Shift' || e.key === 'Meta') {
+        return;
+      }
+
+      // 4. 特殊キーのバリデーションチェック
+      // 執筆時の文字入力を邪魔しないための制限ルール：
+      // - 修飾キー（Ctrl もしくは Alt）が少なくとも1つ押されていること
+      // - または、F1-F12 や矢印キーなどの、1文字ではない特殊キー単体（e.keyの長さが2文字以上）であること
+      const hasModifier = e.ctrlKey || e.altKey;
+      const isSpecialKey = e.key.length > 1; // F1, F2, ArrowUp, PageDown, Tab などを判別
+
+      if (!hasModifier && !isSpecialKey) {
+        showAlert('文字入力の妨げになるため、単一の文字・スペース・改行キーは登録できません。<br>修飾キー（Ctrl または Alt）を組み合わせるか、F1〜F12などのキーを指定してください。', true);
+        return;
+      }
+
+      const newKey = {
+        key: e.key,
+        ctrlKey: e.ctrlKey,
+        altKey: e.altKey,
+        shiftKey: e.shiftKey
+      };
+
+      // 5. 重複チェック
+      let duplicateActionId = null;
+      for (const actionId in shortcuts) {
+        if (actionId === recordingActionId) continue;
+        const s = shortcuts[actionId];
+        if (s && s.key &&
+            s.key.toLowerCase() === newKey.key.toLowerCase() &&
+            s.ctrlKey === newKey.ctrlKey &&
+            s.altKey === newKey.altKey &&
+            s.shiftKey === newKey.shiftKey) {
+          duplicateActionId = actionId;
+          break;
+        }
+      }
+
+      let alertMessage = '';
+      if (duplicateActionId) {
+        // 重複している古い設定をクリア
+        shortcuts[duplicateActionId] = { key: null, ctrlKey: false, altKey: false, shiftKey: false };
+        alertMessage = `以前「${DEFAULT_SHORTCUTS[duplicateActionId].label}」に割り当てられていたキーと重複したため、古い割り当てを解除しました。`;
+      }
+
+      // 新しい設定を保存
+      shortcuts[recordingActionId] = {
+        ...newKey,
+        label: DEFAULT_SHORTCUTS[recordingActionId].label,
+        desc: DEFAULT_SHORTCUTS[recordingActionId].desc
+      };
+
+      localStorage.setItem('trpg_shortcuts', JSON.stringify(shortcuts));
+      updateAssistantPanelShortcutLabels();
+      stopRecordingShortcut();
+
+      if (alertMessage) {
+        showAlert(alertMessage, false);
+      } else {
+        showAlert(`「${DEFAULT_SHORTCUTS[recordingActionId].label}」にショートカットを設定しました。`, false);
+      }
+    }
+
+    // === アラート表示 ===
+    function showAlert(message, isError) {
+      if (!shortcutAlert) return;
+      shortcutAlert.innerHTML = message;
+      shortcutAlert.style.display = 'block';
+      if (isError) {
+        shortcutAlert.style.backgroundColor = 'rgba(239, 68, 68, 0.15)';
+        shortcutAlert.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+        shortcutAlert.style.color = '#f87171';
+      } else {
+        shortcutAlert.style.backgroundColor = 'rgba(16, 185, 129, 0.15)';
+        shortcutAlert.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+        shortcutAlert.style.color = '#34d399';
+      }
+      
+      // 数秒後に消す（エラーでない場合）
+      if (!isError) {
+        setTimeout(() => {
+          if (shortcutAlert.innerHTML === message) {
+            shortcutAlert.style.display = 'none';
+          }
+        }, 4000);
+      }
+    }
+
+    function stopRecordingShortcut() {
+      recordingActionId = null;
+      renderShortcutList();
+    }
+  </script>
+</body>
+</html>

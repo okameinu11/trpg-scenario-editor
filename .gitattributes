@@ -1,0 +1,7 @@
+
+# --- devenv (claude_basement) ---
+# コミットゲートはシェルスクリプト。Windows環境で core.autocrlf により
+# CRLF に変換されると、Git Bash上で `$'\r': command not found` になって動かない。
+# フックだけ LF に固定する（プロジェクト全体の改行コード方針には手を出さない）。
+.githooks/** text eol=lf
+.husky/** text eol=lf
