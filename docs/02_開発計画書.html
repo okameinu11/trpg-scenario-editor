@@ -15,12 +15,11 @@
     <p class="lead">本エディタの技術構成、データベース設計、API設計、および段階的な開発スケジュールを定める。実装に着手する前に、対象フェーズの節を読むこと。</p>
   </header>
 
-  <div class="callout warn">
-    <strong>§1・§2・§3.1 は現行方針と食い違っている。</strong>
-    2026-08-31 に Google Apps Script + スプレッドシートからの脱却を決定した。
-    以下に記載されたバックエンドAPI設計とスプレッドシート設計は<strong>実装されたが、これから撤去される</strong>。
-    §3.2 のフロントエンド設計と §4 のロードマップ（フェーズ1〜5）は引き続き有効である。
-    経緯は <code>CLAUDE.md</code> の「注意事項」にある。
+  <div class="callout">
+    <strong>2026-08-31: フェーズ6（GAS脱却）を完了した。</strong>
+    バックエンドとスプレッドシートは撤去済みで、アプリは <code>index.html</code> 1枚の静的Webアプリになっている。
+    §2 と §3.1 は<strong>撤去された旧構成の記録</strong>として残してあり、現行の実装ではない。
+    §3.2 のフロントエンド設計は引き続き有効。
   </div>
 
   <section>
@@ -40,34 +39,36 @@
         </tr>
         <tr>
           <td><strong>バックエンド</strong></td>
-          <td>Google Apps Script (GAS)</td>
-          <td>APIサーバー（doGet / doPost によるJSONデータ送受信）</td>
+          <td>なし</td>
+          <td>サーバー処理を持たない。2026-08-31 に Google Apps Script を撤去した。</td>
         </tr>
         <tr>
-          <td><strong>データベース</strong></td>
-          <td>Google スプレッドシート</td>
-          <td>シナリオ本文およびNPCデータの保存用データベース</td>
+          <td><strong>データの保存先</strong></td>
+          <td>ブラウザの localStorage</td>
+          <td>シナリオ本文およびNPCデータ。端末間の移動はJSONの書き出し／読み込みで行う。</td>
         </tr>
         <tr>
           <td><strong>ホスティング</strong></td>
-          <td>GAS ウェブアプリ (HTML Service)</td>
-          <td>アプリケーション全体の配信（Googleのクラウド環境で直接実行）</td>
+          <td>GitHub Pages</td>
+          <td>静的ファイルの配信のみ。ビルド工程は無く、<code>index.html</code> を置くだけで動く。</td>
         </tr>
       </tbody>
     </table>
 
     <div class="callout warn">
-      移行後は<strong>フロントエンドの行だけが残る</strong>。バックエンドとデータベースは無くなり、
-      ホスティングは GitHub Pages（静的配信）になる。
-      「フレームワーク・ビルドツールを使わない単一ファイル構成」という方針自体は変わらない。
+      <strong>実質的にフロントエンドの行だけが本体である。</strong>
+      「フレームワーク・ビルドツールを使わない単一ファイル構成」という当初の方針は、
+      GAS脱却後もそのまま維持されている。むしろサーバーが無くなったことで、
+      <code>index.html</code> をダブルクリックするだけでも動くようになった。
     </div>
   </section>
 
   <section>
-    <h2>2. データベース・スプレッドシート設計</h2>
+    <h2>2. データベース・スプレッドシート設計（撤去済み・記録）</h2>
     <p>
+      <strong>この節は 2026-08-31 に撤去された旧構成の記録である。現行の実装ではない。</strong>
       1つのGoogleスプレッドシート内に以下の2つのシートを用意し、
-      シナリオデータとNPCデータをリレーショナルに管理する。
+      シナリオデータとNPCデータをリレーショナルに管理していた。
     </p>
 
     <h3>2.1 <code>scenarios</code> シート（シナリオデータ）</h3>
@@ -99,23 +100,26 @@
       </tbody>
     </table>
 
-    <div class="callout danger">
-      <strong>この設計に起因する既知の不具合がある。</strong>
-      スプレッドシート側のカラム名は <code>status_json</code> だが、フロントエンドの
-      <code>API.saveScenario()</code> は localStorage 経路で <code>status</code>（オブジェクト）というキーで保存する。
-      一方 <code>selectScenario()</code> は読み込み時に <code>statusJson</code> を読もうとするため、
-      <strong>localStorage経路ではNPCの能力値が復元されない</strong>。
-      保存層に手を入れる際に必ず併せて直すこと。
+    <div class="callout">
+      <strong>この設計に起因していた不具合は 2026-08-31 に修正済み。</strong>
+      スプレッドシート側のカラム名が <code>status_json</code> であったのに対し、
+      localStorage 経路の保存は <code>status</code>（オブジェクト）というキーを使っており、
+      読み込み側の <code>selectScenario()</code> は <code>statusJson</code> を読もうとしていた。
+      キーが食い違うため、シナリオを読み直すとNPCの能力値が失われていた。
+      <br><br>
+      現在は <code>normalizeNpc()</code> が両方の形式を受け付けて <code>status</code> に正規化する。
+      旧GAS版から書き出したデータや、外部で作られたJSONを読み込んでも能力値が保持される。
     </div>
   </section>
 
   <section>
     <h2>3. アプリケーション設計</h2>
 
-    <h3>3.1 GASバックエンド (API) 設計</h3>
+    <h3>3.1 GASバックエンド (API) 設計（撤去済み・記録）</h3>
     <p>
-      Webアプリとスプレッドシートを繋ぐAPIを実装する。
-      全て <code>ContentService</code> を利用してJSON形式でクライアントとやり取りする。
+      <strong>この節は撤去された旧構成の記録である。</strong>
+      Webアプリとスプレッドシートを繋ぐAPIを実装し、
+      <code>ContentService</code> を利用してJSON形式でクライアントとやり取りしていた。
     </p>
 
     <h4>エンドポイント定義</h4>
@@ -137,9 +141,10 @@
     </ul>
 
     <div class="callout warn">
-      実装は <code>Code.gs</code> にある。ただし実際の実装は上記の <code>action</code> パラメータ方式ではなく、
-      <code>google.script.run</code> による関数直接呼び出しになっている（設計と実装のずれ）。
-      いずれにせよ撤去対象のため、このずれを解消する作業は不要。
+      実装は <code>Code.gs</code> にあった。実際には上記の <code>action</code> パラメータ方式ではなく、
+      <code>google.script.run</code> による関数直接呼び出しになっており、設計と実装がずれていた。
+      2026-08-31 に <code>index.html</code> 側の呼び出しを撤去したため、
+      <code>Code.gs</code> はどこからも使われていない。
     </div>
 
     <h3>3.2 フロントエンド・アーキテクチャ</h3>
@@ -221,12 +226,27 @@
     <h3>フェーズ6 — GAS脱却とGitHub Pagesでの公開（2026-08-31 追加）</h3>
     <p><strong>目標:</strong> バックエンドを撤去して静的アプリ化し、別端末からも使える状態にする。</p>
     <ul>
-      <li><code>API</code> オブジェクトから <code>isGas</code> 判定と <code>google.script.run</code> の分岐を撤去する。</li>
-      <li>NPCの <code>status</code> / <code>statusJson</code> のキー不整合を修正する（§2.2 の既知不具合）。</li>
-      <li>シナリオデータのJSONエクスポート／インポート機能を追加し、端末間の持ち運び手段とする。</li>
-      <li>localStorage の容量超過（<code>QuotaExceededError</code>）を検知して利用者に伝える。</li>
-      <li>GitHub Pages（publicリポジトリ）で公開する。公開範囲は事前に確認すること。</li>
+      <li>✅ <code>API</code> から <code>isGas</code> 判定と <code>google.script.run</code> の分岐を撤去する</li>
+      <li>✅ NPCの <code>status</code> / <code>statusJson</code> のキー不整合を修正する（<code>normalizeNpc()</code> が両形式に対応）</li>
+      <li>✅ シナリオデータのJSON書き出し／読み込み機能を追加する（全件・単体の書き出しとマージ読み込み）</li>
+      <li>✅ localStorage の容量超過を検知して利用者に伝える（<code>writeStore()</code> で <code>QuotaExceededError</code> を捕捉）</li>
+      <li>⬜ GitHub Pages（publicリポジトリ）で公開する — <strong>未着手</strong></li>
     </ul>
+
+    <div class="callout">
+      <strong>移行時に併せて直したもの。</strong>
+      明示保存の完了メッセージが、直後に走る自動保存の表示に上書きされ、
+      保存できたかどうかが利用者に伝わっていなかった。呼び出し順を入れ替えて修正した。
+      <br><br>
+      また旧保存キー <code>trpg_mock_db_scenarios</code> から <code>trpg_db_scenarios</code> へ
+      自動移行する処理を入れてある。GAS併用時代のローカルデータが失われることはない。
+    </div>
+
+    <div class="callout warn">
+      <strong>Googleスプレッドシート側に残っているデータは自動では移らない。</strong>
+      GAS版で保存したシナリオがスプレッドシートにある場合、アプリからは読めなくなっている。
+      必要であればスプレッドシートから本文を手作業で取り出すこと。
+    </div>
   </section>
 
   <nav class="pagenav">
@@ -235,7 +255,7 @@
   </nav>
 
   <footer class="pagefoot">
-    最終更新: 2026-08-31（Markdownからの移行。本文は移行前の内容を保持し、方針変更箇所への注記とフェーズ6を追加）
+    最終更新: 2026-08-31（フェーズ6の完了に伴い、§1・§2・§3.1・§4 を更新）
   </footer>
 
 </div>

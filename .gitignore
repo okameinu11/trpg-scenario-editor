@@ -50,3 +50,6 @@ next-env.d.ts
 # publicリポジトリに含めない。ローカルには残り、エージェントは参照できる。
 # アプリ本体(index.html)はこのフォルダに依存しないため、除外しても動作に影響はない。
 /knowledge/
+
+# ブラウザ操作ツール(Playwright MCP)が動作確認時に吐く一時ファイル
+/.playwright-mcp/

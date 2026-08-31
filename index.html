@@ -1035,7 +1035,7 @@
     </div>
     <div class="header-actions">
       <button class="btn" onclick="openShortcutModal()">⌨️ ショートカット設定</button>
-      <button class="btn btn-primary" id="btn-cloud-save" onclick="saveToCloud()">☁ クラウド保存</button>
+      <button class="btn btn-primary" id="btn-save" onclick="saveScenarioToStore()">💾 保存</button>
       <button class="btn" onclick="triggerPrint()">🖨 PDF出力</button>
     </div>
   </header>
@@ -1079,10 +1079,17 @@
         <button class="btn-close" onclick="closeListModal()">&times;</button>
       </div>
       <div class="modal-body">
-        <div class="modal-actions">
+        <div class="modal-actions" style="flex-wrap: wrap; gap: 8px;">
           <button class="btn btn-primary" onclick="createNewScenario()">➕ 新規シナリオ作成</button>
+          <button class="btn" onclick="exportAllScenarios()" title="保存済みの全シナリオを1つのJSONファイルに書き出します">⬇ 全データを書き出し</button>
+          <button class="btn" onclick="triggerImport()" title="書き出したJSONファイルを読み込みます">⬆ 読み込み</button>
+          <input type="file" id="import-file" accept="application/json,.json" style="display: none;" onchange="handleImportFile(this)">
           <span id="modal-status" style="font-size: 0.85rem; color: var(--text-secondary);"></span>
         </div>
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0 0 14px; line-height: 1.6;">
+          データはこの端末のブラウザ内にのみ保存されます。別の端末で使うときや、バックアップを取るときは
+          「⬇ 全データを書き出し」でJSONファイルとして持ち出してください。
+        </p>
         <div id="scenario-list-container" class="list-container">
           <!-- JSで動的に追加 -->
         </div>
@@ -1311,7 +1318,9 @@
       'resonance': { key: '7', altKey: true, ctrlKey: false, shiftKey: false, label: '🌀 共鳴判定', desc: '共鳴判定モーダルを開く' },
       'tips': { key: '8', altKey: true, ctrlKey: false, shiftKey: false, label: '💡 TIPS/補足', desc: '行末に >> [TIPS] を挿入' },
       'npc': { key: '9', altKey: true, ctrlKey: false, shiftKey: false, label: '👥 NPC管理', desc: 'NPC管理モーダルを開く' },
-      'cloud-save': { key: 's', altKey: false, ctrlKey: true, shiftKey: false, label: '☁ クラウド保存', desc: '編集データをクラウド保存' }
+      // キー名 'cloud-save' は保存済みのユーザー設定(trpg_shortcuts)との互換のため残している。
+      // 保存先はクラウドからローカルへ変わったが、キーを変えると既存の割り当てが失われる。
+      'cloud-save': { key: 's', altKey: false, ctrlKey: true, shiftKey: false, label: '💾 保存', desc: '編集中のシナリオをシナリオ一覧に保存' }
     };
 
     let shortcuts = {};
@@ -1319,89 +1328,224 @@
 
     // DOM要素の保持用変数
     let editor, previewArea, scenarioTitle, saveStatus;
-    let listModal, scenarioListContainer, modalStatus, btnCloudSave;
+    let listModal, scenarioListContainer, modalStatus, btnSave, importFileInput;
     let rollModal, resModal, npcModal, npcListContainer, npcEditorArea;
     let shortcutModal, shortcutListContainer, shortcutAlert;
 
-    // === API 抽象化レイヤー ===
+    // === データ永続化層 ===
+    //
+    // 保存先はブラウザの localStorage のみ。ここが永続化の唯一の窓口であり、
+    // UI側のコードは保存先を知らない。保存先を変えるときはこのオブジェクトだけを差し替える。
+    //
+    // 2026-08-31: Google Apps Script + スプレッドシートによるクラウド保存を撤去した。
+    // 端末間のデータ移動は JSON のエクスポート／インポートで行う（exportScenarios / importScenarios）。
+
+    const STORE_KEY = 'trpg_db_scenarios';
+    const LEGACY_STORE_KEY = 'trpg_mock_db_scenarios'; // GAS併用時代のキー。初回読み込み時に移行する
+    const EXPORT_FORMAT = 'trpg-scenario-editor';
+    const EXPORT_VERSION = 1;
+
+    // localStorage への書き込み。
+    // NPCのアバターを base64 で保持するため容量上限（おおむね5MB）に達しやすい。
+    // 上限超過を握り潰すと「保存したのに消えている」状態になるため、必ず利用者に伝わる形で投げ直す。
+    function writeStore(key, value) {
+      try {
+        localStorage.setItem(key, value);
+      } catch (e) {
+        const quota = e && (e.name === 'QuotaExceededError'
+          || e.name === 'NS_ERROR_DOM_QUOTA_REACHED'
+          || e.code === 22 || e.code === 1014);
+        if (quota) {
+          throw new Error(
+            'ブラウザの保存領域が上限に達したため、保存できませんでした。\n\n'
+            + 'NPCのアバター画像は容量を大きく消費します。\n'
+            + '「⬇ 全データを書き出し」でJSONに退避してから、不要なシナリオや画像を削除してください。'
+          );
+        }
+        throw e;
+      }
+    }
+
+    // NPCデータの正規化。
+    //
+    // 旧GAS版は能力値を statusJson（JSON文字列）で保存し、ローカル保存は status（オブジェクト）で
+    // 保存していたため、読み込み時にキーが食い違って能力値が失われていた（2026-08-31 修正）。
+    // 移行期のデータと外部からのインポートを両方受け付けるため、どちらの形式も解釈する。
+    function normalizeNpc(n) {
+      if (!n || typeof n !== 'object') return null;
+
+      let status = n.status;
+      if (typeof status === 'string') {
+        try { status = JSON.parse(status); } catch (e) { status = null; }
+      }
+      if ((!status || typeof status !== 'object') && n.statusJson != null) {
+        try {
+          status = typeof n.statusJson === 'string' ? JSON.parse(n.statusJson) : n.statusJson;
+        } catch (e) { status = null; }
+      }
+
+      return {
+        id: n.id || generateUUID(),
+        name: typeof n.name === 'string' && n.name ? n.name : '新規NPC',
+        avatarUrl: typeof n.avatarUrl === 'string' ? n.avatarUrl : '',
+        status: (status && typeof status === 'object') ? status : {},
+        memo: typeof n.memo === 'string' ? n.memo : ''
+      };
+    }
+
+    function normalizeNpcList(list) {
+      if (!Array.isArray(list)) return [];
+      return list.map(normalizeNpc).filter(n => n !== null);
+    }
+
+    // 保存庫の読み出し。旧キーにしかデータが無い場合はここで新キーへ移行する。
+    function readStore() {
+      let raw = localStorage.getItem(STORE_KEY);
+
+      if (raw === null) {
+        const legacy = localStorage.getItem(LEGACY_STORE_KEY);
+        if (legacy !== null) {
+          raw = legacy;
+          // 移行に失敗しても（容量超過など）読み出しは続行する
+          try { writeStore(STORE_KEY, legacy); } catch (e) {
+            console.error('旧データの移行に失敗しました:', e);
+          }
+        }
+      }
+
+      try {
+        const db = JSON.parse(raw || '[]');
+        return Array.isArray(db) ? db : [];
+      } catch (e) {
+        console.error('保存データの読み込みに失敗しました:', e);
+        return [];
+      }
+    }
+
     const API = {
-      isGas: typeof google !== 'undefined' && google.script && google.script.run,
-      
       listScenarios() {
         return new Promise((resolve, reject) => {
-          if (this.isGas) {
-            google.script.run
-              .withSuccessHandler(resolve)
-              .withFailureHandler(reject)
-              .listScenarios();
-          } else {
-            const db = JSON.parse(localStorage.getItem('trpg_mock_db_scenarios') || '[]');
-            resolve(db.map(s => ({
+          try {
+            resolve(readStore().map(s => ({
               id: s.id,
               title: s.title,
               updated_at: s.updated_at
             })));
-          }
+          } catch (e) { reject(e); }
         });
       },
-      
+
       loadScenario(id) {
         return new Promise((resolve, reject) => {
-          if (this.isGas) {
-            google.script.run
-              .withSuccessHandler(resolve)
-              .withFailureHandler(reject)
-              .loadScenario(id);
-          } else {
-            const db = JSON.parse(localStorage.getItem('trpg_mock_db_scenarios') || '[]');
-            const sc = db.find(s => s.id === id);
-            if (sc) {
-              resolve(sc);
-            } else {
+          try {
+            const sc = readStore().find(s => s.id === id);
+            if (!sc) {
               reject(new Error('シナリオが見つかりません。'));
+              return;
             }
-          }
+            resolve({
+              id: sc.id,
+              title: sc.title,
+              content: sc.content,
+              npcs: normalizeNpcList(sc.npcs)
+            });
+          } catch (e) { reject(e); }
         });
       },
-      
+
       saveScenario(id, title, content, npcsData = []) {
         return new Promise((resolve, reject) => {
-          if (this.isGas) {
-            google.script.run
-              .withSuccessHandler(resolve)
-              .withFailureHandler(reject)
-              .saveScenario(id, title, content, npcsData);
-          } else {
-            const db = JSON.parse(localStorage.getItem('trpg_mock_db_scenarios') || '[]');
-            const index = db.findIndex(s => s.id === id);
+          try {
+            const db = readStore();
             const now = new Date().toISOString();
-            const data = { id, title, content, npcs: npcsData, updated_at: now };
-            
+            const data = {
+              id: id,
+              title: title,
+              content: content,
+              npcs: normalizeNpcList(npcsData),
+              updated_at: now
+            };
+
+            const index = db.findIndex(s => s.id === id);
             if (index !== -1) {
               db[index] = data;
             } else {
               db.push(data);
             }
-            localStorage.setItem('trpg_mock_db_scenarios', JSON.stringify(db));
+
+            writeStore(STORE_KEY, JSON.stringify(db));
             resolve({ success: true, updated_at: now });
-          }
+          } catch (e) { reject(e); }
         });
       },
-      
+
       deleteScenario(id) {
         return new Promise((resolve, reject) => {
-          if (this.isGas) {
-            google.script.run
-              .withSuccessHandler(resolve)
-              .withFailureHandler(reject)
-              .deleteScenario(id);
-          } else {
-            let db = JSON.parse(localStorage.getItem('trpg_mock_db_scenarios') || '[]');
-            db = db.filter(s => s.id !== id);
-            localStorage.setItem('trpg_mock_db_scenarios', JSON.stringify(db));
+          try {
+            writeStore(STORE_KEY, JSON.stringify(readStore().filter(s => s.id !== id)));
             resolve({ success: true });
+          } catch (e) { reject(e); }
+        });
+      },
+
+      // --- 端末間のデータ移動 ---
+
+      // ids が null なら全件。書き出したオブジェクトをそのまま JSON にする。
+      exportScenarios(ids) {
+        const db = readStore();
+        const picked = ids ? db.filter(s => ids.indexOf(s.id) !== -1) : db;
+        return {
+          format: EXPORT_FORMAT,
+          version: EXPORT_VERSION,
+          exportedAt: new Date().toISOString(),
+          scenarios: picked.map(s => ({
+            id: s.id,
+            title: s.title,
+            content: s.content,
+            npcs: normalizeNpcList(s.npcs),
+            updated_at: s.updated_at
+          }))
+        };
+      },
+
+      // mode: 'merge'（同じIDは上書き、無いものは追加） / 'replace'（保存庫を全置換）
+      // 検証に失敗した場合は既存データに一切触れずに例外を投げる。
+      importScenarios(payload, mode) {
+        if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+          throw new Error('ファイルの中身がJSONオブジェクトではありません。');
+        }
+        if (payload.format !== EXPORT_FORMAT) {
+          throw new Error('このエディタが書き出したファイルではないようです。（format が "' + EXPORT_FORMAT + '" ではありません）');
+        }
+        if (!Array.isArray(payload.scenarios)) {
+          throw new Error('scenarios 配列が見つかりません。ファイルが壊れている可能性があります。');
+        }
+
+        const incoming = payload.scenarios.map(s => ({
+          id: (s && s.id) ? s.id : generateUUID(),
+          title: (s && typeof s.title === 'string' && s.title) ? s.title : '無題のシナリオ',
+          content: (s && typeof s.content === 'string') ? s.content : '',
+          npcs: normalizeNpcList(s && s.npcs),
+          updated_at: (s && s.updated_at) ? s.updated_at : new Date().toISOString()
+        }));
+
+        const db = (mode === 'replace') ? [] : readStore();
+        let added = 0;
+        let updated = 0;
+
+        incoming.forEach(s => {
+          const index = db.findIndex(x => x.id === s.id);
+          if (index !== -1) {
+            db[index] = s;
+            updated++;
+          } else {
+            db.push(s);
+            added++;
           }
         });
+
+        writeStore(STORE_KEY, JSON.stringify(db));
+        return { added: added, updated: updated, total: db.length };
       }
     };
 
@@ -1416,7 +1560,8 @@
         listModal = document.getElementById('list-modal');
         scenarioListContainer = document.getElementById('scenario-list-container');
         modalStatus = document.getElementById('modal-status');
-        btnCloudSave = document.getElementById('btn-cloud-save');
+        btnSave = document.getElementById('btn-save');
+        importFileInput = document.getElementById('import-file');
         rollModal = document.getElementById('roll-modal');
         resModal = document.getElementById('res-modal');
         npcModal = document.getElementById('npc-modal');
@@ -1444,14 +1589,6 @@
         } catch (e) {
           console.error("NPCキャッシュのデコードに失敗しました:", e);
           currentNpcs = [];
-        }
-        
-        if (btnCloudSave) {
-          if (API.isGas) {
-            btnCloudSave.innerText = '☁ クラウド保存';
-          } else {
-            btnCloudSave.innerText = '💾 クラウド保存 (ローカルデバッグ中)';
-          }
         }
         
         updatePreview();
@@ -1514,15 +1651,19 @@
       previewArea.innerHTML = parseMarkdown(markdownText);
     }
 
-    // クラウド保存
-    function saveToCloud() {
+    // シナリオ一覧（保存庫）への保存。
+    //
+    // 入力のたびに走る saveToLocal()（編集中の作業状態の自動保存）とは別物であり、
+    // ここを通ったものだけがシナリオ一覧に現れる。混同すると
+    // 「自動保存されているのに一覧に出ない」という誤解を生む。
+    function saveScenarioToStore() {
       if (isSaving || !editor || !scenarioTitle) return;
       isSaving = true;
-      if (btnCloudSave) {
-        btnCloudSave.disabled = true;
-        btnCloudSave.innerText = '保存中...';
+      if (btnSave) {
+        btnSave.disabled = true;
+        btnSave.innerText = '保存中...';
       }
-      if (saveStatus) saveStatus.innerText = '● クラウドへ保存中...';
+      if (saveStatus) saveStatus.innerText = '● 保存中...';
 
       const title = scenarioTitle.value || '無題のシナリオ';
       const content = editor.value;
@@ -1531,20 +1672,132 @@
         .then(res => {
           const now = new Date(res.updated_at);
           const timeStr = now.toTimeString().split(' ')[0].substring(0, 5);
-          if (saveStatus) saveStatus.innerText = `✓ クラウド保存完了 (${timeStr})`;
+          // saveToLocal() が保存ステータスを「ローカル自動保存済み」で書き換えるため、
+          // 先に呼んでから明示保存の完了メッセージを出す。順序を逆にすると、
+          // 保存できたのかどうかが利用者に伝わらない。
           saveToLocal();
+          if (saveStatus) saveStatus.innerText = `✓ 保存しました (${timeStr})`;
         })
         .catch(err => {
-          alert('クラウド保存に失敗しました:\n' + err.message);
+          alert('保存に失敗しました:\n\n' + err.message);
           if (saveStatus) saveStatus.innerText = '❌ 保存失敗';
         })
         .finally(() => {
           isSaving = false;
-          if (btnCloudSave) {
-            btnCloudSave.disabled = false;
-            btnCloudSave.innerText = API.isGas ? '☁ クラウド保存' : '💾 クラウド保存 (デバッグ)';
+          if (btnSave) {
+            btnSave.disabled = false;
+            btnSave.innerText = '💾 保存';
           }
         });
+    }
+
+    // === JSONの書き出し／読み込み ===
+    //
+    // データはこの端末の localStorage にしか無い。別端末へ移すときやバックアップを取るときは、
+    // 利用者がJSONファイルを持ち運ぶ。これが端末間でデータを共有する唯一の手段である。
+
+    function downloadJson(obj, filename) {
+      const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      // 即座に revoke するとダウンロードが始まらない環境があるため、少し待ってから解放する
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function exportTimestamp() {
+      const d = new Date();
+      const p = n => String(n).padStart(2, '0');
+      return '' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate())
+        + '-' + p(d.getHours()) + p(d.getMinutes());
+    }
+
+    // ファイル名に使えない文字を落とす。バックスラッシュは文字コードで指定している
+    // （このファイル自体をスクリプトで加工する際にエスケープ事故を起こさないため）。
+    function sanitizeFileName(name) {
+      const NG = [String.fromCharCode(92), '/', ':', '*', '?', '"', '<', '>', '|'];
+      let out = String(name == null ? '' : name);
+      NG.forEach(c => { out = out.split(c).join('_'); });
+      out = out.trim().substring(0, 40);
+      return out || 'シナリオ';
+    }
+
+    function exportAllScenarios() {
+      try {
+        const data = API.exportScenarios(null);
+        if (data.scenarios.length === 0) {
+          alert('書き出せるシナリオがありません。\n\n先に「💾 保存」でシナリオを保存してください。');
+          return;
+        }
+        downloadJson(data, 'trpg-scenarios-' + exportTimestamp() + '.json');
+        if (modalStatus) modalStatus.innerText = data.scenarios.length + '件を書き出しました。';
+      } catch (e) {
+        alert('書き出しに失敗しました:\n\n' + e.message);
+      }
+    }
+
+    function exportOneScenario(id, event) {
+      if (event) event.stopPropagation();
+      try {
+        const data = API.exportScenarios([id]);
+        if (data.scenarios.length === 0) {
+          alert('対象のシナリオが見つかりませんでした。');
+          return;
+        }
+        downloadJson(data, 'trpg-' + sanitizeFileName(data.scenarios[0].title) + '-' + exportTimestamp() + '.json');
+        if (modalStatus) modalStatus.innerText = '「' + data.scenarios[0].title + '」を書き出しました。';
+      } catch (e) {
+        alert('書き出しに失敗しました:\n\n' + e.message);
+      }
+    }
+
+    function triggerImport() {
+      if (!importFileInput) return;
+      importFileInput.value = ''; // 同じファイルを続けて選んでも change が発火するようにする
+      importFileInput.click();
+    }
+
+    function handleImportFile(input) {
+      const file = input.files && input.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+
+      reader.onload = e => {
+        let payload;
+        try {
+          payload = JSON.parse(e.target.result);
+        } catch (err) {
+          alert('JSONとして読み込めませんでした。\n\nファイルが壊れているか、JSONファイルではありません。');
+          return;
+        }
+
+        const count = (payload && Array.isArray(payload.scenarios)) ? payload.scenarios.length : 0;
+        const proceed = confirm(
+          'このファイルから ' + count + ' 件のシナリオを読み込みます。\n\n'
+          + '・現在保存されているシナリオはそのまま残ります\n'
+          + '・IDが同じシナリオがある場合のみ、ファイルの内容で上書きされます\n\n'
+          + '読み込みますか？'
+        );
+        if (!proceed) return;
+
+        try {
+          const result = API.importScenarios(payload, 'merge');
+          openListModal();
+          if (modalStatus) {
+            modalStatus.innerText = '新規 ' + result.added + '件 / 上書き ' + result.updated + '件 を読み込みました。';
+          }
+        } catch (err) {
+          alert('読み込みに失敗しました:\n\n' + err.message);
+        }
+      };
+
+      reader.onerror = () => alert('ファイルの読み込みに失敗しました。');
+      reader.readAsText(file, 'utf-8');
     }
 
     // シナリオ一覧モーダル制御
@@ -1575,6 +1828,7 @@
                 <span class="scenario-item-date">最終更新: ${date}</span>
               </div>
               <div class="scenario-item-actions">
+                <button class="btn btn-small" onclick="exportOneScenario('${s.id}', event)" title="このシナリオだけをJSONファイルに書き出します">書き出し</button>
                 <button class="btn btn-small btn-danger-small" onclick="deleteScenario('${s.id}', event)">削除</button>
               </div>
             `;
@@ -1595,7 +1849,7 @@
 
     function createNewScenario() {
       if (!editor || !scenarioTitle) return;
-      if (editor.value.trim() && !confirm('現在編集中の内容は上書きされますがよろしいですか？\n(必要であれば先にクラウド保存してください)')) {
+      if (editor.value.trim() && !confirm('現在編集中の内容は上書きされますがよろしいですか？\n(必要であれば先に「💾 保存」してください)')) {
         return;
       }
       currentScenarioId = generateUUID();
@@ -1610,7 +1864,7 @@
 
     function selectScenario(id) {
       if (!editor || !scenarioTitle) return;
-      if (editor.value.trim() && !confirm('現在編集中の内容は上書きされますがよろしいですか？\n(必要であれば先にクラウド保存してください)')) {
+      if (editor.value.trim() && !confirm('現在編集中の内容は上書きされますがよろしいですか？\n(必要であれば先に「💾 保存」してください)')) {
         return;
       }
       if (modalStatus) modalStatus.innerText = '読み込み中...';
@@ -1620,25 +1874,12 @@
           scenarioTitle.value = res.title || '無題のシナリオ';
           editor.value = res.content || '';
           
-          if (res.npcs && Array.isArray(res.npcs)) {
-            currentNpcs = res.npcs.map(n => {
-              let status = {};
-              try {
-                status = typeof n.statusJson === 'string' ? JSON.parse(n.statusJson) : n.statusJson;
-              } catch(e) {
-                status = {};
-              }
-              return {
-                id: n.id,
-                name: n.name,
-                avatarUrl: n.avatarUrl,
-                status: status,
-                memo: n.memo
-              };
-            });
-          } else {
-            currentNpcs = [];
-          }
+          // API.loadScenario() が normalizeNpc() を通して返すため、ここでの再変換は不要。
+          //
+          // 以前はここで n.statusJson を読んでいたが、保存側は status（オブジェクト）で
+          // 書き込んでいたためキーが食い違い、シナリオを読み直すとNPCの能力値が
+          // undefined になって失われていた（2026-08-31 修正）。
+          currentNpcs = normalizeNpcList(res.npcs);
           selectedNpcId = null;
           
           saveToLocal();
@@ -2700,10 +2941,16 @@ ${resultsHTML}            </div>
         const cached = localStorage.getItem('trpg_shortcuts');
         if (cached) {
           shortcuts = JSON.parse(cached);
-          // デフォルトにあってロードしたデータにないアクションを補完
           for (const key in DEFAULT_SHORTCUTS) {
             if (!shortcuts[key]) {
+              // デフォルトにあって保存済みデータに無いアクションを補完する
               shortcuts[key] = { ...DEFAULT_SHORTCUTS[key] };
+            } else {
+              // ラベルと説明は表示用であってユーザーの設定ではないため、常に最新の定義で上書きする。
+              // これをしないと、保存先をローカルへ変えた後も設定画面に
+              // 「☁ クラウド保存」という古い表示が残り続ける。
+              shortcuts[key].label = DEFAULT_SHORTCUTS[key].label;
+              shortcuts[key].desc = DEFAULT_SHORTCUTS[key].desc;
             }
           }
         } else {
@@ -2785,7 +3032,7 @@ ${resultsHTML}            </div>
       }
 
       // 2. モーダルが開いている場合（NPC管理、判定モーダル、シナリオ一覧など）は、
-      // 基本的な誤爆を防ぐため、クラウド保存（Ctrl+S）以外のショートカット挿入はブロックする
+      // 基本的な誤爆を防ぐため、保存（Ctrl+S）以外のショートカット挿入はブロックする
       const isAnyModalOpen = document.querySelector('.modal.active') !== null;
       
       // 3. ショートカットの照合
@@ -2799,7 +3046,7 @@ ${resultsHTML}            </div>
         const shiftMatched = e.shiftKey === !!s.shiftKey;
 
         if (keyMatched && ctrlMatched && altMatched && shiftMatched) {
-          // モーダルが開いている時は、クラウド保存アクションのみ実行可能にする
+          // モーダルが開いている時は、保存アクションのみ実行可能にする
           if (isAnyModalOpen && actionId !== 'cloud-save') {
             continue;
           }
@@ -2842,7 +3089,7 @@ ${resultsHTML}            </div>
           openNpcModal();
           break;
         case 'cloud-save':
-          saveToCloud();
+          saveScenarioToStore();
           break;
       }
     }
