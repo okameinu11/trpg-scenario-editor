@@ -1194,7 +1194,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h3>🌀 共鳴判定の挿入</h3>
-        <button class="btn-close" onclick="closeRollModal()">&times;</button>
+        <button class="btn-close" onclick="closeResModal()">&times;</button>
       </div>
       <div class="modal-body">
         <div class="form-row">
@@ -1619,6 +1619,24 @@
         updatePreview();
         initRollModalData();
         initResonanceModalData();
+        bindModalDismiss();
+
+        // 技能・感情の入力欄は placeholder に「決定で追加」と書いてあるのに
+        // Enter のハンドラが無く、「追加」ボタンを押すまで登録されなかった。
+        // これらの入力欄は renderNpcEditor() で毎回作り直されるため、
+        // 親要素にイベントを委譲して張り替え不要にしている。
+        if (npcEditorArea) {
+          npcEditorArea.addEventListener('keydown', e => {
+            if (e.key !== 'Enter') return;
+            if (e.target.id === 'npc-new-skill') {
+              e.preventDefault();
+              addNpcSkill();
+            } else if (e.target.id === 'npc-new-emotion') {
+              e.preventDefault();
+              addNpcEmotion();
+            }
+          });
+        }
         
         if (editor) editor.addEventListener('input', handleInput);
         if (scenarioTitle) scenarioTitle.addEventListener('input', handleInput);
@@ -1674,6 +1692,25 @@
       if (!previewArea || !editor) return;
       const markdownText = editor.value;
       previewArea.innerHTML = parseMarkdown(markdownText);
+    }
+
+    // 印刷（PDF出力）
+    //
+    // ヘッダーの「🖨 PDF出力」から呼ばれているが、この関数自体が存在せず
+    // ボタンを押しても何も起きない状態だった（2026-09-01 修正）。
+    // 紙面のレイアウトは @media print のCSSが担うため、ここは
+    // 「画面で見えている内容と印刷される内容を一致させる」ことだけを受け持つ。
+    function triggerPrint() {
+      // モーダルは印刷CSSで非表示になるが、開いたまま印刷すると
+      // 戻ってきたときに操作不能に見えるので先に閉じる
+      // （NPC管理は閉じる際に保存とプレビュー更新も行う）。
+      document.querySelectorAll('.modal.active').forEach(m => closeModalElement(m));
+
+      // 入力直後はデバウンス待ちでプレビューが古いままのことがある。
+      // 印刷されるのはプレビュー側なので、最新の本文を反映してから印刷する。
+      updatePreview();
+
+      window.print();
     }
 
     // シナリオ一覧（保存庫）への保存。
@@ -1823,6 +1860,56 @@
 
       reader.onerror = () => alert('ファイルの読み込みに失敗しました。');
       reader.readAsText(file, 'utf-8');
+    }
+
+    // === モーダル共通の閉じる処理 ===
+    //
+    // 以前は × ボタンでしか閉じられず、共鳴判定モーダルはその × が
+    // closeRollModal() を呼んでいたため一度開くと閉じられなかった。
+    // 閉じる経路を「× / 背景クリック / Escキー」の3つに増やし、
+    // どの経路でも必ず各モーダルの close 関数を通す（後始末が個別に必要なため。
+    // 例: NPC管理は閉じる際に保存とプレビュー再描画を行う）。
+    const MODAL_CLOSERS = {
+      'list-modal': () => closeListModal(),
+      'roll-modal': () => closeRollModal(),
+      'res-modal': () => closeResModal(),
+      'npc-modal': () => closeNpcModal(),
+      'shortcut-modal': () => closeShortcutModal()
+    };
+
+    function closeModalElement(el) {
+      if (!el || !el.id) return false;
+      const closer = MODAL_CLOSERS[el.id];
+      if (closer) {
+        closer();
+      } else {
+        el.classList.remove('active');
+      }
+      return true;
+    }
+
+    // 開いているモーダルのうち一番手前のものを閉じる（Escキー用）
+    function closeTopModal() {
+      const open = Array.from(document.querySelectorAll('.modal.active'));
+      if (open.length === 0) return false;
+      return closeModalElement(open[open.length - 1]);
+    }
+
+    // 背景（モーダルの外側）のクリックで閉じる
+    function bindModalDismiss() {
+      document.querySelectorAll('.modal').forEach(m => {
+        // 中身の上で押し始めた場合は、ドラッグで指が外に出ても閉じないようにする
+        // （テキスト選択のたびにモーダルが消えるのを防ぐ）
+        m.addEventListener('mousedown', e => {
+          if (e.target === m) m.dataset.dismissArmed = '1';
+        });
+        m.addEventListener('click', e => {
+          if (e.target === m && m.dataset.dismissArmed === '1') {
+            closeModalElement(m);
+          }
+          delete m.dataset.dismissArmed;
+        });
+      });
     }
 
     // シナリオ一覧モーダル制御
@@ -2465,8 +2552,13 @@
       if (!confirm('本当にこのNPCを削除しますか？')) return;
       
       currentNpcs = currentNpcs.filter(n => n.id !== id);
-      selectedNpcId = null;
-      
+
+      // 削除したのが選択中のNPCだったときだけ選択を解除する。
+      // 以前は無条件に null にしていたため、別のNPCを1体消しただけで
+      // 編集中だったNPCの詳細欄が理由もなく空になっていた
+      // （「NPCを選択しても詳細が表示されない」の正体）。
+      if (selectedNpcId === id) selectedNpcId = null;
+
       renderNpcList();
       renderNpcEditor();
     }
@@ -2510,8 +2602,12 @@
       
       npc.status.skills.push(value);
       input.value = '';
-      
+
       renderNpcEditor();
+      // renderNpcEditor() が入力欄ごと作り直すためフォーカスが外れる。
+      // 続けて技能を打ち込めるよう、新しい入力欄へ戻す。
+      const next = document.getElementById('npc-new-skill');
+      if (next) next.focus();
     }
 
     function removeNpcSkill(index) {
@@ -2538,8 +2634,11 @@
       
       npc.status.emotions.push(value);
       input.value = '';
-      
+
       renderNpcEditor();
+      // 技能欄と同じ理由でフォーカスを戻す（連続入力できるように）
+      const next = document.getElementById('npc-new-emotion');
+      if (next) next.focus();
     }
 
     function removeNpcEmotion(index) {
@@ -2966,6 +3065,28 @@ ${resultsHTML}            </div>
     }
 
     // === ショートカットキーのロード ===
+    // ショートカット1件分の「未割り当て」状態を作る。
+    //
+    // label / desc は表示用の定義値なので必ず引き継ぐこと。
+    // 以前はキーを解除するたびに label ごと消えており、
+    // 設定画面の項目名が空になっていた。
+    function blankShortcut(actionId) {
+      const def = DEFAULT_SHORTCUTS[actionId] || {};
+      return {
+        key: null, ctrlKey: false, altKey: false, shiftKey: false,
+        label: def.label || actionId,
+        desc: def.desc || ''
+      };
+    }
+
+    // 定義に無いアクションIDでも落ちないようにする。
+    // 保存済み設定に古いバージョンのIDが残っていると、
+    // DEFAULT_SHORTCUTS[id].label が undefined 参照になって画面ごと壊れていた。
+    function shortcutLabel(actionId) {
+      const def = DEFAULT_SHORTCUTS[actionId];
+      return def ? def.label : actionId;
+    }
+
     function loadShortcuts() {
       try {
         const cached = localStorage.getItem('trpg_shortcuts');
@@ -2982,6 +3103,13 @@ ${resultsHTML}            </div>
               shortcuts[key].label = DEFAULT_SHORTCUTS[key].label;
               shortcuts[key].desc = DEFAULT_SHORTCUTS[key].desc;
             }
+          }
+
+          // 定義から消えた古いアクションIDは捨てる。
+          // 残していると、キーの重複判定でそのIDがヒットしたときに
+          // DEFAULT_SHORTCUTS 側に対応が無く、設定画面ごと壊れる。
+          for (const key in shortcuts) {
+            if (!DEFAULT_SHORTCUTS[key]) delete shortcuts[key];
           }
         } else {
           // キャッシュがなければデフォルトを複製
@@ -3061,7 +3189,16 @@ ${resultsHTML}            </div>
         return;
       }
 
-      // 2. モーダルが開いている場合（NPC管理、判定モーダル、シナリオ一覧など）は、
+      // 2. Esc でモーダルを閉じる
+      // （キーバインド記録中は上の分岐で処理済みなので、ここには到達しない）
+      if (e.key === 'Escape') {
+        if (closeTopModal()) {
+          e.preventDefault();
+          return;
+        }
+      }
+
+      // 3. モーダルが開いている場合（NPC管理、判定モーダル、シナリオ一覧など）は、
       // 基本的な誤爆を防ぐため、保存（Ctrl+S）以外のショートカット挿入はブロックする
       const isAnyModalOpen = document.querySelector('.modal.active') !== null;
       
@@ -3207,11 +3344,11 @@ ${resultsHTML}            </div>
     // === ショートカット設定のクリア ===
     function clearShortcut(actionId, event) {
       if (event) event.stopPropagation();
-      shortcuts[actionId] = { key: null, ctrlKey: false, altKey: false, shiftKey: false };
+      shortcuts[actionId] = blankShortcut(actionId);
       localStorage.setItem('trpg_shortcuts', JSON.stringify(shortcuts));
       updateAssistantPanelShortcutLabels();
       renderShortcutList();
-      showAlert(`${DEFAULT_SHORTCUTS[actionId].label} のショートカットを解除しました。`, false);
+      showAlert(`${shortcutLabel(actionId)} のショートカットを解除しました。`, false);
     }
 
     // === キー記録中のイベント処理（特殊キーの制限・バリデーション） ===
@@ -3273,15 +3410,16 @@ ${resultsHTML}            </div>
       let alertMessage = '';
       if (duplicateActionId) {
         // 重複している古い設定をクリア
-        shortcuts[duplicateActionId] = { key: null, ctrlKey: false, altKey: false, shiftKey: false };
-        alertMessage = `以前「${DEFAULT_SHORTCUTS[duplicateActionId].label}」に割り当てられていたキーと重複したため、古い割り当てを解除しました。`;
+        shortcuts[duplicateActionId] = blankShortcut(duplicateActionId);
+        alertMessage = `以前「${shortcutLabel(duplicateActionId)}」に割り当てられていたキーと重複したため、古い割り当てを解除しました。`;
       }
 
       // 新しい設定を保存
+      const recDef = DEFAULT_SHORTCUTS[recordingActionId] || {};
       shortcuts[recordingActionId] = {
         ...newKey,
-        label: DEFAULT_SHORTCUTS[recordingActionId].label,
-        desc: DEFAULT_SHORTCUTS[recordingActionId].desc
+        label: recDef.label || recordingActionId,
+        desc: recDef.desc || ''
       };
 
       localStorage.setItem('trpg_shortcuts', JSON.stringify(shortcuts));
@@ -3291,7 +3429,7 @@ ${resultsHTML}            </div>
       if (alertMessage) {
         showAlert(alertMessage, false);
       } else {
-        showAlert(`「${DEFAULT_SHORTCUTS[recordingActionId].label}」にショートカットを設定しました。`, false);
+        showAlert(`「${shortcutLabel(recordingActionId)}」にショートカットを設定しました。`, false);
       }
     }
 
