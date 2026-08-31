@@ -1628,6 +1628,10 @@
         if (npcEditorArea) {
           npcEditorArea.addEventListener('keydown', e => {
             if (e.key !== 'Enter') return;
+            // 日本語入力の変換確定のEnterを拾わない。
+            // これを見ないと「かんさつがん」を漢字に変換したときの確定Enterで
+            // 未確定の文字列が登録されてしまう（keyCode 229 は古いブラウザ向けの保険）。
+            if (e.isComposing || e.keyCode === 229) return;
             if (e.target.id === 'npc-new-skill') {
               e.preventDefault();
               addNpcSkill();
@@ -2462,19 +2466,11 @@
         </div>
       `;
       
-      const skillInput = document.getElementById('npc-new-skill');
-      if (skillInput) {
-        skillInput.addEventListener('keypress', (e) => {
-          if (e.key === 'Enter') addNpcSkill();
-        });
-      }
-
-      const emotionInput = document.getElementById('npc-new-emotion');
-      if (emotionInput) {
-        emotionInput.addEventListener('keypress', (e) => {
-          if (e.key === 'Enter') addNpcEmotion();
-        });
-      }
+      // Enterでの追加は npcEditorArea への委譲で処理している（DOMContentLoaded を参照）。
+      // かつてここで keypress を直接張っていたが、
+      //   ・keypress は非推奨で、日本語入力の変換確定と区別できない
+      //   ・renderNpcEditor() のたびに張り直しが必要
+      // という問題があったため撤去した。
     }
 
     // 能力値変更時のHP/MPの自動計算（エモクロアTRPGルール：HP=身体×2, MP=精神×2）
