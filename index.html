@@ -189,6 +189,16 @@
     line-height: 1.8;
     color: var(--preview-text) !important;
   }
+  /* URLや長い英数字のような区切りの無い文字列は、既定では途中で折り返されず
+     レイアウトを横に押し広げる（プレビューが画面外まで伸びる）。
+     anywhere は break-word と違い要素の最小幅にも効くため、flex/grid の
+     はみ出しも同時に防げる。 */
+  #preview-area,
+  #preview-area *,
+  .list-container,
+  .list-container * {
+    overflow-wrap: anywhere;
+  }
   #preview-area p {
     margin: 0 0 16px 0;
     color: var(--preview-text) !important;
@@ -563,8 +573,15 @@
     display: flex;
     gap: 12px;
   }
+  /* min-width: 0 が無いと、flex/grid のアイテムは中身（input）の内在幅より縮まず、
+     親を突き破って画面外へ出る。NPC編集フォームで「性別」「共鳴度」の入力欄が
+     モーダルの外に出て操作できなくなっていた原因。 */
   .form-row .form-group {
     flex: 1;
+    min-width: 0;
+  }
+  .status-grid-8 .form-group {
+    min-width: 0;
   }
   .form-label {
     font-size: 0.85rem;
@@ -579,6 +596,10 @@
     border-radius: 6px;
     font-size: 0.95rem;
     outline: none;
+    /* box-sizing とセットで指定すること。padding があるため border-box でないと
+       width:100% が親からはみ出す。 */
+    width: 100%;
+    box-sizing: border-box;
   }
   .form-input:focus {
     border-color: var(--accent-color);
@@ -754,6 +775,8 @@
     gap: 4px;
     cursor: pointer;
     flex-grow: 1;
+    /* 長いシナリオタイトルが行を押し広げ、右側の操作ボタンを画面外へ追い出すのを防ぐ */
+    min-width: 0;
   }
   .scenario-item-title {
     font-weight: 600;
@@ -767,6 +790,8 @@
     display: flex;
     gap: 8px;
     margin-left: 15px;
+    /* タイトルがどれだけ長くても操作ボタンは必ず見えるようにする */
+    flex-shrink: 0;
   }
   .btn-small {
     padding: 6px 12px;
@@ -2554,7 +2579,9 @@
 
         const skills = (npc.status.skills && npc.status.skills.length > 0) ? npc.status.skills.join(', ') : 'なし';
         const emotions = (npc.status.emotions && npc.status.emotions.length > 0) ? npc.status.emotions.join(', ') : 'なし';
-        const memo = npc.memo || '特記事項なし';
+        // 複数行のメモをそのまま流し込むと、2行目以降が「・」を失って
+        // 箇条書きから外れた素の行になる。継続行を字下げして見た目を揃える。
+        const memo = (npc.memo || '特記事項なし').replace(/\n/g, '\n　　');
 
         template = `\n\n[DL] 【NPC紹介：${name}】\n・プロフィール：年齢 ${age} / 性別 ${gender} / 職業 ${occupation}\n・能力値：身体 ${str} / 敏捷 ${agi} / 器用 ${dex} / 精神 ${spi} / 五感 ${sen} / 知性 ${int} / 魅力 ${cha} / 社会 ${soc}\n・ステータス：耐久値(HP) ${hp} / 精神値(MP) ${mp} / 共鳴度 ${res}\n・所持技能：${skills}\n・共鳴感情：${emotions}\n・設定メモ：${memo}\n`;
         insertAtCursor(template);
@@ -2808,7 +2835,10 @@ ${resultsHTML}            </div>
       
       const skills = (npc.status.skills && npc.status.skills.length > 0) ? npc.status.skills.join(', ') : 'なし';
       const emotions = (npc.status.emotions && npc.status.emotions.length > 0) ? npc.status.emotions.join(', ') : 'なし';
-      const memo = npc.memo ? npc.memo.replace(/\n/g, '<br>') : '―';
+      // メモだけエスケープが漏れており、`HP<5で逃走` のような普通の記述で文字が消えたり、
+      // `<b>` がタグとして解釈されて要素が生成されていた。
+      // 必ず「エスケープしてから」改行を <br> に変換すること（順序が逆だと <br> まで無効化される）。
+      const memo = npc.memo ? escapeHTML(npc.memo).replace(/\n/g, '<br>') : '―';
 
       // 簡易版NPCカード表示 (セリフ用サイドカラム等に最適)
       if (isMini) {

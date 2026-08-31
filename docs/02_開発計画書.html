@@ -175,6 +175,42 @@
       外部ライブラリを持たない自作パーサという判断が、GitHub Pages への静的配信をそのまま可能にしている。
       ビルド工程が無いため、<code>index.html</code> を置くだけで動く。
     </div>
+
+    <h4>3.2.1 レイアウトが崩れる定番の原因（2026-08-31 追記）</h4>
+    <p>
+      入力値の長さによって表示が崩れる不具合が複数見つかり、原因はいずれも次の2つだった。
+      新しくフォームや一覧を追加するときは、最初からこの2点を入れておくこと。
+    </p>
+    <div class="do-dont">
+      <div class="do">
+        <div class="label">DO</div>
+        <p>
+          flex／grid の子に <code>min-width: 0</code> を指定する。
+          既定の <code>min-width: auto</code> は「中身の最小幅より縮まない」という意味なので、
+          入力欄を含む子は親を突き破って画面外へ出る。
+          <br><br>
+          利用者が入力した文字列を表示する場所には <code>overflow-wrap: anywhere</code> を指定する。
+          URLのような区切りの無い文字列は既定では折り返されない。
+        </p>
+      </div>
+      <div class="dont">
+        <div class="label">DON'T</div>
+        <p>
+          <code>flex: 1</code> だけ書いて縮むと思い込む。
+          幅を <code>%</code> で指定して <code>box-sizing: border-box</code> を忘れる
+          （padding のぶんだけ親からはみ出す）。
+        </p>
+      </div>
+    </div>
+
+    <div class="callout danger">
+      <strong>利用者の入力をHTMLに埋め込むときは、必ず <code>escapeHTML()</code> を通すこと。</strong>
+      NPCカードのメモ欄だけエスケープが漏れており、<code>HP&lt;5で逃走</code> のような
+      ごく普通の記述で文字が消え、<code>&lt;b&gt;</code> はタグとして解釈されて要素が生成されていた
+      （2026-08-31 修正）。
+      改行を <code>&lt;br&gt;</code> に変換する場合は<strong>エスケープしてから変換する</strong>。
+      順序が逆だと <code>&lt;br&gt;</code> 自体が無効化される。
+    </div>
   </section>
 
   <section>
