@@ -1370,32 +1370,32 @@
     // 能力値・技能・判定の成功段階はシステムごとに全く異なるため、
     // 画面側はここの定義だけを見て描画する。ハードコードを増やさないこと。
     //
-    // emoklore の abilities は「既に保存されているNPCデータのキー」に合わせてある。
-    // 公式ルールの8能力値（身体/器用/精神/五感/知力/魅力/社会/運勢）とは
-    // 一部食い違うが、変更すると既存データの能力値が失われるため現状を維持している。
     const GAME_SYSTEMS = {
       emoklore: {
         id: 'emoklore',
         name: 'エモクロアTRPG',
         short: 'エモクロア',
         description: '感情と伝承が交錯する現代ドラマチックTRPG。D10の成功数で判定する。',
+        // 公式ルールの8能力値。範囲は1〜6（平均3〜4）。
+        // 出典: knowledge/emocloa/emocloa-resonant-data-structure.html §2.1
         abilities: [
-          { key: 'str', label: '身体' }, { key: 'agi', label: '敏捷' },
-          { key: 'dex', label: '器用' }, { key: 'spi', label: '精神' },
-          { key: 'sen', label: '五感' }, { key: 'int', label: '知性' },
-          { key: 'cha', label: '魅力' }, { key: 'soc', label: '社会' }
+          { key: 'str', label: '身体' }, { key: 'dex', label: '器用' },
+          { key: 'spi', label: '精神' }, { key: 'sen', label: '五感' },
+          { key: 'int', label: '知力' }, { key: 'cha', label: '魅力' },
+          { key: 'soc', label: '社会' }, { key: 'luck', label: '運勢' }
         ],
-        abilityMin: 1, abilityMax: 10,
+        abilityMin: 1, abilityMax: 6,
         abilityBoxLabel: '📊 能力値（共鳴者ステータス）',
         derived: [
-          { key: 'hp', label: '耐久値 (HP)', placeholder: '身体×2' },
-          { key: 'mp', label: '精神値 (MP)', placeholder: '精神×2' },
+          { key: 'hp', label: '耐久値 (HP)', placeholder: '身体+10' },
+          { key: 'mp', label: '精神値 (MP)', placeholder: '精神+知力' },
           { key: 'resonance', label: '共鳴度', placeholder: '初期値: 1' }
         ],
-        // 能力値を変えたときに自動計算する派生値
+        // 能力値を変えたときに自動計算する派生値。
+        // 出典: knowledge/emocloa/emocloa-combat-system.html §2.1
         autoCalc: [
-          { from: ['str'], to: 'hp', calc: v => v.str * 2 },
-          { from: ['spi'], to: 'mp', calc: v => v.spi * 2 }
+          { from: ['str'], to: 'hp', calc: v => v.str + 10 },
+          { from: ['spi', 'int'], to: 'mp', calc: v => v.spi + v.int }
         ],
         skills: EMOKLORE_SKILLS,
         skillPlaceholder: '例: 観察眼:Lv2 (決定で追加)',
@@ -2699,16 +2699,8 @@
       if (!npc.status.skills) npc.status.skills = [];
       if (!npc.status.emotions) npc.status.emotions = [];
       
-      // 共鳴者8能力値
-      const str = npc.status.str || '';
-      const agi = npc.status.agi || '';
-      const dex = npc.status.dex || '';
-      const spi = npc.status.spi || '';
-      const sen = npc.status.sen || '';
-      const int = npc.status.int || '';
-      const cha = npc.status.cha || '';
-      const soc = npc.status.soc || '';
-      
+      // 能力値はシステム定義から生成するため、ここで個別に取り出さない
+
       // 基本プロフィール
       const gender = npc.status.gender || '';
       const age = npc.status.age || '';
@@ -2752,6 +2744,17 @@
                      oninput="updateNpcStatusField('${ab.key}', this.value); recalcDerived();">
             </div>`;
       });
+
+      // 2026-09-01 以前は公式に無い「敏捷」を能力値に持っていた。
+      // 公式8能力値へ揃えた結果、表示対象から外れている。
+      // データ自体は消していないので、黙って消えたように見えないよう明示する。
+      const legacyAgi = npc.status.agi;
+      const legacyNote = (currentSystemId === 'emoklore' && legacyAgi)
+        ? `<div style="margin-top: 10px; font-size: 0.72rem; color: var(--text-secondary); line-height: 1.6;">
+             旧バージョンで入力された「敏捷: ${escapeHTML(legacyAgi)}」を保持しています。
+             公式ルールの能力値に敏捷は無いため、表示・計算には使っていません。
+           </div>`
+        : '';
 
       // 共鳴感情はエモクロア固有の仕組みなので、他システムでは欄ごと出さない
       const emotionsSection = !sys.hasEmotions ? '' : `
@@ -2850,6 +2853,7 @@ ${abilitiesHTML}
           <div class="status-grid-8" style="margin-top: 12px;">
 ${derivedHTML}
           </div>
+          ${legacyNote}
         </div>
 
         <!-- 所持技能 -->
@@ -3094,18 +3098,13 @@ ${derivedHTML}
         const age = npc.status.age || '―';
         const gender = npc.status.gender || '―';
         const occupation = npc.status.occupation || '―';
-        const hp = npc.status.hp || '―';
-        const mp = npc.status.mp || '―';
-        const res = npc.status.resonance || '―';
-        
-        const str = npc.status.str || '―';
-        const agi = npc.status.agi || '―';
-        const dex = npc.status.dex || '―';
-        const spi = npc.status.spi || '―';
-        const sen = npc.status.sen || '―';
-        const int = npc.status.int || '―';
-        const cha = npc.status.cha || '―';
-        const soc = npc.status.soc || '―';
+        // 能力値と派生値の項目はシステムごとに違うので定義から組み立てる。
+        // 以前はエモクロアの旧8能力値を直接書いており、CoC6では意味を成さなかった。
+        const profSys = currentSystem();
+        const abilityLine = profSys.abilities
+          .map(ab => ab.label + ' ' + (npc.status[ab.key] || '―')).join(' / ');
+        const derivedLine = profSys.derived
+          .map(d => d.label + ' ' + (npc.status[d.key] || '―')).join(' / ');
 
         const skills = (npc.status.skills && npc.status.skills.length > 0) ? npc.status.skills.join(', ') : 'なし';
         const emotions = (npc.status.emotions && npc.status.emotions.length > 0) ? npc.status.emotions.join(', ') : 'なし';
@@ -3113,7 +3112,10 @@ ${derivedHTML}
         // 箇条書きから外れた素の行になる。継続行を字下げして見た目を揃える。
         const memo = (npc.memo || '特記事項なし').replace(/\n/g, '\n　　');
 
-        template = `\n\n[DL] 【NPC紹介：${name}】\n・プロフィール：年齢 ${age} / 性別 ${gender} / 職業 ${occupation}\n・能力値：身体 ${str} / 敏捷 ${agi} / 器用 ${dex} / 精神 ${spi} / 五感 ${sen} / 知性 ${int} / 魅力 ${cha} / 社会 ${soc}\n・ステータス：耐久値(HP) ${hp} / 精神値(MP) ${mp} / 共鳴度 ${res}\n・所持技能：${skills}\n・共鳴感情：${emotions}\n・設定メモ：${memo}\n`;
+        // 共鳴感情の行はエモクロアのときだけ出す
+        const emotionsRow = profSys.hasEmotions ? `\n・共鳴感情：${emotions}` : '';
+
+        template = `\n\n[DL] 【NPC紹介：${name}】\n・プロフィール：年齢 ${age} / 性別 ${gender} / 職業 ${occupation}\n・能力値：${abilityLine}\n・ステータス：${derivedLine}\n・所持技能：${skills}${emotionsRow}\n・設定メモ：${memo}\n`;
         insertAtCursor(template);
       } 
       else if (mode === 'card') {
@@ -3350,19 +3352,8 @@ ${resultsHTML}            </div>
       const age = npc.status.age || '―';
       const occupation = npc.status.occupation || '―';
       
-      const str = npc.status.str || '―';
-      const agi = npc.status.agi || '―';
-      const dex = npc.status.dex || '―';
-      const spi = npc.status.spi || '―';
-      const sen = npc.status.sen || '―';
-      const int = npc.status.int || '―';
-      const cha = npc.status.cha || '―';
-      const soc = npc.status.soc || '―';
-      
-      const hp = npc.status.hp || '―';
-      const mp = npc.status.mp || '―';
-      const res = npc.status.resonance || '―';
-      
+      // 能力値・派生値はシステム定義から組み立てる（下の cardSys を参照）
+
       const skills = (npc.status.skills && npc.status.skills.length > 0) ? npc.status.skills.join(', ') : 'なし';
       const emotions = (npc.status.emotions && npc.status.emotions.length > 0) ? npc.status.emotions.join(', ') : 'なし';
       // メモだけエスケープが漏れており、`HP<5で逃走` のような普通の記述で文字が消えたり、
