@@ -1054,7 +1054,8 @@
       <div class="app-logo" onclick="openListModal()" title="シナリオ一覧を表示">
         <span>📂</span> <span>一覧</span>
       </div>
-      <span class="version-tag">v1.2.1</span>
+      <span class="version-tag">v1.3.0</span>
+      <span class="version-tag" id="system-badge" title="このシナリオのゲームシステム（作成時に固定）">エモクロア</span>
       <input type="text" id="scenario-title" class="scenario-title-input" value="無題のシナリオ" placeholder="シナリオタイトルを入力">
       <span class="save-status" id="save-status">✓ 自動保存有効</span>
     </div>
@@ -1115,6 +1116,19 @@
           データはこの端末のブラウザ内にのみ保存されます。別の端末で使うときや、バックアップを取るときは
           「⬇ 全データを書き出し」でJSONファイルとして持ち出してください。
         </p>
+
+        <!-- 新規作成時のゲームシステム選択 -->
+        <div id="new-scenario-system" style="display: none; border: 1px solid var(--accent-color); border-radius: 8px; padding: 16px; margin-bottom: 14px; background-color: var(--bg-input);">
+          <div style="font-size: 0.95rem; font-weight: 700; margin-bottom: 6px;">ゲームシステムを選んでください</div>
+          <div style="font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.6;">
+            技能リスト・NPCの能力値・判定の成功段階が、選んだシステムに合わせて切り替わります。<br>
+            <strong>シナリオごとに固定され、後から変更できません。</strong>
+          </div>
+          <div id="system-choices" style="display: flex; flex-direction: column; gap: 8px;"></div>
+          <div style="display: flex; justify-content: flex-end; margin-top: 12px;">
+            <button class="btn" onclick="cancelNewScenario()">キャンセル</button>
+          </div>
+        </div>
         <div id="scenario-list-container" class="list-container">
           <!-- JSで動的に追加 -->
         </div>
@@ -1171,15 +1185,8 @@
 
         <div class="form-group">
           <span class="form-label">作成する成功度の枠（チェックをいれたものを生成）</span>
-          <div class="checkbox-grid">
-            <label class="checkbox-item"><input type="checkbox" id="check-miracle"> 奇跡的成功</label>
-            <label class="checkbox-item"><input type="checkbox" id="check-catastrophe"> 災厄級成功</label>
-            <label class="checkbox-item"><input type="checkbox" id="check-triple"> 極限成功</label>
-            <label class="checkbox-item"><input type="checkbox" id="check-double" checked> 効果的成功</label>
-            <label class="checkbox-item"><input type="checkbox" id="check-single" checked> 成功</label>
-            <label class="checkbox-item"><input type="checkbox" id="check-fail" checked> 失敗</label>
-            <label class="checkbox-item"><input type="checkbox" id="check-fumble"> 致命的失敗</label>
-          </div>
+          <!-- 成功段階はシステムごとに異なるため renderRollTiers() が生成する -->
+          <div class="checkbox-grid" id="roll-tier-checks"></div>
         </div>
 
         <div class="modal-actions" style="justify-content: flex-end; margin-top: 10px;">
@@ -1322,8 +1329,175 @@
       "傷": ["後悔", "孤独", "諦観", "絶望", "否定", "疑念", "罪悪感", "狂気", "劣等感"]
     };
 
+    // クトゥルフ神話TRPG 第6版の技能と初期値
+    // 出典: knowledge/coc6th/coc6th-skill-list-initial-values.html
+    const COC6_SKILLS = {
+      "戦闘": [
+        ['回避', 'DEX×2'], ['キック', '25'], ['組み付き', '25'], ['こぶし（パンチ）', '50'],
+        ['頭突き', '10'], ['投擲', '25'], ['マーシャルアーツ', '1'], ['拳銃', '20'],
+        ['サブマシンガン', '15'], ['ショットガン', '30'], ['マシンガン', '15'], ['ライフル', '25']
+      ],
+      "探索": [
+        ['応急手当', '30'], ['鍵開け', '1'], ['隠す', '15'], ['隠れる', '10'],
+        ['聞き耳', '25'], ['忍び歩き', '10'], ['写真術', '10'], ['精神分析', '1'],
+        ['追跡', '10'], ['登攀', '40'], ['図書館', '25'], ['目星', '25']
+      ],
+      "行動": [
+        ['運転（任意）', '20'], ['機械修理', '20'], ['重機械操作', '1'], ['乗馬', '5'],
+        ['水泳', '25'], ['製作（任意）', '5'], ['操縦（任意）', '1'], ['跳躍', '25'],
+        ['電気修理', '10'], ['ナビゲート', '10'], ['変装', '1']
+      ],
+      "交渉": [
+        ['言いくるめ', '5'], ['信用', '15'], ['説得', '15'], ['値切り', '5'], ['母国語', 'EDU×5']
+      ],
+      "知識": [
+        ['医学', '5'], ['オカルト', '5'], ['化学', '1'], ['クトゥルフ神話', '0'],
+        ['芸術（任意）', '5'], ['経理', '10'], ['考古学', '1'], ['コンピューター', '1'],
+        ['心理学', '5'], ['人類学', '1'], ['生物学', '1'], ['地質学', '1'],
+        ['電子工学', '1'], ['天文学', '1'], ['博物学', '10'], ['物理学', '1'],
+        ['法律', '5'], ['薬学', '1'], ['歴史', '20']
+      ]
+    };
+
+    // === ゲームシステム定義 ===
+    //
+    // シナリオごとに1つのシステムを持つ（作成時に選び、以降は変更しない）。
+    // 能力値・技能・判定の成功段階はシステムごとに全く異なるため、
+    // 画面側はここの定義だけを見て描画する。ハードコードを増やさないこと。
+    //
+    // emoklore の abilities は「既に保存されているNPCデータのキー」に合わせてある。
+    // 公式ルールの8能力値（身体/器用/精神/五感/知力/魅力/社会/運勢）とは
+    // 一部食い違うが、変更すると既存データの能力値が失われるため現状を維持している。
+    const GAME_SYSTEMS = {
+      emoklore: {
+        id: 'emoklore',
+        name: 'エモクロアTRPG',
+        short: 'エモクロア',
+        description: '感情と伝承が交錯する現代ドラマチックTRPG。D10の成功数で判定する。',
+        abilities: [
+          { key: 'str', label: '身体' }, { key: 'agi', label: '敏捷' },
+          { key: 'dex', label: '器用' }, { key: 'spi', label: '精神' },
+          { key: 'sen', label: '五感' }, { key: 'int', label: '知性' },
+          { key: 'cha', label: '魅力' }, { key: 'soc', label: '社会' }
+        ],
+        abilityMin: 1, abilityMax: 10,
+        abilityBoxLabel: '📊 能力値（共鳴者ステータス）',
+        derived: [
+          { key: 'hp', label: '耐久値 (HP)', placeholder: '身体×2' },
+          { key: 'mp', label: '精神値 (MP)', placeholder: '精神×2' },
+          { key: 'resonance', label: '共鳴度', placeholder: '初期値: 1' }
+        ],
+        // 能力値を変えたときに自動計算する派生値
+        autoCalc: [
+          { from: ['str'], to: 'hp', calc: v => v.str * 2 },
+          { from: ['spi'], to: 'mp', calc: v => v.spi * 2 }
+        ],
+        skills: EMOKLORE_SKILLS,
+        skillPlaceholder: '例: 観察眼:Lv2 (決定で追加)',
+        hasEmotions: true,
+        emotions: EMOKLORE_EMOTIONS,
+        hasResonanceRoll: true,
+        // 判定ブロックの成功段階（上から順にモーダルのチェックボックスになる）
+        rollTiers: [
+          { id: 'miracle', label: '奇跡的成功', checked: false },
+          { id: 'catastrophe', label: '災厄級成功', checked: false },
+          { id: 'triple', label: '極限成功', checked: false },
+          { id: 'double', label: '効果的成功', checked: true },
+          { id: 'single', label: '成功', checked: true },
+          { id: 'fail', label: '失敗', checked: true },
+          { id: 'fumble', label: '致命的失敗', checked: false }
+        ],
+        // 判定ブロックのキーワードとバッジの対応。
+        // 対応表は docs/01_要件定義書.html §4.2 にあり、実装と一致していることを検証済み。
+        // ここを変更したら仕様書も更新すること。
+        badges: [
+          { match: ['災厄級成功', '災厄', 'カタストロフ'], label: '災厄級成功', class: 'bg-catastrophe' },
+          { match: ['奇跡的成功', '奇跡', 'ミラクル'], label: '奇跡的成功', class: 'bg-miracle' },
+          { match: ['極限成功', '極限', 'トリプル'], label: '極限成功', class: 'bg-triple' },
+          { match: ['効果的成功', '効果的', 'ダブル'], label: '効果的成功', class: 'bg-double' },
+          { match: ['成功', '通常成功', '通常', 'single'], label: '成功', class: 'bg-single' },
+          { match: ['失敗'], label: '失敗', class: 'bg-fail' },
+          { match: ['致命的失敗', '致命的', 'ファンブル'], label: '致命的失敗', class: 'bg-fumble' }
+        ]
+      },
+
+      coc6: {
+        id: 'coc6',
+        name: 'クトゥルフ神話TRPG 第6版',
+        short: 'CoC 6版',
+        description: '1d100のロールアンダーで判定する。能力値は3〜18、技能はパーセンテージ。',
+        abilities: [
+          { key: 'str', label: 'STR 筋力' }, { key: 'con', label: 'CON 体力' },
+          { key: 'pow', label: 'POW 精神力' }, { key: 'dex', label: 'DEX 敏捷性' },
+          { key: 'app', label: 'APP 外見' }, { key: 'siz', label: 'SIZ 体格' },
+          { key: 'int', label: 'INT 知性' }, { key: 'edu', label: 'EDU 教育' }
+        ],
+        abilityMin: 1, abilityMax: 21,
+        abilityBoxLabel: '📊 能力値（探索者ステータス）',
+        derived: [
+          { key: 'hp', label: '耐久力 (HP)', placeholder: '(CON+SIZ)÷2 切上' },
+          { key: 'mp', label: 'マジック・ポイント (MP)', placeholder: 'POWと同値' },
+          { key: 'san', label: '正気度 (SAN)', placeholder: 'POW×5' },
+          { key: 'idea', label: 'アイデア', placeholder: 'INT×5' },
+          { key: 'luck', label: '幸運', placeholder: 'POW×5' },
+          { key: 'know', label: '知識', placeholder: 'EDU×5' },
+          { key: 'db', label: 'ダメージ・ボーナス', placeholder: 'STR+SIZ から算出', type: 'text' }
+        ],
+        autoCalc: [
+          { from: ['con', 'siz'], to: 'hp', calc: v => Math.ceil((v.con + v.siz) / 2) },
+          { from: ['pow'], to: 'mp', calc: v => v.pow },
+          { from: ['pow'], to: 'san', calc: v => v.pow * 5 },
+          { from: ['int'], to: 'idea', calc: v => v.int * 5 },
+          { from: ['pow'], to: 'luck', calc: v => v.pow * 5 },
+          { from: ['edu'], to: 'know', calc: v => v.edu * 5 },
+          { from: ['str', 'siz'], to: 'db', calc: v => calcDamageBonus(v.str + v.siz) }
+        ],
+        skills: COC6_SKILLS,
+        skillPlaceholder: '例: 目星:45 (決定で追加)',
+        hasEmotions: false,
+        hasResonanceRoll: false,
+        rollTiers: [
+          { id: 'critical', label: '決定的成功', checked: false },
+          { id: 'special', label: 'スペシャル', checked: false },
+          { id: 'success', label: '成功', checked: true },
+          { id: 'failure', label: '失敗', checked: true },
+          { id: 'fumble', label: '致命的失敗', checked: false }
+        ],
+        badges: [
+          { match: ['決定的成功', 'クリティカル'], label: '決定的成功', class: 'bg-miracle' },
+          { match: ['スペシャル', 'イクストリーム'], label: 'スペシャル', class: 'bg-double' },
+          { match: ['成功', 'レギュラー', '通常成功'], label: '成功', class: 'bg-single' },
+          { match: ['失敗'], label: '失敗', class: 'bg-fail' },
+          { match: ['致命的失敗', 'ファンブル'], label: '致命的失敗', class: 'bg-fumble' }
+        ]
+      }
+    };
+
+    const DEFAULT_SYSTEM_ID = 'emoklore';
+
+    // ダメージ・ボーナス（CoC6版）。STR+SIZ の合計から求める。
+    // 出典: knowledge/coc6th/coc6th-character-sheet-rules.html §3
+    function calcDamageBonus(total) {
+      if (!total || total < 2) return '';
+      if (total <= 12) return '-1D6';
+      if (total <= 16) return '-1D4';
+      if (total <= 24) return '±0';
+      if (total <= 32) return '+1D4';
+      if (total <= 40) return '+1D6';
+      return '+2D6';
+    }
+
+    // 現在編集中のシナリオのシステム定義を返す。
+    // 未設定の既存シナリオは全てエモクロアとして扱う（後方互換）。
+    function currentSystem() {
+      return GAME_SYSTEMS[currentSystemId] || GAME_SYSTEMS[DEFAULT_SYSTEM_ID];
+    }
+
     // 2. グローバルステート
     let currentScenarioId = generateUUID();
+    // 編集中シナリオのゲームシステム。シナリオ作成時に決まり、以降は変更しない
+    // （能力値の項目名が全く異なるため、途中で切り替えると既存NPCの意味が失われる）。
+    let currentSystemId = DEFAULT_SYSTEM_ID;
     let currentNpcs = []; // 現在のNPCデータ一覧
     let selectedNpcId = null; // 選択中のNPC ID
     let isSaving = false;
@@ -1418,6 +1592,22 @@
       };
     }
 
+    // システムIDの正規化。
+    // system を持たない既存シナリオ（この機能より前に保存されたもの）と、
+    // 未知の値が入ってきた場合は、すべてエモクロアとして扱う。
+    function normalizeSystemId(id) {
+      return (id && GAME_SYSTEMS[id]) ? id : DEFAULT_SYSTEM_ID;
+    }
+
+    // 技能データの形はシステムによって違う
+    // （エモクロアは技能名だけ、CoC6版は [技能名, 初期値] の組）。
+    // 画面側で分岐しないよう、ここで形を揃える。
+    function skillEntry(raw) {
+      return Array.isArray(raw)
+        ? { name: raw[0], hint: raw[1] || '' }
+        : { name: raw, hint: '' };
+    }
+
     function normalizeNpcList(list) {
       if (!Array.isArray(list)) return [];
       return list.map(normalizeNpc).filter(n => n !== null);
@@ -1454,6 +1644,7 @@
             resolve(readStore().map(s => ({
               id: s.id,
               title: s.title,
+              system: normalizeSystemId(s.system),
               updated_at: s.updated_at
             })));
           } catch (e) { reject(e); }
@@ -1472,13 +1663,14 @@
               id: sc.id,
               title: sc.title,
               content: sc.content,
+              system: normalizeSystemId(sc.system),
               npcs: normalizeNpcList(sc.npcs)
             });
           } catch (e) { reject(e); }
         });
       },
 
-      saveScenario(id, title, content, npcsData = []) {
+      saveScenario(id, title, content, npcsData = [], systemId) {
         return new Promise((resolve, reject) => {
           try {
             const db = readStore();
@@ -1487,6 +1679,7 @@
               id: id,
               title: title,
               content: content,
+              system: normalizeSystemId(systemId),
               npcs: normalizeNpcList(npcsData),
               updated_at: now
             };
@@ -1527,6 +1720,7 @@
             id: s.id,
             title: s.title,
             content: s.content,
+            system: normalizeSystemId(s.system),
             npcs: normalizeNpcList(s.npcs),
             updated_at: s.updated_at
           }))
@@ -1550,6 +1744,7 @@
           id: (s && s.id) ? s.id : generateUUID(),
           title: (s && typeof s.title === 'string' && s.title) ? s.title : '無題のシナリオ',
           content: (s && typeof s.content === 'string') ? s.content : '',
+          system: normalizeSystemId(s && s.system),
           npcs: normalizeNpcList(s && s.npcs),
           updated_at: (s && s.updated_at) ? s.updated_at : new Date().toISOString()
         }));
@@ -1602,6 +1797,7 @@
         const cachedNpcs = localStorage.getItem('trpg_npcs_cache');
         
         if (lastId) currentScenarioId = lastId;
+        currentSystemId = normalizeSystemId(localStorage.getItem('trpg_current_system'));
         if (cachedContent !== null && editor) editor.value = cachedContent;
         if (cachedTitle !== null && scenarioTitle) scenarioTitle.value = cachedTitle;
         
@@ -1617,8 +1813,9 @@
         }
         
         updatePreview();
-        initRollModalData();
-        initResonanceModalData();
+        // 技能リスト・判定段階・NPCの能力値欄はシステムごとに違うので、
+        // 個別に初期化せず applySystemToUI() に集約する
+        applySystemToUI();
         bindModalDismiss();
 
         // 技能・感情の入力欄は placeholder に「決定で追加」と書いてあるのに
@@ -1683,6 +1880,7 @@
     function saveToLocal() {
       if (!editor || !scenarioTitle) return;
       localStorage.setItem('trpg_current_id', currentScenarioId);
+      localStorage.setItem('trpg_current_system', currentSystemId);
       localStorage.setItem('trpg_scenario_content', editor.value);
       localStorage.setItem('trpg_scenario_title', scenarioTitle.value);
       localStorage.setItem('trpg_npcs_cache', JSON.stringify(currentNpcs));
@@ -1734,7 +1932,7 @@
       const title = scenarioTitle.value || '無題のシナリオ';
       const content = editor.value;
 
-      API.saveScenario(currentScenarioId, title, content, currentNpcs)
+      API.saveScenario(currentScenarioId, title, content, currentNpcs, currentSystemId)
         .then(res => {
           const now = new Date(res.updated_at);
           const timeStr = now.toTimeString().split(' ')[0].substring(0, 5);
@@ -1935,13 +2133,16 @@
           
           scenarios.forEach(s => {
             const date = s.updated_at ? new Date(s.updated_at).toLocaleString('ja-JP', { hour12: false }) : '不明';
+            // どのシステムのシナリオか一覧で見分けられるようにする
+            const sysDef = GAME_SYSTEMS[normalizeSystemId(s.system)];
+            const sysName = sysDef ? sysDef.short : '';
             const item = document.createElement('div');
             item.className = 'scenario-list-item';
             
             item.innerHTML = `
               <div class="scenario-item-info" onclick="selectScenario('${s.id}')">
                 <span class="scenario-item-title">${escapeHTML(s.title || '無題のシナリオ')}</span>
-                <span class="scenario-item-date">最終更新: ${date}</span>
+                <span class="scenario-item-date">${escapeHTML(sysName)} ／ 最終更新: ${date}</span>
               </div>
               <div class="scenario-item-actions">
                 <button class="btn btn-small" onclick="exportOneScenario('${s.id}', event)" title="このシナリオだけをJSONファイルに書き出します">書き出し</button>
@@ -1968,14 +2169,80 @@
       if (editor.value.trim() && !confirm('現在編集中の内容は上書きされますがよろしいですか？\n(必要であれば先に「💾 保存」してください)')) {
         return;
       }
+      // システムはシナリオごとに固定されるため、作る前に必ず選ばせる
+      renderSystemChoices();
+      const panel = document.getElementById('new-scenario-system');
+      if (panel) panel.style.display = 'block';
+    }
+
+    function cancelNewScenario() {
+      const panel = document.getElementById('new-scenario-system');
+      if (panel) panel.style.display = 'none';
+    }
+
+    function renderSystemChoices() {
+      const box = document.getElementById('system-choices');
+      if (!box) return;
+      box.innerHTML = '';
+      for (const id in GAME_SYSTEMS) {
+        const sys = GAME_SYSTEMS[id];
+        const btn = document.createElement('button');
+        btn.className = 'btn';
+        btn.style.cssText = 'text-align: left; padding: 12px 14px; width: 100%; display: block; height: auto;';
+        btn.innerHTML = `
+          <div style="font-weight: 700; font-size: 0.92rem;">${escapeHTML(sys.name)}</div>
+          <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px; font-weight: 400; line-height: 1.5;">${escapeHTML(sys.description)}</div>
+        `;
+        btn.onclick = () => createScenarioWithSystem(id);
+        box.appendChild(btn);
+      }
+    }
+
+    function createScenarioWithSystem(systemId) {
       currentScenarioId = generateUUID();
+      currentSystemId = normalizeSystemId(systemId);
       scenarioTitle.value = '無題のシナリオ';
       editor.value = '';
       currentNpcs = [];
       selectedNpcId = null;
+
+      applySystemToUI();
       saveToLocal();
       updatePreview();
+      cancelNewScenario();
       closeListModal();
+    }
+
+    // 現在のシステムに合わせて、システム依存の画面要素を作り直す。
+    // シナリオを新規作成したとき・読み込んだとき・起動時に必ず呼ぶこと。
+    function applySystemToUI() {
+      const sys = currentSystem();
+
+      const badge = document.getElementById('system-badge');
+      if (badge) badge.innerText = sys.short;
+
+      // 共鳴判定はエモクロア固有の仕組み。他システムでは入口ごと隠す
+      const resBtn = document.getElementById('btn-shortcut-resonance');
+      if (resBtn) resBtn.style.display = sys.hasResonanceRoll ? '' : 'none';
+
+      initRollModalData();
+      renderRollTiers();
+      if (sys.hasResonanceRoll) initResonanceModalData();
+      renderNpcEditor();
+    }
+
+    // 判定ブロックの成功段階チェックボックスを生成する
+    function renderRollTiers() {
+      const box = document.getElementById('roll-tier-checks');
+      if (!box) return;
+      box.innerHTML = '';
+      currentSystem().rollTiers.forEach(tier => {
+        const label = document.createElement('label');
+        label.className = 'checkbox-item';
+        label.innerHTML =
+          `<input type="checkbox" data-tier="${escapeHTML(tier.label)}"${tier.checked ? ' checked' : ''}> ${escapeHTML(tier.label)}`;
+        box.appendChild(label);
+      });
     }
 
     function selectScenario(id) {
@@ -1987,6 +2254,7 @@
       API.loadScenario(id)
         .then(res => {
           currentScenarioId = res.id;
+          currentSystemId = normalizeSystemId(res.system);
           scenarioTitle.value = res.title || '無題のシナリオ';
           editor.value = res.content || '';
           
@@ -1997,7 +2265,10 @@
           // undefined になって失われていた（2026-08-31 修正）。
           currentNpcs = normalizeNpcList(res.npcs);
           selectedNpcId = null;
-          
+
+          // 読み込んだシナリオのシステムに画面を合わせる
+          applySystemToUI();
+
           saveToLocal();
           updatePreview();
           closeListModal();
@@ -2040,8 +2311,11 @@
       if (!tabsContainer) return;
       tabsContainer.innerHTML = '';
       
+      // 前のシステムの選択状態が残らないようにする
+      rollModalSelectedSkills = [];
+
       let isFirst = true;
-      for (const category in EMOKLORE_SKILLS) {
+      for (const category in currentSystem().skills) {
         const tabBtn = document.createElement('button');
         tabBtn.className = `tab-btn ${isFirst ? 'active' : ''}`;
         tabBtn.innerText = category;
@@ -2065,8 +2339,10 @@
       if (!gridContainer) return;
       gridContainer.innerHTML = '';
       
-      const skills = EMOKLORE_SKILLS[category];
-      skills.forEach(skill => {
+      const skills = currentSystem().skills[category] || [];
+      skills.forEach(raw => {
+        const entry = skillEntry(raw);
+        const skill = entry.name;
         const item = document.createElement('div');
         
         // 複数選択の状態判定
@@ -2084,7 +2360,11 @@
         }
         item.style.position = 'relative'; // バッジ用
 
-        item.innerHTML = `<span>${skill}</span>${badgeHTML}`;
+        // CoC6版は初期値を併記する（技能名だけでは目標値が分からないため）
+        const hintHTML = entry.hint
+          ? `<span style="font-size: 0.7rem; color: var(--text-secondary); margin-left: 4px;">${escapeHTML(entry.hint)}</span>`
+          : '';
+        item.innerHTML = `<span>${escapeHTML(skill)}</span>${hintHTML}${badgeHTML}`;
         
         item.onmousedown = (e) => {
           e.preventDefault();
@@ -2148,13 +2428,11 @@
 
       const tagSuffix = displayType ? `/${displayType}` : '';
       let template = `\n\n[判定:${skillName}${tagSuffix}]\n`;
-      if (document.getElementById('check-miracle').checked) template += '- 奇跡的成功: \n';
-      if (document.getElementById('check-catastrophe').checked) template += '- 災厄級成功: \n';
-      if (document.getElementById('check-triple').checked) template += '- 極限成功: \n';
-      if (document.getElementById('check-double').checked) template += '- 効果的成功: \n';
-      if (document.getElementById('check-single').checked) template += '- 成功: \n';
-      if (document.getElementById('check-fail').checked) template += '- 失敗: \n';
-      if (document.getElementById('check-fumble').checked) template += '- 致命的失敗: \n';
+      // 成功段階はシステム定義から生成しているので、チェック状態を順に読む
+      // （以前は7段階のIDを直接参照しており、エモクロア以外に対応できなかった）
+      document.querySelectorAll('#roll-tier-checks input[type="checkbox"]').forEach(cb => {
+        if (cb.checked) template += '- ' + cb.dataset.tier + ': \n';
+      });
 
       insertAtCursor(template);
       closeRollModal();
@@ -2330,6 +2608,51 @@
         `;
       });
 
+      const sys = currentSystem();
+
+      // 能力値の入力欄をシステム定義から生成する。
+      // 値を変えるたびに recalcDerived() を呼び、HP等の派生値を追従させる。
+      let abilitiesHTML = '';
+      sys.abilities.forEach(ab => {
+        abilitiesHTML += `
+            <div class="form-group">
+              <label class="form-label" style="font-size: 0.75rem;">${escapeHTML(ab.label)}</label>
+              <input type="number" class="form-input" style="padding: 6px 8px; font-size: 0.85rem;"
+                     data-ability="${escapeHTML(ab.key)}"
+                     value="${escapeHTML(npc.status[ab.key] || '')}"
+                     min="${sys.abilityMin}" max="${sys.abilityMax}"
+                     oninput="updateNpcStatusField('${ab.key}', this.value); recalcDerived();">
+            </div>`;
+      });
+
+      // 共鳴感情はエモクロア固有の仕組みなので、他システムでは欄ごと出さない
+      const emotionsSection = !sys.hasEmotions ? '' : `
+        <div class="form-group">
+          <label class="form-label">共鳴感情</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="npc-new-emotion" class="form-input" style="flex: 1;" placeholder="例: 執着（欲望） (決定で追加)">
+            <button class="btn btn-primary" style="padding: 6px 12px;" onclick="addNpcEmotion()">追加</button>
+          </div>
+          <div id="npc-emotions-list" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
+            ${emotionsHTML || '<span style="font-size: 0.8rem; color: var(--text-secondary);">追加された感情はありません。</span>'}
+          </div>
+        </div>`;
+
+      // 派生値（HP・SAN・ダメージボーナス等）。手入力での上書きも許す。
+      let derivedHTML = '';
+      sys.derived.forEach(d => {
+        const inputType = (d.type === 'text') ? 'text' : 'number';
+        derivedHTML += `
+            <div class="form-group">
+              <label class="form-label" style="font-size: 0.75rem;">${escapeHTML(d.label)}</label>
+              <input type="${inputType}" class="form-input" style="padding: 6px 8px; font-size: 0.85rem;"
+                     data-derived="${escapeHTML(d.key)}"
+                     value="${escapeHTML(npc.status[d.key] || '')}"
+                     placeholder="${escapeHTML(d.placeholder || '')}"
+                     oninput="updateNpcStatusField('${d.key}', this.value)">
+            </div>`;
+      });
+
       const avatarStyle = npc.avatarUrl ? `background-image: url('${escapeHTML(npc.avatarUrl)}');` : '';
 
       npcEditorArea.innerHTML = `
@@ -2376,66 +2699,25 @@
           </div>
         </div>
 
-        <!-- 8能力値 (はみ出しを防ぐため4列×2行のグリッドレイアウト) -->
+        <!-- 能力値と派生値はシステム定義から生成する（この関数の先頭を参照）。
+             システムごとに項目数も名称も違うため、ここに直接書かないこと。 -->
         <div style="border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; background-color: rgba(0,0,0,0.15); box-sizing: border-box; width: 100%;">
-          <span class="form-label" style="display: block; margin-bottom: 8px; font-weight: 700; color: var(--text-primary);">📊 能力値（共鳴者ステータス）</span>
-          
+          <span class="form-label" style="display: block; margin-bottom: 8px; font-weight: 700; color: var(--text-primary);">${escapeHTML(sys.abilityBoxLabel)}</span>
+
           <div class="status-grid-8">
-            <div class="form-group">
-              <label class="form-label" style="font-size: 0.75rem;">身体</label>
-              <input type="number" id="npc-str" class="form-input" style="padding: 6px 8px; font-size: 0.85rem;" value="${escapeHTML(str)}" min="1" max="10" oninput="updateNpcStatusField('str', this.value); calculateHpMp();">
-            </div>
-            <div class="form-group">
-              <label class="form-label" style="font-size: 0.75rem;">敏捷</label>
-              <input type="number" class="form-input" style="padding: 6px 8px; font-size: 0.85rem;" value="${escapeHTML(agi)}" min="1" max="10" oninput="updateNpcStatusField('agi', this.value)">
-            </div>
-            <div class="form-group">
-              <label class="form-label" style="font-size: 0.75rem;">器用</label>
-              <input type="number" class="form-input" style="padding: 6px 8px; font-size: 0.85rem;" value="${escapeHTML(dex)}" min="1" max="10" oninput="updateNpcStatusField('dex', this.value)">
-            </div>
-            <div class="form-group">
-              <label class="form-label" style="font-size: 0.75rem;">精神</label>
-              <input type="number" id="npc-spi" class="form-input" style="padding: 6px 8px; font-size: 0.85rem;" value="${escapeHTML(spi)}" min="1" max="10" oninput="updateNpcStatusField('spi', this.value); calculateHpMp();">
-            </div>
-            <div class="form-group">
-              <label class="form-label" style="font-size: 0.75rem;">五感</label>
-              <input type="number" class="form-input" style="padding: 6px 8px; font-size: 0.85rem;" value="${escapeHTML(sen)}" min="1" max="10" oninput="updateNpcStatusField('sen', this.value)">
-            </div>
-            <div class="form-group">
-              <label class="form-label" style="font-size: 0.75rem;">知性</label>
-              <input type="number" class="form-input" style="padding: 6px 8px; font-size: 0.85rem;" value="${escapeHTML(int)}" min="1" max="10" oninput="updateNpcStatusField('int', this.value)">
-            </div>
-            <div class="form-group">
-              <label class="form-label" style="font-size: 0.75rem;">魅力</label>
-              <input type="number" class="form-input" style="padding: 6px 8px; font-size: 0.85rem;" value="${escapeHTML(cha)}" min="1" max="10" oninput="updateNpcStatusField('cha', this.value)">
-            </div>
-            <div class="form-group">
-              <label class="form-label" style="font-size: 0.75rem;">社会</label>
-              <input type="number" class="form-input" style="padding: 6px 8px; font-size: 0.85rem;" value="${escapeHTML(soc)}" min="1" max="10" oninput="updateNpcStatusField('soc', this.value)">
-            </div>
+${abilitiesHTML}
           </div>
-          
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">耐久値 (HP)</label>
-              <input type="number" id="npc-hp" class="form-input" value="${escapeHTML(npc.status.hp || '')}" placeholder="身体×2" oninput="updateNpcStatusField('hp', this.value)">
-            </div>
-            <div class="form-group">
-              <label class="form-label">精神値 (MP)</label>
-              <input type="number" id="npc-mp" class="form-input" value="${escapeHTML(npc.status.mp || '')}" placeholder="精神×2" oninput="updateNpcStatusField('mp', this.value)">
-            </div>
-            <div class="form-group">
-              <label class="form-label">共鳴度</label>
-              <input type="number" class="form-input" value="${escapeHTML(npc.status.resonance || '')}" placeholder="初期値: 1" oninput="updateNpcStatusField('resonance', this.value)">
-            </div>
+
+          <div class="status-grid-8" style="margin-top: 10px;">
+${derivedHTML}
           </div>
         </div>
-        
+
         <!-- 所持技能 -->
         <div class="form-group">
           <label class="form-label">所持技能</label>
           <div style="display: flex; gap: 8px;">
-            <input type="text" id="npc-new-skill" class="form-input" style="flex: 1;" placeholder="例: 観察眼:Lv2 (決定で追加)">
+            <input type="text" id="npc-new-skill" class="form-input" style="flex: 1;" placeholder="${escapeHTML(sys.skillPlaceholder)}">
             <button class="btn btn-primary" style="padding: 6px 12px;" onclick="addNpcSkill()">追加</button>
           </div>
           <div id="npc-skills-list" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
@@ -2443,17 +2725,7 @@
           </div>
         </div>
 
-        <!-- 共鳴感情 -->
-        <div class="form-group">
-          <label class="form-label">共鳴感情</label>
-          <div style="display: flex; gap: 8px;">
-            <input type="text" id="npc-new-emotion" class="form-input" style="flex: 1;" placeholder="例: 執着（欲望） (決定で追加)">
-            <button class="btn btn-primary" style="padding: 6px 12px;" onclick="addNpcEmotion()">追加</button>
-          </div>
-          <div id="npc-emotions-list" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
-            ${emotionsHTML || '<span style="font-size: 0.8rem; color: var(--text-secondary);">追加された感情はありません。</span>'}
-          </div>
-        </div>
+        ${emotionsSection}
         
         <!-- メモ -->
         <div class="form-group" style="flex: 1; display: flex; flex-direction: column;">
@@ -2473,28 +2745,34 @@
       // という問題があったため撤去した。
     }
 
-    // 能力値変更時のHP/MPの自動計算（エモクロアTRPGルール：HP=身体×2, MP=精神×2）
-    function calculateHpMp() {
-      const strVal = document.getElementById('npc-str').value;
-      const spiVal = document.getElementById('npc-spi').value;
-      
-      const str = parseInt(strVal) || 0;
-      const spi = parseInt(spiVal) || 0;
-      
-      if (str > 0) {
-        const hpInput = document.getElementById('npc-hp');
-        if (hpInput) {
-          hpInput.value = str * 2;
-          updateNpcStatusField('hp', str * 2);
-        }
-      }
-      if (spi > 0) {
-        const mpInput = document.getElementById('npc-mp');
-        if (mpInput) {
-          mpInput.value = spi * 2;
-          updateNpcStatusField('mp', spi * 2);
-        }
-      }
+    // 能力値から派生値（HP・SAN・ダメージボーナス等）を自動計算する。
+    //
+    // 計算式はシステム定義の autoCalc に持たせてある。
+    // 以前は calculateHpMp() がエモクロア専用のHP/MPだけを直接計算していた。
+    function recalcDerived() {
+      const sys = currentSystem();
+      const npc = currentNpcs.find(n => n.id === selectedNpcId);
+      if (!npc || !npc.status || !sys.autoCalc) return;
+
+      const vals = {};
+      sys.abilities.forEach(ab => {
+        vals[ab.key] = parseInt(npc.status[ab.key], 10) || 0;
+      });
+
+      sys.autoCalc.forEach(rule => {
+        // 元になる能力値が全て入力されているときだけ計算する。
+        // 未入力のうちに上書きすると、手で入れた値を消してしまう。
+        if (!rule.from.every(k => vals[k] > 0)) return;
+
+        const result = rule.calc(vals);
+        if (result === '' || result === null || result === undefined) return;
+
+        npc.status[rule.to] = result;
+        const input = npcEditorArea
+          ? npcEditorArea.querySelector('[data-derived="' + rule.to + '"]')
+          : null;
+        if (input) input.value = result;
+      });
     }
 
     // ローカル画像ファイルの取り扱い (Base64エンコード化して保存)
@@ -2983,35 +3261,19 @@ ${resultsHTML}            </div>
     }
 
     // 成功度キーワードのカラーマッピング（最新のエモクロアTRPG判定定義に同期）
+    // 判定ブロックのキーワードをバッジ（表示文言＋色）に変換する。
+    //
+    // 対応表はシステム定義の badges にある。どれにも一致しないキーワードは
+    // 入力された文字列のまま「失敗」と同じ色で表示される。
+    // 成功を表す語でも失敗色になるため、対応表は仕様書と揃えておくこと
+    // （docs/01_要件定義書.html §4.2）。
     function getBadgeInfo(key) {
       const k = key.trim();
-      // 奇跡的成功 (ミラクル)
-      if (k.match(/^(奇跡的成功|奇跡|ミラクル)$/)) {
-        return { label: '奇跡的成功', class: 'bg-miracle' };
-      }
-      // 災厄級成功 (カタストロフ)
-      if (k.match(/^(災厄級成功|災厄|カタストロフ)$/)) {
-        return { label: '災厄級成功', class: 'bg-catastrophe' };
-      }
-      // 極限成功 (トリプル)
-      if (k.match(/^(極限成功|極限|トリプル)$/)) {
-        return { label: '極限成功', class: 'bg-triple' };
-      }
-      // 効果的成功 (ダブル)
-      if (k.match(/^(効果的成功|効果的|ダブル)$/)) {
-        return { label: '効果的成功', class: 'bg-double' };
-      }
-      // 成功 (シングル)
-      if (k.match(/^(成功|通常成功|通常|single)$/)) {
-        return { label: '成功', class: 'bg-single' };
-      }
-      // 失敗
-      if (k.match(/^(失敗)$/)) {
-        return { label: '失敗', class: 'bg-fail' };
-      }
-      // 致命的失敗 (ファンブル)
-      if (k.match(/^(致命的失敗|致命的|ファンブル)$/)) {
-        return { label: '致命的失敗', class: 'bg-fumble' };
+      const badges = currentSystem().badges || [];
+      for (const b of badges) {
+        if (b.match.indexOf(k) !== -1) {
+          return { label: b.label, class: b.class };
+        }
       }
       return { label: k, class: 'bg-fail' };
     }

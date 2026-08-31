@@ -176,7 +176,59 @@
       ビルド工程が無いため、<code>index.html</code> を置くだけで動く。
     </div>
 
-    <h4>3.2.1 レイアウトが崩れる定番の原因（2026-08-31 追記）</h4>
+    <h4>3.2.1 ゲームシステムの抽象化（2026-09-01 追記）</h4>
+    <p>
+      複数のTRPGシステムに対応するため、システムごとに違うものを
+      <code>GAME_SYSTEMS</code> という1つの定義オブジェクトに集約している。
+      <strong>画面側はこの定義だけを見て描画し、システム名で分岐しない。</strong>
+    </p>
+
+    <table>
+      <thead><tr><th>定義項目</th><th>内容</th><th>使う場所</th></tr></thead>
+      <tbody>
+        <tr><td><code>abilities</code></td><td>能力値のキーと表示名、入力の上下限</td><td>NPC編集の能力値欄</td></tr>
+        <tr><td><code>derived</code></td><td>派生値の定義（HP・SAN等）</td><td>NPC編集の派生値欄</td></tr>
+        <tr><td><code>autoCalc</code></td><td>派生値の計算式と、その元になる能力値</td><td><code>recalcDerived()</code></td></tr>
+        <tr><td><code>skills</code></td><td>分類ごとの技能一覧</td><td>技能判定モーダル</td></tr>
+        <tr><td><code>rollTiers</code></td><td>判定ブロックの成功段階</td><td><code>renderRollTiers()</code></td></tr>
+        <tr><td><code>badges</code></td><td>キーワードとバッジ色の対応</td><td><code>getBadgeInfo()</code></td></tr>
+        <tr><td><code>hasEmotions</code> / <code>hasResonanceRoll</code></td><td>エモクロア固有機能の有無</td><td>NPC編集・下部パネル</td></tr>
+      </tbody>
+    </table>
+
+    <div class="do-dont">
+      <div class="do">
+        <div class="label">DO</div>
+        <p>
+          システム固有の値が必要になったら <code>GAME_SYSTEMS</code> に項目を足し、
+          描画側は <code>currentSystem()</code> 経由で読む。
+          画面を切り替える処理は <code>applySystemToUI()</code> に集約する
+          （シナリオの新規作成・読み込み・起動時の3箇所から呼ばれる）。
+        </p>
+      </div>
+      <div class="dont">
+        <div class="label">DON'T</div>
+        <p>
+          <code>if (currentSystemId === 'coc6')</code> のような分岐を描画コードに書く。
+          システムが3つ目に増えたときに、分岐を書いた場所を全部探し直すことになる。
+        </p>
+      </div>
+    </div>
+
+    <div class="callout warn">
+      <strong>エモクロアの <code>abilities</code> は公式ルールと一部食い違っている。</strong>
+      公式の8能力値は「身体／器用／精神／五感／知力／魅力／社会/運勢」だが、
+      実装は「身体／敏捷／器用／精神／五感／知性／魅力／社会」で、
+      <strong>運勢が無く、代わりに敏捷がある</strong>。
+      既に保存されているNPCデータのキーがこの形なので、揃えると既存の能力値が失われる。
+      修正する場合はデータ移行とセットで行うこと。
+      <br><br>
+      同様に、エモクロアのHP/MP自動計算は実装が「身体×2／精神×2」で、
+      公式ルール（HP=身体+10、MP=精神+知力）と異なる。
+      これも既存NPCの数値に影響するため、判断を保留して現状を維持している。
+    </div>
+
+    <h4>3.2.2 レイアウトが崩れる定番の原因（2026-08-31 追記）</h4>
     <p>
       入力値の長さによって表示が崩れる不具合が複数見つかり、原因はいずれも次の2つだった。
       新しくフォームや一覧を追加するときは、最初からこの2点を入れておくこと。
