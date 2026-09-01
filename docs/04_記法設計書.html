@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>記法設計書 | TRPGシナリオ執筆エディタ</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="page">
+
+  <header class="hero">
+    <div class="eyebrow">TRPG SCENARIO EDITOR / DESIGN</div>
+    <h1>記法設計書</h1>
+    <p class="lead">
+      独自記法を<strong>なぜその形にしたか</strong>を残す。記法の一覧そのものは
+      <a href="01_要件定義書.html">要件定義書 §4</a> にある。記法を足す・変えるときは先にここを読むこと。
+    </p>
+  </header>
+
+  <section>
+    <h2>1. このドキュメントの守備範囲</h2>
+    <p>
+      本エディタの記法は標準Markdownと互換ではない。GMがセッション中に読む紙面を作るための、
+      このアプリ専用の言語である。仕様が要件定義書に載っていても、
+      <strong>なぜ他の書き方を選ばなかったのか</strong>が残っていないと、
+      次に記法を足す人が同じ検討をやり直すことになる。
+    </p>
+    <table>
+      <thead><tr><th>知りたいこと</th><th>読む場所</th></tr></thead>
+      <tbody>
+        <tr><td>どんな記法があるか・どう表示されるか</td><td><a href="01_要件定義書.html">要件定義書 §4</a></td></tr>
+        <tr><td>なぜその区切り記号・その構造なのか</td><td>このドキュメント</td></tr>
+        <tr><td>パーサがどこにあるか</td><td><a href="02_開発計画書.html">開発計画・設計書 §3.2</a></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>2. 記法の系統を区切り記号で分ける</h2>
+    <p>
+      記法は<strong>ブロック記法</strong>と<strong>インライン記法</strong>の2系統あり、
+      使う括弧で系統そのものを見分けられるようにしている。
+    </p>
+    <table>
+      <thead><tr><th>系統</th><th>括弧</th><th>掛かる範囲</th><th>例</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>ブロック記法</td><td><code>[ ]</code></td>
+          <td>段落の先頭に置き、その段落全体を1つの箱にする</td>
+          <td><code>[判定:目星]</code> <code>[SAN:1/1D6]</code> <code>[NPC:田中]</code></td>
+        </tr>
+        <tr>
+          <td>インライン記法</td><td><code>{ }</code></td>
+          <td>文中の一部だけを装飾する</td>
+          <td><code>{赤:テキスト}</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>括弧で系統を分けたのは、パーサの構造がそもそも別だからである。</strong>
+      ブロック記法は <code>parseElement()</code> が段落の先頭を <code>startsWith()</code> で見て分岐する。
+      インライン記法は <code>decorate()</code> が段落の中身を正規表現で走査する。
+      同じ <code>[ ]</code> を両方に使うと、<code>[判定:…]</code> で始まる段落の中に
+      <code>[赤:…]</code> が現れたときにどちらの規則が優先するかが読み手に分からなくなる。
+    </div>
+
+    <h3>2.1 却下した案</h3>
+    <table>
+      <thead><tr><th>案</th><th>却下した理由</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>**赤**</code> のような記号だけの装飾</td>
+          <td>色は6種類あるので記号を色ごとに割り当てることになり、対応を覚えられない。
+              記号は「太字」のように<strong>種類が1つしかない装飾</strong>にしか向かない。</td>
+        </tr>
+        <tr>
+          <td>HTMLタグを本文に直接書かせる</td>
+          <td>本文は必ず <code>escapeHTML()</code> を通す設計で、これを緩めると
+              シナリオのインポート経由で任意のHTMLが差し込める。
+              装飾のために全体の防御を下げる取引は割に合わない。</td>
+        </tr>
+        <tr>
+          <td>インラインも <code>[赤:…]</code> にする</td>
+          <td>既存のブロック記法と見分けが付かない。
+              <code>[探索:…]</code> のように「行頭なら箱、行中なら装飾」という
+              位置依存の規則が生まれ、書き手が結果を予測できなくなる。</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>3. 文字色 — 固定パレットと任意色の二段構え</h2>
+    <p>
+      色名（<code>{赤:…}</code>）を主とし、16進のカラーコード（<code>{#88ccff:…}</code>）も受け付ける。
+      実装上も扱いを分けており、色名はCSSクラス、16進は <code>style</code> 属性へ載せる。
+    </p>
+    <table>
+      <thead><tr><th>指定</th><th>生成されるHTML</th><th>位置づけ</th></tr></thead>
+      <tbody>
+        <tr><td><code>{赤:…}</code></td><td><code>&lt;span class="ic-red"&gt;</code></td><td><span class="badge recommended">推奨</span> 濃さを実装側が保証する</td></tr>
+        <tr><td><code>{#88ccff:…}</code></td><td><code>&lt;span style="color: #88ccff;"&gt;</code></td><td><span class="badge optional">任意</span> 見え方は書き手の責任</td></tr>
+      </tbody>
+    </table>
+
+    <div class="do-dont">
+      <div class="do">
+        <div class="label">DO</div>
+        <p>
+          パレットの6色（赤・青・緑・橙・紫・灰）で足りるなら色名を使う。
+          <strong>PDFにしたときに読める濃さを実装側が保証できる</strong>のは色名だけであり、
+          複数のシナリオを並べたときに色の意味がぶれない。
+        </p>
+      </div>
+      <div class="dont">
+        <div class="label">DON'T</div>
+        <p>
+          雰囲気で淡い色を指定する。本エディタの成果物は<strong>紙に出して卓で読む</strong>。
+          画面では読めても、印刷すると背景に溶ける。
+          任意色は「どうしてもその色でなければ意味が通らない」ときの逃げ道である。
+        </p>
+      </div>
+    </div>
+
+    <h3>3.1 なぜ任意色を残したか</h3>
+    <p>
+      パレットのみに絞る案も検討した。却下したのは、<strong>色そのものが情報を持つ場面</strong>があるため。
+      「青い液体」「緑色の光」のように、卓上で見せるハンドアウトの色を本文の色と揃えたいという要求は
+      パレットでは満たせない。ただし既定では見えない場所に置き（モーダルの下段）、
+      淡い色の危険を文言で添えている。
+    </p>
+
+    <h3>3.2 CSSの詳細度を上げてある理由</h3>
+    <p>
+      色クラスのセレクタは <code>#preview-area span.ic-red</code> と、意図的に
+      <code>span</code> を付けて詳細度を <code>(1,1,1)</code> にしてある。
+    </p>
+    <div class="callout warn">
+      <strong><code>#preview-area .ic-red</code> に縮めてはいけない。</strong>
+      プレビューの各ブロックは <code>#preview-area .result-text { color: … !important }</code> のように
+      詳細度 <code>(1,1,0)</code> ＋ <code>!important</code> で文字色を固定している。
+      同じ詳細度だと記述順で勝敗が決まり、CSSを並べ替えただけで発色しなくなる。
+    </div>
+
+    <h3>3.3 入れ子を作らせない</h3>
+    <p>
+      <code>{赤:{青:…}}</code> という入れ子は解釈できない。
+      走査パターンが中身に波括弧を許さないため、外側が記法として認識されず、
+      <strong>波括弧がそのまま本文に出てしまう</strong>。
+    </p>
+    <p>
+      入れ子を解釈できるようにする案もあったが、色の入れ子には意味が無い（内側が必ず勝つ）ため、
+      パーサを複雑にする価値がない。代わりに<strong>入口の側で入れ子を作らせない</strong>ことにした。
+      <code>expandOverColorNotation()</code> が、選択範囲を囲んでいる既存の色記法まで範囲を広げてから
+      囲み直す。結果、色の付いた文字を選んで別の色を押すと「付け替え」になる。
+    </p>
+    <div class="callout">
+      同じ理由で、色記法は<strong>1行に閉じる</strong>（走査パターンが改行を含まない）。
+      閉じ忘れた波括弧が後続の段落まで飲み込むと、被害が書いた場所から離れて原因が分からなくなる。
+    </div>
+
+    <h3>3.4 色として解釈できない名前は変換しない</h3>
+    <p>
+      <code>{注:これは色ではない}</code> のように、色名でも16進でもないものは記法として扱わず原文のまま残す。
+      本文に波括弧を書くこと自体は珍しくないため、<strong>取りこぼしより誤変換のほうが害が大きい</strong>という判断。
+      誤変換は書いた本人が気付きにくい。
+    </p>
+
+    <h3>3.5 装飾はブロックのレイアウトを壊しうる</h3>
+    <p>
+      インライン装飾を入れたことで、<strong>本文が「ただのテキスト」ではなくなった</strong>。
+      どのブロックの中にも <code>&lt;span&gt;</code> が現れうる。
+      プレビューのブロックを組むときは、この前提を崩さないレイアウトを選ぶこと。
+    </p>
+    <div class="callout warn">
+      <strong>本文を直接載せる要素に <code>display: flex</code> を使ってはいけない。</strong>
+      フレックスコンテナでは、<em>子要素はそれぞれ独立したフレックス項目になり、
+      地のテキストだけが匿名の項目にまとめられる</em>。
+      そのため <code>あああ&lt;span&gt;色&lt;/span&gt;いいい</code> は3つの項目に割れ、
+      文が分断されて並び順まで崩れる。
+      <br><br>
+      探索可能箇所を縦並びにしたとき、目印（<code>▶</code>）を出すために
+      項目を <code>display: flex</code> にして実際にこれを踏んだ。
+      目印は<strong>絶対配置</strong>にして、項目そのものは <code>display: block</code> のままにしてある。
+      レイアウトのためにフレックスを使いたくなったら、
+      本文を内側の要素で1段包んでからにすること。
+    </div>
+  </section>
+
+  <section>
+    <h2>4. 変換の順序 — エスケープ → 装飾 → 改行</h2>
+    <p>
+      プレビュー用HTMLを組み立てる順序は3段で固定されている。
+      この順序は <code>decorate()</code>（エスケープ済みの文字列を受け取る）と
+      <code>renderInline()</code>（生の文字列を受け取る）に閉じ込めてあり、
+      <strong>呼び出し側で手書きしない</strong>。
+    </p>
+    <ol class="steps">
+      <li><code>escapeHTML()</code> — 本文中の <code>&lt;</code> や <code>&amp;</code> を無害化する</li>
+      <li><code>decorate()</code> の色変換 — <code>&lt;span&gt;</code> を生成する</li>
+      <li>改行の <code>&lt;br&gt;</code> 化</li>
+    </ol>
+
+    <div class="callout warn">
+      <strong>順序を入れ替えると必ず壊れる。</strong>
+      装飾より後にエスケープすると、生成した <code>&lt;span&gt;</code> ごとエスケープされてタグが本文に出る。
+      改行を先に <code>&lt;br&gt;</code> にすると、そのあとのエスケープで <code>&lt;br&gt;</code> が無効化される。
+      <br><br>
+      これは机上の心配ではない。NPCカードのメモ欄は実際にエスケープが漏れており、
+      <code>HP&lt;5で逃走</code> という普通の記述で文字が消えていた。
+      <strong>同じ3行を7箇所に書き写していたことが原因である</strong>ため、
+      関数に閉じ込めて書き写せないようにした。
+    </div>
+
+    <h3>4.1 二重エスケープにも注意する</h3>
+    <p>
+      <code>parseElement()</code> は先頭で本文全体を1回エスケープし、以降はその文字列を切り出して使う。
+      切り出した断片を再度 <code>escapeHTML()</code> に通すと二重エスケープになり、
+      <code>A &amp; B</code> が画面に <code>A &amp;amp; B</code> と表示される
+      （探索一覧の項目と判定の提示タイプで実際に起きていた。2026-09-01 に修正）。
+    </p>
+    <div class="do-dont">
+      <div class="do">
+        <div class="label">DO</div>
+        <p><code>parseElement()</code> の中で断片を出力するときは <code>decorate()</code> を使う。
+           エスケープ済みであることが関数名から分かる。</p>
+      </div>
+      <div class="dont">
+        <div class="label">DON'T</div>
+        <p><code>escapeHTML()</code> を「念のため」重ねる。
+           安全側に倒したつもりで、表示が壊れる。</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>5. 判定ブロックの結果を複数行にする</h2>
+    <p>
+      判定ブロック（<code>[判定:…]</code> / <code>[SAN:…]</code>）の結果テキストは、
+      <code>-</code> で始まらない行を<strong>直前の項目の続き</strong>として連結する。
+    </p>
+<pre><code>[判定:目星]
+- 成功: 引き出しの奥に鍵を見つける。
+  鍵には「B-3」と刻印がある。   ← 直前の「成功」の続きになる
+- 失敗: 何も見つからない。</code></pre>
+
+    <h3>5.1 なぜ継続行方式か</h3>
+    <p>
+      <strong>この方式だけが既存のシナリオを壊さないため。</strong>
+      改修前のパーサは <code>-</code> で始まらない行を <code>continue</code> で読み飛ばしていた。
+      つまりこの位置に書かれた文字は<strong>もともと画面に出ていなかった</strong>。
+      継続行として拾うようにしても、表示が変わるのは「消えていた文字が出るようになる」方向だけである。
+    </p>
+    <table>
+      <thead><tr><th>却下した案</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>\n</code> のようなエスケープ記号</td>
+          <td>書き手が改行を「文字として」打てない。エディタで見た形とプレビューの形が乖離する。</td>
+        </tr>
+        <tr>
+          <td>継続行の先頭に専用記号（<code>|</code> など）を要求する</td>
+          <td>覚える記号が増える。素直に改行して字下げする書き方が既に自然に行われていた。</td>
+        </tr>
+        <tr>
+          <td>結果テキストを別のブロック記法にする</td>
+          <td>1つの判定が複数のブロックに割れ、プレビューの箱も割れる。</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      <strong>判定ブロックの終わりには空行を置くこと。</strong>
+      段落は空行で区切られるため、判定ブロックの直後に空行を置かずに本文を続けると、
+      その本文が<strong>最後の結果行の続きとして箱の中に取り込まれる</strong>。
+      改修前は読み飛ばされて消えていたので、古いシナリオにこの書き方が残っている可能性がある。
+    </div>
+  </section>
+
+  <section>
+    <h2>6. システム固有の記法をどう扱うか</h2>
+    <p>
+      共鳴判定（エモクロア）とSANチェック（クトゥルフ神話TRPG）は、片方のシステムにしか存在しない。
+      これらは<strong>入口とパーサで扱いを変える</strong>。
+    </p>
+    <table>
+      <thead><tr><th>層</th><th>扱い</th><th>実装</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>入口（パネルのボタン・ショートカット）</td>
+          <td>そのシステムのときだけ出す</td>
+          <td><code>applySystemToUI()</code> が <code>hasResonanceRoll</code> / <code>hasSanCheck</code> で表示を切り替える</td>
+        </tr>
+        <tr>
+          <td>パーサ</td>
+          <td><strong>常に受け付ける</strong></td>
+          <td><code>parseElement()</code> はシステムを見ずに <code>[共鳴:…]</code> / <code>[SAN:…]</code> を解釈する</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="callout">
+      <strong>パーサを出し分けない理由。</strong>
+      シナリオのシステムは作成時に固定されるが、JSONで受け渡したシナリオを別システムで開き直すことは起こりうる。
+      そのときパーサまで出し分けていると、記法が解釈されずに <code>[SAN:1/1D6]</code> という文字列が
+      そのまま紙面に出る。<strong>読めない箱より、色の違う箱のほうがましである。</strong>
+      GM向け情報ブロックで <code>[DL]</code> と <code>[KP]</code> の両方を常に受け付けているのと同じ考え方。
+    </div>
+
+    <h3>6.1 SANチェックを判定ブロックと同じ構造にした理由</h3>
+    <p>
+      SANチェックは <code>[SAN:成功時/失敗時]</code> のヘッダに、判定ブロックと同じ
+      <code>- 枠: 本文</code> の結果行が続く。1行のボックス（共鳴判定と同じ形）にする案もあったが、
+      SANチェックは<strong>成否で起きることが変わる</strong>のが本体であり、
+      減少値だけを示しても本文に「成功したら／失敗したら」を書き直すことになる。
+    </p>
+    <p>
+      結果行のパースは <code>parseRollResultLines()</code> で技能判定と共用している。
+      複数行対応やバッジの色分けが片方だけ古くなるのを防ぐため。
+      一方で<strong>枠の一覧は分けて持つ</strong>（<code>rollTiers</code> と <code>sanTiers</code>）。
+      SANチェックに「スペシャル」は無く、成功・失敗の2つで足りることが多いため。
+    </p>
+    <p>
+      配色は<strong>赤系</strong>。骨格が技能判定と同じである以上、
+      色だけが「この箱は普通の判定ではない」という手掛かりになる。
+      青い技能判定の箱がいくつも並ぶ紙面で、危険な判定を拾えるようにするため。
+      共鳴判定（<code>resonance-box</code>）も赤系だが、
+      あちらはエモクロア専用・こちらはCoC専用で、同じシナリオに両方が出ることはない。
+    </p>
+  </section>
+
+  <section>
+    <h2>7. 記法を足すときに触る場所</h2>
+    <p>1つでも漏れると「ボタンからは入るがプレビューに出ない」「記法は効くが入口が無い」状態になる。</p>
+
+    <h3>7.1 ブロック記法を足す場合</h3>
+    <ul class="checklist">
+      <li><code>parseElement()</code> — 記法をHTMLに変換する</li>
+      <li><code>insertTemplate()</code> または専用モーダル — 下部パネルから挿入する</li>
+      <li><code>DEFAULT_SHORTCUTS</code> — ショートカットの割当と設定画面のラベル</li>
+      <li><code>updateAssistantPanelShortcutLabels()</code> / <code>executeShortcutAction()</code> — パネルとキー操作の配線</li>
+      <li>システム固有なら <code>GAME_SYSTEMS</code> のフラグと <code>applySystemToUI()</code> の出し分け</li>
+      <li><a href="01_要件定義書.html">要件定義書 §4</a> の記法一覧</li>
+    </ul>
+
+    <h3>7.2 インライン装飾を足す場合</h3>
+    <p>
+      太字・傍点・マーカーなどを足すときも <code>{ }</code> の系統に載せる。
+      <code>decorate()</code> の走査パターンは <code>{名前:中身}</code> という形しか見ておらず、
+      名前が色として解釈できなければ素通しにしているので、
+      <strong>名前の解決を色以外にも広げるだけで足せる</strong>。
+    </p>
+    <div class="callout warn">
+      <strong>装飾を増やす前に、入れ子を許すかどうかを決めること。</strong>
+      現状は「入れ子は解釈しない・入口で作らせない」で統一している（§3.3）。
+      色だけなら入れ子に意味が無いので成立するが、
+      <code>{太字:{赤:…}}</code> のような組み合わせに意味が出た時点でこの前提は崩れる。
+      そのときは走査パターンを1段深くするのではなく、
+      <strong>装飾を並べて書ける形</strong>（例: <code>{赤+太字:…}</code>）を先に検討すること。
+      入れ子を許すと、閉じ忘れの被害範囲が段落全体に広がる。
+    </div>
+  </section>
+
+  <nav class="pagenav">
+    <a href="00_INDEX.html">← 目次</a>
+    <a href="01_要件定義書.html">要件定義書 §4（記法の一覧） →</a>
+  </nav>
+
+  <footer class="pagefoot">
+    最終更新: 2026-09-01（新規作成。文字色・判定結果の複数行・SANチェックの追加に伴い、記法の設計判断を集約。あわせて §3.5「装飾はブロックのレイアウトを壊しうる」を追加）
+  </footer>
+
+</div>
+</body>
+</html>

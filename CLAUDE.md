@@ -64,13 +64,19 @@ perl scripts/devenv/setup.pl --version           # devenv の版
 
 ### 独自記法のプレビュー
 
-`parseMarkdown()` から `parseElement()` が、Markdown風の独自記法をプレビュー用HTMLへ変換する。エモクロアTRPG固有の記法（技能判定・共鳴判定・NPCカード・情景描写・DL情報）を持ち、**標準Markdownとは互換ではない**。
+`parseMarkdown()` から `parseElement()` が、Markdown風の独自記法をプレビュー用HTMLへ変換する。TRPG固有の記法（技能判定・共鳴判定・SANチェック・NPCカード・情景描写・GM情報）と、文中を装飾するインライン記法（文字色）を持ち、**標準Markdownとは互換ではない**。
+
+記法は括弧で系統が分かれている。**ブロック記法は `[...]`、インライン記法は `{...}`。**
 
 記法を追加するときは、対応する箇所が3つある。1つでも漏れると「ボタンからは入るがプレビューに出ない」状態になる。
 
-1. `parseMarkdown()` / `parseElement()` — 記法をHTMLに変換する
-2. `insertTemplate()` — 下部パネルのクイック挿入ボタンから記法を挿入する
+1. `parseMarkdown()` / `parseElement()` — 記法をHTMLに変換する（インライン装飾は `decorate()`）
+2. `insertTemplate()` または専用モーダル — 下部パネルのクイック挿入ボタンから記法を挿入する
 3. `DEFAULT_SHORTCUTS` — ショートカットキーの割当と、設定画面に出るラベル
+
+**プレビュー用HTMLの組み立ては「エスケープ → 装飾 → 改行」の順序で固定されている。** この3段は `decorate()` / `renderInline()` に閉じ込めてあり、呼び出し側で手書きしないこと（順序が崩れるとタグが本文に出るか、改行が消える）。
+
+記法の一覧は `docs/01_要件定義書.html` §4、**なぜその記法にしたか**（却下案・変換順序の根拠・拡張の入り口）は `docs/04_記法設計書.html` にある。記法を足す前に後者を読むこと。
 
 ### Code.gs（旧バックエンド）
 

@@ -302,20 +302,39 @@
     border-bottom: 1px dashed #99f6e4;
     padding-bottom: 4px;
   }
+  /* 縦並びの一覧。以前は横並びのタグ（丸い薬みたいな形）だったが、
+     項目が「机の引き出しの中を調べる」のような文になると1行に収まらず、
+     どこからどこまでが1項目なのか読み取れなかった。
+     GMがセッション中に上から順に目で追う場所なので、1項目1行で縦に積む。 */
   #preview-area .search-list {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-direction: column;
+    gap: 6px;
   }
   #preview-area .search-item {
+    /* 左に目印の場所を空け、本文が折り返しても2行目以降が
+       目印の下に潜り込まないようにする（ぶら下げインデント）。 */
+    display: block;
+    position: relative;
     background-color: #ffffff !important;
     border: 1px solid #cbd5e1 !important;
     color: #334155 !important;
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-size: 0.8rem;
+    padding: 7px 12px 7px 30px;
+    border-radius: 6px;
+    font-size: 0.85rem;
     font-weight: 600;
+    line-height: 1.6;
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  }
+  /* 目印は絶対配置にする。ここを display:flex + ::before にすると、
+     項目の中の <span>（文字色）が独立したフレックス項目になり、
+     文が分断されて並び順が崩れる。 */
+  #preview-area .search-item::before {
+    content: "▶";
+    position: absolute;
+    left: 13px;
+    color: #0d9488 !important;
+    font-size: 0.65rem;
   }
 
   /* 🎲 技能判定ボックス */
@@ -383,7 +402,35 @@
   #preview-area .result-text {
     flex-grow: 1;
     font-size: 0.9rem;
+    /* 結果テキストは複数行になりうる（継続行を <br> で連結する）。
+       行間を空けないと、ラベルの高さに対して2行目以降が詰まって読めない。 */
+    line-height: 1.7;
     color: var(--preview-text) !important;
+  }
+
+  /* 🧠 SANチェック（クトゥルフ神話TRPG）。
+     技能判定ボックスと同じ骨格をそのまま使い、色だけ赤系に振り替える。
+     青い技能判定の箱と並んだときに、危険な判定であることが一目で分かるようにするため。
+     共鳴判定（resonance-box）も同じ赤系だが、あちらはエモクロア専用・こちらはCoC専用で、
+     同じシナリオに両方が出ることはない。 */
+  #preview-area .roll-box.san-box {
+    border-color: #fee2e2 !important;
+  }
+  #preview-area .san-box .roll-title {
+    background-color: #fef2f2 !important;
+    color: #991b1b !important;
+    border-bottom-color: #fee2e2 !important;
+  }
+  /* 箱の中の「失敗」バッジ（#ef4444）と紛れないよう、減少値は一段濃い赤にする */
+  #preview-area .san-loss {
+    font-size: 0.75rem;
+    font-weight: 700;
+    background-color: #b91c1c !important;
+    color: #ffffff !important;
+    padding: 2px 8px;
+    border-radius: 4px;
+    line-height: 1.2;
+    white-space: nowrap;
   }
 
   /* 判定ラベルの背景色 */
@@ -395,6 +442,17 @@
   #preview-area .bg-fumble { background-color: var(--color-fumble) !important; }
   #preview-area .bg-catastrophe { background-color: var(--color-catastrophe) !important; }
   #preview-area .bg-custom { background-color: var(--color-custom) !important; }
+
+  /* インライン装飾：文字色 {赤:テキスト}
+     セレクタを span 付きにして詳細度を (1,1,1) に上げてある。
+     .read-text / .dl-info など色を !important で指定するブロックの中でも
+     必ず勝たせるため。ここを .ic-red だけに縮めると発色しなくなる。 */
+  #preview-area span.ic-red { color: #dc2626 !important; }
+  #preview-area span.ic-blue { color: #2563eb !important; }
+  #preview-area span.ic-green { color: #059669 !important; }
+  #preview-area span.ic-orange { color: #d97706 !important; }
+  #preview-area span.ic-purple { color: #7c3aed !important; }
+  #preview-area span.ic-gray { color: #64748b !important; }
 
   /* TIPS・補足 (サイド) */
   #preview-area .side-note {
@@ -845,6 +903,59 @@
     min-height: 1em;
   }
 
+  /* 🎨 文字色モーダルの色見本。タブレットでの誤タップを避けるため
+     ボタンは最小44pxを確保する（非機能要件 5. に合わせる）。 */
+  .color-swatch-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .color-swatch {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 6px 14px 6px 10px;
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .color-swatch:hover {
+    border-color: var(--accent-color);
+  }
+  .color-swatch .color-chip {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    flex-shrink: 0;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+  }
+
+  /* 🧠 SANチェックのよく使う組み合わせ */
+  .san-preset-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .san-preset {
+    min-height: 44px;
+    padding: 6px 14px;
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .san-preset:hover {
+    border-color: var(--accent-color);
+  }
+
   /* リストコンテナ等 */
   .modal-actions {
     display: flex;
@@ -1257,7 +1368,7 @@
       <div class="app-logo" onclick="openListModal()" title="シナリオ一覧を表示">
         <span>📂</span> <span>一覧</span>
       </div>
-      <span class="version-tag">v1.5.0</span>
+      <span class="version-tag">v1.6.0</span>
       <span class="version-tag" id="system-badge" title="このシナリオのゲームシステム（作成時に固定）">エモクロア</span>
       <input type="text" id="scenario-title" class="scenario-title-input" value="無題のシナリオ" placeholder="シナリオタイトルを入力">
       <span class="save-status" id="save-status">✓ 自動保存有効</span>
@@ -1296,7 +1407,9 @@
     <button id="btn-shortcut-dl" class="btn-panel" onmousedown="event.preventDefault(); insertTemplate('dl')">📋 DL情報</button>
     <button id="btn-shortcut-roll" class="btn-panel" onmousedown="event.preventDefault(); openRollModal()">🎲 技能判定</button>
     <button id="btn-shortcut-resonance" class="btn-panel" onmousedown="event.preventDefault(); openResonanceModal()">🌀 共鳴判定</button>
+    <button id="btn-shortcut-san" class="btn-panel" onmousedown="event.preventDefault(); openSanModal()">🧠 SANチェック</button>
     <button id="btn-shortcut-tips" class="btn-panel" onmousedown="event.preventDefault(); insertTemplate('tips')">💡 TIPS/補足</button>
+    <button id="btn-shortcut-color" class="btn-panel" onmousedown="event.preventDefault(); openColorModal()">🎨 文字色</button>
     <button id="btn-shortcut-npc" class="btn-panel" style="background-color: #1e293b; border-color: #3b82f6;" onmousedown="event.preventDefault(); openNpcModal()">👥 NPC管理</button>
   </footer>
 
@@ -1437,6 +1550,83 @@
     </div>
   </div>
 
+  <!-- 🧠 SANチェックモーダル（クトゥルフ神話TRPGのみ導線を出す） -->
+  <div id="san-modal" class="modal">
+    <div class="modal-content" style="max-width: 560px;">
+      <div class="modal-header">
+        <h3>🧠 SANチェックの挿入</h3>
+        <button class="btn-close" onclick="closeSanModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="san-success">成功時の減少値</label>
+            <input type="text" id="san-success" class="form-input" placeholder="例: 1 / 0">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="san-failure">失敗時の減少値</label>
+            <input type="text" id="san-failure" class="form-input" placeholder="例: 1D6">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <span class="form-label">よく使う組み合わせ（押すと上の欄に入ります）</span>
+          <!-- 中身は renderSanPresets() が組み立てる -->
+          <div id="san-presets" class="san-preset-row"></div>
+        </div>
+
+        <div class="form-group">
+          <span class="form-label">作成する結果の枠（チェックをいれたものを生成）</span>
+          <!-- 中身は renderSanTiers() が組み立てる -->
+          <div class="checkbox-grid" id="san-tier-checks"></div>
+        </div>
+
+        <div class="modal-actions" style="justify-content: flex-end; margin-top: 10px;">
+          <button class="btn btn-primary" onmousedown="event.preventDefault(); insertSanBlock()">決定（エディタへ挿入）</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🎨 文字色モーダル -->
+  <div id="color-modal" class="modal">
+    <div class="modal-content" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3>🎨 文字色</h3>
+        <button class="btn-close" onclick="closeColorModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0 0 14px; line-height: 1.6;">
+          エディタで選んだ文字を <code>{赤:…}</code> の形で囲みます。
+          何も選んでいない場合は空の記法を挿入し、カーソルを中に置きます。
+        </p>
+
+        <div class="form-group">
+          <span class="form-label">パレット</span>
+          <!-- 中身は renderColorSwatches() が組み立てる（色の定義は INLINE_COLORS 1箇所） -->
+          <div id="color-swatches" class="color-swatch-grid"></div>
+        </div>
+
+        <div class="form-group">
+          <span class="form-label">任意の色</span>
+          <div class="tier-add-row">
+            <input type="color" id="color-custom" value="#dc2626" class="form-input"
+                   style="max-width: 76px; height: 42px; padding: 2px;">
+            <button class="btn" onmousedown="event.preventDefault(); applyCustomColor()">この色を適用</button>
+          </div>
+          <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 6px; line-height: 1.6;">
+            淡い色はPDFにすると読めなくなります。迷ったらパレットを使ってください。
+          </div>
+        </div>
+
+        <div class="modal-actions" style="justify-content: space-between; margin-top: 10px;">
+          <button class="btn" onmousedown="event.preventDefault(); stripColor()">🧹 選択範囲の色を外す</button>
+          <button class="btn" onclick="closeColorModal()">閉じる</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 👥 NPC管理モーダル -->
   <div id="npc-modal" class="modal">
     <div class="modal-content modal-content-npc" style="max-width: 1040px; height: 90%;">
@@ -1512,6 +1702,53 @@
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+    }
+
+    // === インライン装飾（文字色） ===
+    //
+    // 記法は {赤:テキスト} と {#88ccff:テキスト}。
+    // ブロック記法が [...] を使っているため、インラインは {...} で系統を分けている。
+    // 選定理由・却下案は docs/04_記法設計書.html にある。
+    //
+    // 固定パレットは色名 → CSSクラス、任意の16進は style 属性へ直接載せる。
+    // 紙に出したときに潰れない濃さを保証できるのは前者だけなので、パレットを主に使う。
+    const INLINE_COLORS = {
+      '赤': { cls: 'ic-red',    hex: '#dc2626' },
+      '青': { cls: 'ic-blue',   hex: '#2563eb' },
+      '緑': { cls: 'ic-green',  hex: '#059669' },
+      '橙': { cls: 'ic-orange', hex: '#d97706' },
+      '紫': { cls: 'ic-purple', hex: '#7c3aed' },
+      '灰': { cls: 'ic-gray',   hex: '#64748b' }
+    };
+
+    const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
+    // 色記法の走査パターン。名前・中身とも改行と波括弧を含まない＝1行に閉じる。
+    // 閉じ忘れた波括弧が後続の段落まで飲み込まないようにするため。
+    const INLINE_COLOR_RE = /\{([^{}:：\n]{1,16})[:：]([^{}\n]*)\}/g;
+
+    // エスケープ済みの文字列に、色記法の変換と改行の <br> 化を施す。
+    //
+    // 順序は「エスケープ → 装飾 → 改行」で固定。逆にすると
+    // 生成した <span> ごとエスケープされるか、<br> が壊れる。
+    // 各所で手書きせず必ずこの関数を通すこと。
+    function decorate(escaped) {
+      if (escaped === null || escaped === undefined) return '';
+      const decorated = String(escaped).replace(INLINE_COLOR_RE, (whole, name, body) => {
+        const key = name.trim();
+        const preset = INLINE_COLORS[key];
+        if (preset) return `<span class="${preset.cls}">${body}</span>`;
+        if (HEX_COLOR_RE.test(key)) return `<span style="color: ${key};">${body}</span>`;
+        // 色名でも16進でもなければ変換しない。色と無関係な {注:…} のような
+        // 書き方を勝手に色付けして壊さないため。
+        return whole;
+      });
+      return decorated.replace(/\n/g, '<br>');
+    }
+
+    // 未エスケープの生文字列を、そのままプレビューへ出せるHTMLにする。
+    function renderInline(raw) {
+      return decorate(escapeHTML(raw));
     }
 
     // エモクロアTRPG技能データ定義 (公式の7種別ごとに細分化)
@@ -1608,6 +1845,7 @@
         hasEmotions: true,
         emotions: EMOKLORE_EMOTIONS,
         hasResonanceRoll: true,
+        hasSanCheck: false,
         // 判定ブロックの成功段階（上から順にモーダルのチェックボックスになる）
         rollTiers: [
           { id: 'miracle', label: '奇跡的成功', checked: false },
@@ -1673,6 +1911,20 @@
         gmInfoLabel: 'KP情報',
         hasEmotions: false,
         hasResonanceRoll: false,
+        // SANチェックはCoC固有の仕組み。エモクロアには正気度が無いため入口を出さない
+        // （記法自体はどのシステムでもパースする。parseElement の [SAN:…] を参照）。
+        hasSanCheck: true,
+        // SANチェックの減少値の既定と、よく使う組み合わせ。
+        // 「成功時 / 失敗時」の順で、シナリオ本文の慣習的な書き方に合わせている。
+        sanDefaults: { success: '1', failure: '1D6' },
+        sanPresets: ['0/1', '1/1D3', '1/1D6', '1D3/1D6', '1D6/1D20'],
+        // SANチェックの結果に付ける枠。技能判定の成功段階とは別物なので分けて持つ
+        // （SANチェックにスペシャルは無く、代わりに成功・失敗の2つで足りることが多い）。
+        sanTiers: [
+          { label: '成功', checked: true },
+          { label: '失敗', checked: true },
+          { label: 'ファンブル', checked: false }
+        ],
         // 6版の呼称は「クリティカル」「ファンブル」。成否とこの2つは判定のたびに
         // 分岐しうるため、既定でチェックを入れておく（スペシャルは任意）。
         rollTiers: [
@@ -1748,6 +2000,8 @@
       'resonance': { key: '7', altKey: true, ctrlKey: false, shiftKey: false, label: '🌀 共鳴判定', desc: '共鳴判定モーダルを開く' },
       'tips': { key: '8', altKey: true, ctrlKey: false, shiftKey: false, label: '💡 TIPS/補足', desc: '行末に >> [TIPS] を挿入' },
       'npc': { key: '9', altKey: true, ctrlKey: false, shiftKey: false, label: '👥 NPC管理', desc: 'NPC管理モーダルを開く' },
+      'san': { key: '0', altKey: true, ctrlKey: false, shiftKey: false, label: '🧠 SANチェック', desc: 'SANチェックモーダルを開く（CoCのみ）' },
+      'color': { key: 'c', altKey: true, ctrlKey: false, shiftKey: false, label: '🎨 文字色', desc: '選択した文字に色を付ける' },
       // キー名 'cloud-save' は保存済みのユーザー設定(trpg_shortcuts)との互換のため残している。
       // 保存先はクラウドからローカルへ変わったが、キーを変えると既存の割り当てが失われる。
       'cloud-save': { key: 's', altKey: false, ctrlKey: true, shiftKey: false, label: '💾 保存', desc: '編集中のシナリオをシナリオ一覧に保存' }
@@ -1759,7 +2013,7 @@
     // DOM要素の保持用変数
     let editor, previewArea, scenarioTitle, saveStatus;
     let listModal, scenarioListContainer, modalStatus, btnSave, importFileInput;
-    let rollModal, resModal, npcModal, npcListContainer, npcEditorArea;
+    let rollModal, resModal, sanModal, colorModal, npcModal, npcListContainer, npcEditorArea;
     let shortcutModal, shortcutListContainer, shortcutAlert;
 
     // === データ永続化層 ===
@@ -2350,6 +2604,8 @@
         importFileInput = document.getElementById('import-file');
         rollModal = document.getElementById('roll-modal');
         resModal = document.getElementById('res-modal');
+        sanModal = document.getElementById('san-modal');
+        colorModal = document.getElementById('color-modal');
         npcModal = document.getElementById('npc-modal');
         npcListContainer = document.getElementById('npc-list-container');
         npcEditorArea = document.getElementById('npc-editor-area');
@@ -2393,6 +2649,8 @@
         if (editor) editor.readOnly = false;
 
         updatePreview();
+        // 色見本はシステムに依存しないので1回だけ組み立てる
+        renderColorSwatches();
         // 自由枠は applySystemToUI() の renderRollTiers() が読むので、その前に読み込む
         loadCustomTiers();
         // 技能リスト・判定段階・NPCの能力値欄はシステムごとに違うので、
@@ -2688,6 +2946,8 @@
       'list-modal': () => closeListModal(),
       'roll-modal': () => closeRollModal(),
       'res-modal': () => closeResModal(),
+      'san-modal': () => closeSanModal(),
+      'color-modal': () => closeColorModal(),
       'npc-modal': () => closeNpcModal(),
       'shortcut-modal': () => closeShortcutModal()
     };
@@ -2839,6 +3099,10 @@
       const resBtn = document.getElementById('btn-shortcut-resonance');
       if (resBtn) resBtn.style.display = sys.hasResonanceRoll ? '' : 'none';
 
+      // SANチェックはCoC固有。記法は常にパースするが、入口は出さない
+      const sanBtn = document.getElementById('btn-shortcut-san');
+      if (sanBtn) sanBtn.style.display = sys.hasSanCheck ? '' : 'none';
+
       // 判定する技能名の例示。技能の呼び方がシステムで違うため定義から引く
       const rollSkillInput = document.getElementById('roll-skill-name');
       if (rollSkillInput) rollSkillInput.placeholder = sys.rollSkillPlaceholder || '例: 技能名';
@@ -2850,6 +3114,10 @@
       initRollModalData();
       renderRollTiers();
       if (sys.hasResonanceRoll) initResonanceModalData();
+      if (sys.hasSanCheck) {
+        renderSanPresets();
+        renderSanTiers();
+      }
       renderNpcEditor();
     }
 
@@ -3313,6 +3581,172 @@
       
       insertAtCursor(template);
       closeResModal();
+      handleInput();
+    }
+
+    // === 🧠 SANチェックモーダル制御（クトゥルフ神話TRPG） ===
+    //
+    // 記法は [SAN:成功時/失敗時] で、中身は技能判定ブロックと同じ「- 枠: 本文」。
+    // 結果行のパースは parseRollResultLines() を技能判定と共用している。
+
+    function renderSanPresets() {
+      const box = document.getElementById('san-presets');
+      if (!box) return;
+      box.innerHTML = '';
+      (currentSystem().sanPresets || []).forEach(preset => {
+        const parts = preset.split('/');
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'san-preset';
+        btn.innerText = preset;
+        btn.title = `成功時 ${parts[0]} / 失敗時 ${parts[1]}`;
+        // mousedown で拾うのは、エディタからフォーカスを奪う前に処理したいため
+        // （下部パネルのボタンと同じ理由）。
+        btn.onmousedown = (e) => {
+          e.preventDefault();
+          const success = document.getElementById('san-success');
+          const failure = document.getElementById('san-failure');
+          if (success) success.value = (parts[0] || '').trim();
+          if (failure) failure.value = (parts[1] || '').trim();
+        };
+        box.appendChild(btn);
+      });
+    }
+
+    function renderSanTiers() {
+      const box = document.getElementById('san-tier-checks');
+      if (!box) return;
+      box.innerHTML = '';
+      (currentSystem().sanTiers || []).forEach((tier, i) => {
+        box.appendChild(buildTierItem('san-tier-' + i, tier.label, tier.checked, false));
+      });
+    }
+
+    function openSanModal() {
+      if (!sanModal) return;
+      const defaults = currentSystem().sanDefaults || { success: '', failure: '' };
+      sanModal.classList.add('active');
+      document.getElementById('san-success').value = defaults.success || '';
+      document.getElementById('san-failure').value = defaults.failure || '';
+      renderSanTiers();
+    }
+
+    function closeSanModal() {
+      if (sanModal) sanModal.classList.remove('active');
+    }
+
+    function insertSanBlock() {
+      const defaults = currentSystem().sanDefaults || {};
+      const success = document.getElementById('san-success').value.trim() || defaults.success || '0';
+      const failure = document.getElementById('san-failure').value.trim() || defaults.failure || '1D3';
+
+      let template = `\n\n[SAN:${success}/${failure}]\n`;
+      document.querySelectorAll('#san-tier-checks input[type="checkbox"]').forEach(cb => {
+        if (cb.checked) template += '- ' + cb.dataset.tier + ': \n';
+      });
+
+      insertAtCursor(template);
+      closeSanModal();
+      handleInput();
+    }
+
+    // === 🎨 文字色モーダル制御 ===
+    //
+    // 記法は {赤:テキスト} / {#88ccff:テキスト}（INLINE_COLORS と decorate() を参照）。
+    // 色の定義は INLINE_COLORS 1箇所にあり、見本もそこから組み立てる。
+
+    function renderColorSwatches() {
+      const box = document.getElementById('color-swatches');
+      if (!box) return;
+      box.innerHTML = '';
+      for (const name in INLINE_COLORS) {
+        const def = INLINE_COLORS[name];
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'color-swatch';
+        btn.title = `{${name}:…} で囲む`;
+        btn.innerHTML = `<span class="color-chip" style="background-color: ${def.hex};"></span><span>${name}</span>`;
+        btn.onmousedown = (e) => { e.preventDefault(); applyColor(name); };
+        box.appendChild(btn);
+      }
+    }
+
+    function openColorModal() {
+      if (colorModal) colorModal.classList.add('active');
+    }
+
+    function closeColorModal() {
+      if (colorModal) colorModal.classList.remove('active');
+    }
+
+    // 文字列から色記法だけを取り除く（中身の文字は残す）。
+    // 色名でも16進でもないものは記法ではないので、そのまま残す。
+    function stripColorNotation(text) {
+      return text.replace(INLINE_COLOR_RE, (whole, name, body) => {
+        const key = name.trim();
+        return (INLINE_COLORS[key] || HEX_COLOR_RE.test(key)) ? body : whole;
+      });
+    }
+
+    // 選択範囲がまるごと色記法で囲まれているとき、その囲みまで含めた範囲を返す。
+    //
+    // 色を付けた直後は「囲みの内側」だけが選ばれている。そのまま別の色を押すと
+    // {赤:{青:…}} という入れ子ができてしまい、記法として解釈できず
+    // 波括弧が本文に出る。囲み直す前にここで範囲を広げておく。
+    function expandOverColorNotation(startPos, endPos) {
+      const asIs = { start: startPos, end: endPos };
+      if (!editor) return asIs;
+
+      const text = editor.value;
+      if (text.charAt(endPos) !== '}') return asIs;
+
+      const opener = text.substring(0, startPos).match(/\{[^{}:：\n]{1,16}[:：]$/);
+      if (!opener) return asIs;
+
+      // 色として解釈できない名前は記法ではないので広げない
+      const key = opener[0].slice(1, -1).trim();
+      if (!INLINE_COLORS[key] && !HEX_COLOR_RE.test(key)) return asIs;
+
+      return { start: startPos - opener[0].length, end: endPos + 1 };
+    }
+
+    // 選択範囲を {色:…} で囲む。すでに色が付いていれば付け替える。
+    function applyColor(colorKey) {
+      if (!editor) return;
+      const range = expandOverColorNotation(editor.selectionStart, editor.selectionEnd);
+      const opener = '{' + colorKey + ':';
+      // 選択の内側にある色記法も剥がす（複数の色をまたいで選んだ場合）
+      const body = stripColorNotation(editor.value.substring(range.start, range.end));
+
+      // 何も選んでいなければ body は空。囲みだけ入れてカーソルを中に置く
+      replaceRange(range.start, range.end, opener + body + '}', opener.length, body.length);
+      closeColorModal();
+      handleInput();
+    }
+
+    function applyCustomColor() {
+      const input = document.getElementById('color-custom');
+      const hex = ((input && input.value) || '').trim();
+      // <input type="color"> は常に #rrggbb を返すが、値を直接書き換えられても
+      // 壊れた記法を生まないように検証してから使う。
+      if (!HEX_COLOR_RE.test(hex)) return;
+      applyColor(hex);
+    }
+
+    // 選択範囲から色を外す。付けた直後（囲みの内側だけが選ばれている状態）でも
+    // 外せるよう、applyColor() と同じく囲みまで範囲を広げてから処理する。
+    function stripColor() {
+      if (!editor) return;
+      const range = expandOverColorNotation(editor.selectionStart, editor.selectionEnd);
+      if (range.start === range.end) {
+        closeColorModal();
+        editor.focus();
+        return;
+      }
+
+      const stripped = stripColorNotation(editor.value.substring(range.start, range.end));
+      replaceRange(range.start, range.end, stripped, 0, stripped.length);
+      closeColorModal();
       handleInput();
     }
 
@@ -3997,10 +4431,10 @@ ${derivedHTML}
         if (block.startsWith('#')) {
           if (block.startsWith('##')) {
             const subtitle = block.replace(/^##\s*/, '');
-            html += `<h3 class="search-subtitle">${escapeHTML(subtitle)}</h3>\n`;
+            html += `<h3 class="search-subtitle">${renderInline(subtitle)}</h3>\n`;
           } else {
             const title = block.replace(/^#\s*/, '');
-            html += `<h2 class="scene-title">${escapeHTML(title)}</h2>\n`;
+            html += `<h2 class="scene-title">${renderInline(title)}</h2>\n`;
           }
           continue;
         }
@@ -4041,16 +4475,14 @@ ${derivedHTML}
       if (type === 'main') {
         // 情景描写・セリフ (行頭 '>')
         if (html.startsWith('&gt;')) {
-          const content = html.substring(4).trim().replace(/\n/g, '<br>');
-          return `<div class="read-text">${content}</div>`;
+          return `<div class="read-text">${decorate(html.substring(4).trim())}</div>`;
         }
 
         // GM向け情報 (行頭 '[DL]' または '[KP]')。
         // 見出しの呼称だけがシステムで変わり、記法はどちらも常に受け付ける。
         // シナリオを別システムで開き直しても本文が素通しにならないようにするため。
         if (html.startsWith('[DL]') || html.startsWith('[KP]')) {
-          const content = html.substring(4).trim().replace(/\n/g, '<br>');
-          return `<div class="dl-info">${content}</div>`;
+          return `<div class="dl-info">${decorate(html.substring(4).trim())}</div>`;
         }
 
         // 探索可能箇所一覧 [探索:エリア名] または [探索]
@@ -4072,7 +4504,10 @@ ${derivedHTML}
               line = line.substring(1).trim();
             }
             if (!line) continue;
-            itemsHTML += `<span class="search-item">${escapeHTML(line)}</span>`;
+            // line は html（エスケープ済み）を切り出したものなので、ここで再度
+            // escapeHTML してはいけない。以前は二重エスケープになっており、
+            // 「A & B」のような項目が「A &amp; B」と表示されていた。
+            itemsHTML += `<span class="search-item">${decorate(line)}</span>`;
           }
 
           return `
@@ -4124,22 +4559,9 @@ ${derivedHTML}
             else if (displayType === '提示推奨') badgeClass = 'type-recommended';
             else if (displayType === '非提示推奨') badgeClass = 'type-secret';
             
-            badgeHTML = `<span class="roll-type-badge ${badgeClass}">${escapeHTML(displayType)}</span>`;
-          }
-
-          let resultsHTML = '';
-          for (let i = 1; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (!line.startsWith('-')) continue;
-
-            const colonIndex = line.indexOf(':');
-            if (colonIndex === -1) continue;
-
-            const key = line.substring(1, colonIndex).trim();
-            const val = line.substring(colonIndex + 1).trim();
-
-            const badgeInfo = getBadgeInfo(key);
-            resultsHTML += `            <div class="result-item"><span class="result-label ${badgeInfo.class}">${badgeInfo.label}</span><span class="result-text">${val}</span></div>\n`;
+            // displayType は html（エスケープ済み）から切り出した文字列なので、
+            // ここで再度 escapeHTML すると二重エスケープになる。
+            badgeHTML = `<span class="roll-type-badge ${badgeClass}">${displayType}</span>`;
           }
 
           // 🎲 判定：技能名 を完全に左詰めにしてバグ（space-betweenで技能名が右寄せになる問題）を修正
@@ -4150,18 +4572,40 @@ ${derivedHTML}
               ${badgeHTML}
             </div>
             <div class="roll-results">
-${resultsHTML}            </div>
+${parseRollResultLines(lines, 1)}            </div>
+          </div>`;
+        }
+
+        // SANチェック [SAN:成功時の減少値/失敗時の減少値]（クトゥルフ神話TRPG）
+        //
+        // 判定ブロックと同じ骨格（ヘッダ＋結果行）を持たせ、結果行のパースも共用する。
+        // 記法自体はどのシステムでも受け付ける。入口（パネルのボタン）だけを
+        // applySystemToUI() が出し分ける。[DL]/[KP] と同じ考え方で、
+        // 別システムで開き直したときに本文が素通しにならないようにするため。
+        const sanMatch = html.match(/^\[SAN\s*[:：]\s*([^\/\]]*)(?:\/([^\]]*))?\]/i);
+        if (sanMatch) {
+          const lines = html.split('\n');
+          const onSuccess = (sanMatch[1] || '').trim() || '0';
+          const onFailure = (sanMatch[2] || '').trim() || '1D3';
+
+          return `
+          <div class="roll-box san-box">
+            <div class="roll-title">
+              <div>🧠 SANチェック</div>
+              <span class="san-loss">成功 ${onSuccess} / 失敗 ${onFailure}</span>
+            </div>
+            <div class="roll-results">
+${parseRollResultLines(lines, 1)}            </div>
           </div>`;
         }
 
         // 通常文章
-        return `<p>${html.replace(/\n/g, '<br>')}</p>`;
+        return `<p>${decorate(html)}</p>`;
       } else {
         // サイドカラム側のパース
         // TIPS/補足 (行頭 '[TIPS]')
         if (html.startsWith('[TIPS]')) {
-          const content = html.substring(6).trim().replace(/\n/g, '<br>');
-          return `<div class="side-note">${content}</div>`;
+          return `<div class="side-note">${decorate(html.substring(6).trim())}</div>`;
         }
 
         // サイド内のNPCカード表記 (サイドカラム時は常に簡易版カードを描画)
@@ -4172,8 +4616,46 @@ ${resultsHTML}            </div>
         }
 
         // 通常文章
-        return `<p>${html.replace(/\n/g, '<br>')}</p>`;
+        return `<p>${decorate(html)}</p>`;
       }
+    }
+
+    // 判定ブロック（技能判定・SANチェック）の結果行をHTMLへ変換する。
+    //
+    // 「- キーワード: 本文」で1項目。次の '-' が現れるまでの行は、
+    // 直前の項目の続きとして改行付きで連結する。
+    // 以前は '-' で始まらない行を読み飛ばしており、2行目以降が黙って消えていた。
+    //
+    // ブロックの終わりは空行であることに注意（空行で段落が切れるため、
+    // 判定ブロックの直後に本文を続けるときは必ず空行を挟む）。
+    function parseRollResultLines(lines, startIndex) {
+      const items = [];
+
+      for (let i = startIndex; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        if (line.startsWith('-')) {
+          const colonIndex = line.indexOf(':');
+          if (colonIndex === -1) continue;
+          items.push({
+            key: line.substring(1, colonIndex).trim(),
+            val: line.substring(colonIndex + 1).trim()
+          });
+          continue;
+        }
+
+        // 継続行。まだ項目が無いときだけ捨てる（ヘッダ直後の書きかけ）
+        if (items.length === 0) continue;
+        items[items.length - 1].val += '\n' + line;
+      }
+
+      let html = '';
+      items.forEach(item => {
+        const badgeInfo = getBadgeInfo(item.key);
+        html += `            <div class="result-item"><span class="result-label ${badgeInfo.class}">${badgeInfo.label}</span><span class="result-text">${decorate(item.val)}</span></div>\n`;
+      });
+      return html;
     }
 
     // 本文中にNPCカードを埋め込むためのHTMLジェネレータ
@@ -4194,8 +4676,9 @@ ${resultsHTML}            </div>
       const emotions = (npc.status.emotions && npc.status.emotions.length > 0) ? npc.status.emotions.join(', ') : 'なし';
       // メモだけエスケープが漏れており、`HP<5で逃走` のような普通の記述で文字が消えたり、
       // `<b>` がタグとして解釈されて要素が生成されていた。
-      // 必ず「エスケープしてから」改行を <br> に変換すること（順序が逆だと <br> まで無効化される）。
-      const memo = npc.memo ? escapeHTML(npc.memo).replace(/\n/g, '<br>') : '―';
+      // 「エスケープ → 装飾 → 改行」の順序は renderInline() が守るので、
+      // ここで自前にエスケープや <br> 変換を書かないこと。
+      const memo = npc.memo ? renderInline(npc.memo) : '―';
 
       // 簡易版NPCカード表示 (セリフ用サイドカラム等に最適)
       if (isMini) {
@@ -4330,6 +4813,22 @@ ${resultsHTML}            </div>
       editor.focus();
     }
 
+    // 指定した範囲を差し替えたうえで、差し替えた文字列の一部を選び直す。
+    //
+    // insertAtCursor() は「選択範囲を置換してカーソルを末尾へ置く」ので、
+    // 選択した文字を記法で囲む用途（文字色）には使えない。
+    // selStart / selLength は、差し替え後の text の先頭からの位置で指定する。
+    function replaceRange(start, end, text, selStart, selLength) {
+      if (!editor) return;
+      const originalText = editor.value;
+
+      editor.value = originalText.substring(0, start) + text + originalText.substring(end);
+
+      editor.selectionStart = start + selStart;
+      editor.selectionEnd = start + selStart + selLength;
+      editor.focus();
+    }
+
     // === ショートカットキーのロード ===
     // ショートカット1件分の「未割り当て」状態を作る。
     //
@@ -4447,7 +4946,9 @@ ${resultsHTML}            </div>
         'dl': { id: 'btn-shortcut-dl', baseText: '📋 ' + gmInfoLabel() },
         'roll': { id: 'btn-shortcut-roll', baseText: '🎲 技能判定' },
         'resonance': { id: 'btn-shortcut-resonance', baseText: '🌀 共鳴判定' },
+        'san': { id: 'btn-shortcut-san', baseText: '🧠 SANチェック' },
         'tips': { id: 'btn-shortcut-tips', baseText: '💡 TIPS/補足' },
+        'color': { id: 'btn-shortcut-color', baseText: '🎨 文字色' },
         'npc': { id: 'btn-shortcut-npc', baseText: '👥 NPC管理' }
       };
 
@@ -4534,6 +5035,13 @@ ${resultsHTML}            </div>
           break;
         case 'npc':
           openNpcModal();
+          break;
+        case 'san':
+          // 記法を持たないシステムでは何もしない（パネルのボタンも隠れている）
+          if (currentSystem().hasSanCheck) openSanModal();
+          break;
+        case 'color':
+          openColorModal();
           break;
         case 'cloud-save':
           saveScenarioToStore();

@@ -111,9 +111,16 @@
         <ul>
           <li><strong>[🎲 技能判定]</strong>（全システム共通） — 選んだシステムの標準技能リストから技能を選択すると、対応する判定Markdownテンプレートが自動挿入される。画面構成は 3.2 を参照。</li>
           <li><strong>[🌀 共鳴判定]</strong>（エモクロア専用） — 「強度」「上昇値」「共鳴感情（感情候補リストから選択可能）」を入力すると <code>[共鳴:強度/上昇/感情]</code> が自動挿入される。他システムではボタンごと非表示になる。</li>
+          <li><strong>[🧠 SANチェック]</strong>（CoC専用・2026-09-01 追加） — 「成功時の減少値」「失敗時の減少値」を入力すると <code>[SAN:成功/失敗]</code> と結果の枠が自動挿入される。よく使う組み合わせ（<code>0/1</code>・<code>1/1D6</code> など）はワンタップで入る。他システムではボタンごと非表示になる。</li>
+          <li><strong>[🎨 文字色]</strong>（全システム共通・2026-09-01 追加） — エディタで選んだ文字を <code>{赤:…}</code> の形で囲む。6色のパレットと任意のカラーコードを選べる。詳細は 4.3 を参照。</li>
         </ul>
       </li>
     </ul>
+    <div class="callout">
+      <strong>パネルはボタンが増えると横スクロールになる。</strong>
+      幅の狭い端末では右端のボタン（NPC管理など）が初期表示に入らないため、
+      パネルは横方向にスクロールできる。ボタンを足すときは、この前提が成り立っているかを確認すること。
+    </div>
 
     <h3>2.4 NPC管理機能</h3>
     <p>シナリオに登場するNPCの情報をエディタと紐付けて管理する。</p>
@@ -219,6 +226,11 @@
           <td>あり</td>
           <td><strong>なし</strong>（ボタンと入力欄ごと非表示）</td>
         </tr>
+        <tr>
+          <td><strong>SANチェック</strong></td>
+          <td><strong>なし</strong>（ボタンごと非表示）</td>
+          <td>あり（記法は 4.4 を参照）</td>
+        </tr>
       </tbody>
     </table>
 
@@ -229,10 +241,12 @@
     </div>
 
     <div class="callout">
-      <strong>GM向け情報の記法は、どのシステムでも <code>[DL]</code> と <code>[KP]</code> の両方を受け付ける。</strong>
-      挿入ボタンが出すタグとプレビューの見出しだけがシステムに追従する。
+      <strong>システム固有の記法も、パーサはどのシステムでも受け付ける。</strong>
+      <code>[DL]</code> と <code>[KP]</code>、<code>[共鳴:…]</code>、<code>[SAN:…]</code> はいずれも常に解釈される。
+      挿入ボタンの表示・ボタン名・プレビューの見出しだけがシステムに追従する。
       片方しか解釈しないと、他システムで書かれた本文を貼り付けたときや、
       GMが慣れた呼称で手打ちしたときに、その段落が装飾されないまま素通ししてしまうため。
+      判断の詳細は <a href="04_記法設計書.html">記法設計書 §6</a> にある。
     </div>
 
     <div class="callout warn">
@@ -392,6 +406,11 @@
       テストエディタ <code>knowledge/test.html</code>（リポジトリには含まれないローカル資料）のスタイル定義に基づき、
       本エディタでパースする記法ルールを策定する。
     </p>
+    <div class="callout">
+      <strong>ここは「何がどう表示されるか」の一覧である。</strong>
+      なぜその区切り記号・その構造にしたのか、どんな案を却下したのかは
+      <a href="04_記法設計書.html">記法設計書</a> にある。記法を足すときは先にそちらを読むこと。
+    </div>
 
     <h3>4.1 基本要素のマッピング</h3>
     <table>
@@ -402,16 +421,45 @@
         <tr><td><strong>通常文章</strong></td><td>通常入力</td><td><code>&lt;p&gt;</code></td><td>標準ゴシック、行間広め（1.8）</td></tr>
         <tr><td><strong>情景描写・セリフ</strong></td><td>行頭に <code>&gt;</code></td><td><code>&lt;div class="read-text"&gt;</code></td><td>背景薄グレー、左に太線、フォント明朝</td></tr>
         <tr><td><strong>GM向け情報</strong><br>（DL情報／KP情報）</td><td>行頭に <code>[DL]</code> または <code>[KP]</code></td><td><code>&lt;div class="dl-info"&gt;</code></td><td>背景薄黄、黄色境界線、角丸。見出しはシステムに追従（「📋 DL情報」／「📋 KP情報」）</td></tr>
+        <tr><td><strong>探索可能箇所一覧</strong></td><td><code>[探索:エリア名]</code> または <code>[調査:…]</code> の次行から <code>-</code> で1項目ずつ</td><td><code>&lt;div class="search-box"&gt;</code> ＋ <code>&lt;span class="search-item"&gt;</code></td><td>背景薄ティール。項目は<strong>1項目1行の縦並び</strong>で、左に <code>▶</code> の目印が付く</td></tr>
         <tr><td><strong>共鳴判定</strong></td><td><code>[共鳴:強度/上昇/感情]</code></td><td><code>&lt;div class="resonance-box"&gt;</code></td><td>背景薄赤、左に赤太線、「🌀 共鳴判定…」自動付与</td></tr>
+        <tr><td><strong>SANチェック</strong><br>（2026-09-01 追加）</td><td><code>[SAN:成功/失敗]</code></td><td><code>&lt;div class="roll-box san-box"&gt;</code></td><td>技能判定と同じ骨格で色は赤系。ヘッダに減少値のバッジ。詳細は 4.4</td></tr>
+        <tr><td><strong>文字色</strong>（インライン）<br>（2026-09-01 追加）</td><td><code>{赤:テキスト}</code> / <code>{#88ccff:テキスト}</code></td><td><code>&lt;span class="ic-red"&gt;</code> / <code>&lt;span style="color:…"&gt;</code></td><td>文中の一部だけを着色。ほぼすべてのブロックの中で使える。詳細は 4.3</td></tr>
         <tr><td><strong>TIPS・補足</strong>（右）</td><td><code>&gt;&gt; 💡</code> または <code>&gt;&gt; [TIPS]</code></td><td><code>&lt;div class="side-note"&gt;</code></td><td>背景薄緑、上に緑太線、「💡 TIPS/補足」自動付与</td></tr>
         <tr><td><strong>通常文章</strong>（右）</td><td><code>&gt;&gt;</code> の後ろに記述</td><td><code>&lt;p&gt;</code></td><td>右側カラム用の通常文章</td></tr>
       </tbody>
     </table>
 
+    <div class="callout">
+      <strong>2026-09-01: 探索可能箇所一覧を横並びのタグから縦並びの一覧へ変えた。</strong>
+      「机の引き出しの中を調べる」のように項目が文になると横並びでは1行に収まらず、
+      どこからどこまでが1項目か読み取れなかったため。
+      記法は変わっていないので、既存のシナリオは書き直さなくてよい。
+    </div>
+
     <h3>4.2 技能判定ブロックの構造化</h3>
     <p>技能判定ブロックは、複数行の判定結果バッジに対応する。</p>
 <pre><code>[判定:技能名]
 - キーワード: 結果テキスト</code></pre>
+
+    <h4>結果テキストの改行（2026-09-01 追加）</h4>
+    <p>
+      <code>-</code> で始まらない行は、<strong>直前の結果テキストの続き</strong>として連結され、
+      プレビューでは改行して表示される。1つの結果に手順や補足を書き足せる。
+    </p>
+<pre><code>[判定:目星]
+- 成功: 引き出しの奥に鍵を見つける。
+  鍵には「B-3」と刻印がある。
+- 失敗: 何も見つからない。</code></pre>
+    <div class="callout warn">
+      <strong>判定ブロックの終わりには空行を置くこと。</strong>
+      段落は空行で区切られるため、空行を置かずに本文を続けると、
+      その本文が最後の結果行の続きとして箱の中に取り込まれる。
+      <br><br>
+      この改修より前は <code>-</code> で始まらない行を読み飛ばしていた（＝書いても表示されなかった）。
+      そのため古いシナリオにこの書き方が残っている可能性がある。
+      表示が変わるのは「消えていた文字が出るようになる」方向だけで、既存の表示が失われることはない。
+    </div>
 
     <h4>判定成功度（キーワード）とカラーバッジのマッピング</h4>
     <p>
@@ -483,6 +531,76 @@
       いずれも実装と一致していなかった。
       キーワードを増やすのではなく仕様書側を実装に合わせる方針を選んでいる。
     </div>
+
+    <h3>4.3 インライン装飾：文字色（2026-09-01 追加）</h3>
+    <p>
+      文中の一部だけを着色する。ブロック記法が <code>[ ]</code> を使うのに対し、
+      インライン装飾は <code>{ }</code> を使って系統を分けている。
+    </p>
+<pre><code>扉の奥から{赤:低い唸り声}が聞こえる。
+{#88ccff:淡い光}が漏れている。</code></pre>
+
+    <h4>パレット（色名指定）</h4>
+    <table>
+      <thead><tr><th>記法</th><th>色</th><th>CSSクラス</th></tr></thead>
+      <tbody>
+        <tr><td><code>{赤:…}</code></td><td>赤 <code>#dc2626</code></td><td><code>ic-red</code></td></tr>
+        <tr><td><code>{青:…}</code></td><td>青 <code>#2563eb</code></td><td><code>ic-blue</code></td></tr>
+        <tr><td><code>{緑:…}</code></td><td>緑 <code>#059669</code></td><td><code>ic-green</code></td></tr>
+        <tr><td><code>{橙:…}</code></td><td>橙 <code>#d97706</code></td><td><code>ic-orange</code></td></tr>
+        <tr><td><code>{紫:…}</code></td><td>紫 <code>#7c3aed</code></td><td><code>ic-purple</code></td></tr>
+        <tr><td><code>{灰:…}</code></td><td>灰 <code>#64748b</code></td><td><code>ic-gray</code></td></tr>
+      </tbody>
+    </table>
+    <p>
+      加えて <code>{#rrggbb:…}</code> / <code>{#rgb:…}</code> の形で任意の色を指定できる。
+      <strong>ただし淡い色はPDFにすると読めなくなる</strong>ため、既定ではパレットを使う。
+      使い分けの根拠は <a href="04_記法設計書.html">記法設計書 §3</a> にある。
+    </p>
+
+    <h4>使える場所</h4>
+    <p>
+      通常文章・情景描写・GM向け情報・TIPS/補足・判定ブロックの結果テキスト・探索一覧の各項目・
+      シーン見出し・探索小見出し・NPCカードのメモ欄で使える。
+      コロンは半角 <code>:</code> と全角 <code>：</code> のどちらでもよい。
+    </p>
+
+    <div class="callout">
+      <strong>色名でも16進でもないものは記法として扱わず、原文のまま表示される。</strong>
+      <code>{注:これは色ではない}</code> はそのまま出る。
+      本文に波括弧を書くこと自体は珍しくないため、取りこぼしより誤変換を避ける側に倒している。
+    </div>
+
+    <div class="callout warn">
+      <strong>色記法は1行に閉じる。入れ子にはできない。</strong>
+      中身に改行や波括弧を含められないため、<code>{赤:{青:…}}</code> と書くと
+      外側が解釈されず波括弧が本文に出る。
+      🎨文字色ボタンは、色の付いた文字を選んで別の色を押すと<strong>入れ子ではなく付け替え</strong>になる。
+    </div>
+
+    <h3>4.4 SANチェックブロック（2026-09-01 追加）</h3>
+    <p>
+      クトゥルフ神話TRPGの正気度チェック。技能判定ブロックと同じ構造を持ち、
+      ヘッダに減少値、その下に成否ごとの結果テキストを書く。
+    </p>
+<pre><code>[SAN:成功時の減少値/失敗時の減少値]
+- キーワード: 結果テキスト</code></pre>
+<pre><code>[SAN:1/1D6]
+- 成功: 一瞬たじろぐが正気を保つ。
+- 失敗: 記憶が飛ぶ。
+  以降このシーンでは【聞き耳】に-20。</code></pre>
+    <p>
+      プレビューでは <code>&lt;div class="roll-box san-box"&gt;</code> として、
+      技能判定と同じ骨格・赤系の配色で描画され、ヘッダの右に
+      <strong>「成功 1 / 失敗 1D6」</strong>のバッジが出る。
+      結果テキストは技能判定と同じくバッジ化され、4.2 の改行にも対応する。
+      キーワードの対応表は 4.2 のCoC 6版の表と共通である。
+    </p>
+    <div class="callout">
+      減少値を省略した場合は <code>成功 0 / 失敗 1D3</code> として扱う。
+      <code>[san:…]</code> のように小文字でも認識される。
+      <strong>この記法はエモクロアのシナリオでも解釈される</strong>（挿入ボタンが出ないだけ）。
+    </div>
   </section>
 
   <section>
@@ -513,11 +631,11 @@
 
   <nav class="pagenav">
     <a href="00_INDEX.html">← 目次</a>
-    <a href="02_開発計画書.html">開発計画・設計書 →</a>
+    <a href="04_記法設計書.html">記法設計書（なぜその記法か） →</a>
   </nav>
 
   <footer class="pagefoot">
-    最終更新: 2026-08-31（GAS脱却の実装完了に伴い §1・§2.1・§2.4・§5 を更新。あわせて §4.2 のバッジ対応表を実装に合わせて訂正）
+    最終更新: 2026-09-01（文字色・判定結果の改行・SANチェックの追加に伴い §2.3・§2.7・§4.1・§4.2 を更新し、§4.3・§4.4 を新設。あわせて探索可能箇所一覧を縦並びに変更し §4.1 に行を追加。設計判断は 04_記法設計書 へ分離）
   </footer>
 
 </div>
