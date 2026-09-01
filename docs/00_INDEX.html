@@ -46,6 +46,11 @@
         <h3>開発計画・設計書</h3>
         <p>技術スタック、データ設計、アプリケーション設計、フェーズ別ロードマップ</p>
       </a>
+      <a class="card" href="03_保存方式設計書.html">
+        <span class="num">03</span>
+        <h3>保存方式設計書</h3>
+        <p>データをどこに何の形で置くか。IndexedDBへの移行理由、却下した案、画像の持ち方、既存データの移行</p>
+      </a>
     </div>
   </section>
 
@@ -53,16 +58,18 @@
     <h2>保存方式の移行について</h2>
     <div class="callout">
       2026-08-31 に <strong>Google Apps Script + スプレッドシートからの脱却を完了</strong>した。
-      保存先は localStorage に一本化され、端末間のデータ移動はJSONの書き出し／読み込みで行う。
-      上記2文書は現在の実装に合わせて更新済みである。
+      端末間のデータ移動はJSONの書き出し／読み込みで行う。
       <br><br>
-      残る作業は <strong>GitHub Pages での公開</strong>のみ。
-      進捗は <a href="02_開発計画書.html">開発計画・設計書</a> のフェーズ6にある。
+      2026-09-01 に、シナリオ本体の保存先を <strong>localStorage から IndexedDB へ移した</strong>
+      （立ち絵画像で容量上限に達するため）。
+      経緯・検討した代替案・移行手順は <a href="03_保存方式設計書.html">保存方式設計書</a> にある。
+      <br><br>
+      GitHub Pages での公開は完了している。
     </div>
   </section>
 
   <footer class="pagefoot">
-    最終更新: 2026-08-31
+    最終更新: 2026-09-01
   </footer>
 
 </div>

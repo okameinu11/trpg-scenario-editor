@@ -1257,7 +1257,7 @@
       <div class="app-logo" onclick="openListModal()" title="シナリオ一覧を表示">
         <span>📂</span> <span>一覧</span>
       </div>
-      <span class="version-tag">v1.4.0</span>
+      <span class="version-tag">v1.5.0</span>
       <span class="version-tag" id="system-badge" title="このシナリオのゲームシステム（作成時に固定）">エモクロア</span>
       <input type="text" id="scenario-title" class="scenario-title-input" value="無題のシナリオ" placeholder="シナリオタイトルを入力">
       <span class="save-status" id="save-status">✓ 自動保存有効</span>
@@ -1770,15 +1770,32 @@
     // 2026-08-31: Google Apps Script + スプレッドシートによるクラウド保存を撤去した。
     // 端末間のデータ移動は JSON のエクスポート／インポートで行う（exportScenarios / importScenarios）。
 
-    const STORE_KEY = 'trpg_db_scenarios';
-    const LEGACY_STORE_KEY = 'trpg_mock_db_scenarios'; // GAS併用時代のキー。初回読み込み時に移行する
-    const EXPORT_FORMAT = 'trpg-scenario-editor';
-    const EXPORT_VERSION = 1;
+    // === 保存先 ===
+    //
+    // シナリオ本体・立ち絵・作業状態は IndexedDB に置く。設定だけ localStorage に残す。
+    // 理由と検討した代替案は docs/03_保存方式設計書.html にある。
+    const DB_NAME = 'trpg_scenario_editor';
+    const DB_VERSION = 1;
+    const STORE_SCENARIOS = 'scenarios';
+    const STORE_AVATARS = 'avatars';
+    const STORE_WORKSPACE = 'workspace';
+    const WORKSPACE_KEY = 'current';
 
-    // localStorage への書き込み。
-    // NPCのアバターを base64 で保持するため容量上限（おおむね5MB）に達しやすい。
-    // 上限超過を握り潰すと「保存したのに消えている」状態になるため、必ず利用者に伝わる形で投げ直す。
-    function writeStore(key, value) {
+    // 旧localStorageのキー。移行のためだけに参照する。
+    const LS_STORE_KEY = 'trpg_db_scenarios';
+    const LS_LEGACY_STORE_KEY = 'trpg_mock_db_scenarios'; // GAS併用時代のキー
+    const LS_WORKSPACE_KEYS = {
+      id: 'trpg_current_id',
+      system: 'trpg_current_system',
+      content: 'trpg_scenario_content',
+      title: 'trpg_scenario_title',
+      npcs: 'trpg_npcs_cache'
+    };
+    const MIGRATED_FLAG_KEY = 'trpg_storage_migrated';
+
+    // 設定（ショートカット・判定の自由枠）は数百バイトしかないので localStorage に置く。
+    // 非同期にする利点が無く、起動処理を待たせずに読めるほうが単純なため。
+    function writeSetting(key, value) {
       try {
         localStorage.setItem(key, value);
       } catch (e) {
@@ -1786,14 +1803,271 @@
           || e.name === 'NS_ERROR_DOM_QUOTA_REACHED'
           || e.code === 22 || e.code === 1014);
         if (quota) {
-          throw new Error(
-            'ブラウザの保存領域が上限に達したため、保存できませんでした。\n\n'
-            + 'NPCのアバター画像は容量を大きく消費します。\n'
-            + '「⬇ 全データを書き出し」でJSONに退避してから、不要なシナリオや画像を削除してください。'
-          );
+          throw new Error('ブラウザの保存領域が上限に達したため、設定を保存できませんでした。');
         }
         throw e;
       }
+    }
+
+    // === IndexedDB の薄い包み ===
+    //
+    // 素のIndexedDBはイベント駆動で読みにくいので、Promiseに揃えるだけの層を置く。
+    // 外部ライブラリを使わないのは、index.html 1枚・ビルド工程なしという構成を保つため。
+    let dbPromise = null;
+
+    function idbOpen() {
+      if (dbPromise) return dbPromise;
+      dbPromise = new Promise((resolve, reject) => {
+        if (!window.indexedDB) {
+          reject(new Error('このブラウザは IndexedDB に対応していません。'));
+          return;
+        }
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains(STORE_SCENARIOS)) {
+            db.createObjectStore(STORE_SCENARIOS, { keyPath: 'id' });
+          }
+          if (!db.objectStoreNames.contains(STORE_AVATARS)) {
+            db.createObjectStore(STORE_AVATARS, { keyPath: 'id' });
+          }
+          if (!db.objectStoreNames.contains(STORE_WORKSPACE)) {
+            db.createObjectStore(STORE_WORKSPACE, { keyPath: 'key' });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(idbError(req.error));
+      });
+      return dbPromise;
+    }
+
+    // 容量超過は利用者が次の一手を打てる文言に置き換える。
+    // それ以外はそのまま投げる（原因を握りつぶさない）。
+    function idbError(err) {
+      const quota = err && (err.name === 'QuotaExceededError' || err.name === 'NS_ERROR_DOM_QUOTA_REACHED');
+      if (quota) {
+        return new Error(
+          'ブラウザの保存領域が上限に達したため、保存できませんでした。\n\n'
+          + 'NPCの立ち絵画像は容量を大きく消費します。\n'
+          + '「⬇ 全データを書き出し」でJSONに退避してから、不要なシナリオや画像を削除してください。'
+        );
+      }
+      return err || new Error('保存領域の操作に失敗しました。');
+    }
+
+    function idbRun(storeNames, mode, work) {
+      return idbOpen().then(db => new Promise((resolve, reject) => {
+        const tx = db.transaction(storeNames, mode);
+        let result;
+        tx.oncomplete = () => resolve(result);
+        tx.onerror = () => reject(idbError(tx.error));
+        tx.onabort = () => reject(idbError(tx.error));
+        try {
+          work(tx, v => { result = v; });
+        } catch (e) {
+          try { tx.abort(); } catch (_) {}
+          reject(e);
+        }
+      }));
+    }
+
+    // 結果はトランザクション完了時に解決する。done() で受け皿に入れておく
+    // （Promiseを挟むとトランザクションが先に閉じることがあるため、
+    //  onsuccess の中で直接受け渡す）。
+    function idbGet(store, key) {
+      return idbRun([store], 'readonly', (tx, done) => {
+        const req = tx.objectStore(store).get(key);
+        req.onsuccess = () => done(req.result);
+      });
+    }
+
+    function idbGetAll(store) {
+      return idbRun([store], 'readonly', (tx, done) => {
+        const req = tx.objectStore(store).getAll();
+        req.onsuccess = () => done(req.result);
+      });
+    }
+
+    // 値ではなくキーだけ。画像の棚卸しで、Blobを読み込まずに済ませるため。
+    function idbGetAllKeys(store) {
+      return idbRun([store], 'readonly', (tx, done) => {
+        const req = tx.objectStore(store).getAllKeys();
+        req.onsuccess = () => done(req.result);
+      });
+    }
+
+    function idbPut(store, value) {
+      return idbRun([store], 'readwrite', tx => { tx.objectStore(store).put(value); });
+    }
+
+    function idbDelete(store, key) {
+      return idbRun([store], 'readwrite', tx => { tx.objectStore(store).delete(key); });
+    }
+    const EXPORT_FORMAT = 'trpg-scenario-editor';
+    const EXPORT_VERSION = 1;
+
+    // localStorage への書き込み。
+    // NPCのアバターを base64 で保持するため容量上限（おおむね5MB）に達しやすい。
+    // 上限超過を握り潰すと「保存したのに消えている」状態になるため、必ず利用者に伝わる形で投げ直す。
+    // === 立ち絵の受け渡し ===
+    //
+    // 保存の実体は avatars ストアの Blob で、NPCは avatarId でそれを指す。
+    // 画面に出すときだけ blob: URL を作って npc.avatarUrl に入れる。
+    // こうすると描画側（一覧のサムネイル・編集欄・プレビューのNPCカード）は
+    // 従来どおり avatarUrl を見るだけでよく、手を入れずに済む。
+    //
+    // blob: URL はドキュメントが生きている限りメモリを掴むため、
+    // 作ったものは1箇所で控えて必ず解放する。
+    const objectUrlRegistry = new Set();
+
+    function makeObjectUrl(blob) {
+      const url = URL.createObjectURL(blob);
+      objectUrlRegistry.add(url);
+      return url;
+    }
+
+    function releaseObjectUrl(url) {
+      if (url && objectUrlRegistry.has(url)) {
+        URL.revokeObjectURL(url);
+        objectUrlRegistry.delete(url);
+      }
+    }
+
+    function releaseNpcUrls(npcs) {
+      (npcs || []).forEach(n => releaseObjectUrl(n && n.avatarUrl));
+    }
+
+    // 保存するのは avatarId だけ。avatarUrl はこのセッション限りの表示用URLなので落とす。
+    function stripAvatarUrl(npc) {
+      const copy = Object.assign({}, npc);
+      delete copy.avatarUrl;
+      return copy;
+    }
+
+    // avatarId から表示用URLを作って npc.avatarUrl に入れる。
+    function attachAvatarUrls(npcs) {
+      const ids = npcs.map(n => n.avatarId).filter(Boolean);
+      if (!ids.length) {
+        npcs.forEach(n => { n.avatarUrl = ''; });
+        return Promise.resolve(npcs);
+      }
+      return idbRun([STORE_AVATARS], 'readonly', (tx, done) => {
+        const store = tx.objectStore(STORE_AVATARS);
+        const map = {};
+        ids.forEach(id => {
+          const req = store.get(id);
+          req.onsuccess = () => { if (req.result && req.result.blob) map[id] = req.result.blob; };
+        });
+        done(map);
+      }).then(map => {
+        npcs.forEach(n => {
+          const blob = n.avatarId ? map[n.avatarId] : null;
+          n.avatarUrl = blob ? makeObjectUrl(blob) : '';
+        });
+        return npcs;
+      });
+    }
+
+    // data URL を Blob へ。fetch(dataUrl) でも書けるが、file:// で開いたときに
+    // 取得を拒否される環境があるため自前でデコードする。
+    function dataUrlToBlob(dataUrl) {
+      const comma = String(dataUrl).indexOf(',');
+      if (comma === -1) return null;
+      const header = dataUrl.substring(0, comma);
+      const mime = (header.match(/^data:([^;,]+)/) || [])[1] || 'application/octet-stream';
+      const body = dataUrl.substring(comma + 1);
+      try {
+        if (header.indexOf(';base64') === -1) {
+          return new Blob([decodeURIComponent(body)], { type: mime });
+        }
+        const bin = atob(body);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return new Blob([bytes], { type: mime });
+      } catch (e) {
+        console.error('画像のデコードに失敗しました:', e);
+        return null;
+      }
+    }
+
+    function blobToDataUrl(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('画像を読み出せませんでした。'));
+        reader.readAsDataURL(blob);
+      });
+    }
+
+    // data URL で立ち絵を持っているNPCを、avatars ストア＋avatarId の形に直す。
+    // 旧localStorageからの移行と、JSONの読み込みで共通に使う。
+    //
+    // seen は「同じ画像を二度保存しない」ための対応表で、呼び出し側が一連の処理で使い回す。
+    // 旧データはシナリオ保存庫と作業状態の両方に同じ画像を抱えていたため、
+    // 渡さずに移行すると同じ絵が2つ保存され、容量を移した意味が薄れる。
+    async function storeAvatarsFromDataUrls(npcs, seen) {
+      const cache = seen || new Map();
+      for (const n of npcs) {
+        const dataUrl = n.avatarUrl;
+        delete n.avatarUrl;
+        if (n.avatarId || !dataUrl || dataUrl.indexOf('data:') !== 0) continue;
+
+        if (cache.has(dataUrl)) {
+          n.avatarId = cache.get(dataUrl);
+          continue;
+        }
+        const blob = dataUrlToBlob(dataUrl);
+        if (!blob) continue;
+        n.avatarId = generateUUID();
+        cache.set(dataUrl, n.avatarId);
+        await idbPut(STORE_AVATARS, { id: n.avatarId, blob: blob });
+      }
+      return npcs;
+    }
+
+    // 書き出し用に、avatarId を data URL へ戻す（JSONにBlobは書けないため）。
+    async function npcsWithDataUrls(npcs) {
+      const out = [];
+      for (const n of npcs) {
+        const copy = Object.assign({}, n);
+        delete copy.avatarUrl;
+        const id = copy.avatarId;
+        delete copy.avatarId;
+        if (id) {
+          const row = await idbGet(STORE_AVATARS, id);
+          copy.avatarUrl = (row && row.blob) ? await blobToDataUrl(row.blob) : '';
+        } else {
+          copy.avatarUrl = '';
+        }
+        out.push(copy);
+      }
+      return out;
+    }
+
+    // どのシナリオからも作業状態からも参照されていない画像を消す。
+    // 消さないとシナリオを削除しても画像だけが残り続け、保存先を移した意味が薄れる。
+    async function pruneAvatars() {
+      const scenarios = await idbGetAll(STORE_SCENARIOS);
+      const ws = await idbGet(STORE_WORKSPACE, WORKSPACE_KEY);
+
+      const used = {};
+      scenarios.forEach(s => (s.npcs || []).forEach(n => { if (n && n.avatarId) used[n.avatarId] = true; }));
+      if (ws && ws.value && Array.isArray(ws.value.npcs)) {
+        ws.value.npcs.forEach(n => { if (n && n.avatarId) used[n.avatarId] = true; });
+      }
+      // 編集中のNPCも参照済みとして扱う。自動保存は500ms待ってから走るため、
+      // 立ち絵を追加した直後に別のシナリオを削除すると、
+      // まだ作業状態に書かれていない絵を消してしまう。
+      (currentNpcs || []).forEach(n => { if (n && n.avatarId) used[n.avatarId] = true; });
+
+      const keys = await idbGetAllKeys(STORE_AVATARS);
+      const orphans = keys.filter(k => !used[k]);
+      if (!orphans.length) return 0;
+      await idbRun([STORE_AVATARS], 'readwrite', tx => {
+        const store = tx.objectStore(STORE_AVATARS);
+        orphans.forEach(k => store.delete(k));
+      });
+      return orphans.length;
     }
 
     // NPCデータの正規化。
@@ -1817,6 +2091,10 @@
       return {
         id: n.id || generateUUID(),
         name: typeof n.name === 'string' && n.name ? n.name : '新規NPC',
+        // avatarId が保存の実体（avatars ストアのキー）。
+        // avatarUrl は表示用で、読み込んだ JSON に data URL が入っている場合もある
+        // （storeAvatarsFromDataUrls() が Blob へ移し替える）。
+        avatarId: typeof n.avatarId === 'string' ? n.avatarId : '',
         avatarUrl: typeof n.avatarUrl === 'string' ? n.avatarUrl : '',
         status: (status && typeof status === 'object') ? status : {},
         memo: typeof n.memo === 'string' ? n.memo : ''
@@ -1845,122 +2123,100 @@
     }
 
     // 保存庫の読み出し。旧キーにしかデータが無い場合はここで新キーへ移行する。
-    function readStore() {
-      let raw = localStorage.getItem(STORE_KEY);
-
-      if (raw === null) {
-        const legacy = localStorage.getItem(LEGACY_STORE_KEY);
-        if (legacy !== null) {
-          raw = legacy;
-          // 移行に失敗しても（容量超過など）読み出しは続行する
-          try { writeStore(STORE_KEY, legacy); } catch (e) {
-            console.error('旧データの移行に失敗しました:', e);
-          }
-        }
-      }
-
-      try {
-        const db = JSON.parse(raw || '[]');
-        return Array.isArray(db) ? db : [];
-      } catch (e) {
-        console.error('保存データの読み込みに失敗しました:', e);
-        return [];
-      }
-    }
-
     const API = {
+      // 一覧は更新の新しい順。IndexedDB の取り出し順はキー（UUID）順で
+      // 事実上ばらばらなので、ここで必ず並べ直す。
       listScenarios() {
-        return new Promise((resolve, reject) => {
-          try {
-            resolve(readStore().map(s => ({
-              id: s.id,
-              title: s.title,
-              system: normalizeSystemId(s.system),
-              updated_at: s.updated_at
-            })));
-          } catch (e) { reject(e); }
-        });
+        return idbGetAll(STORE_SCENARIOS).then(rows =>
+          rows.map(s => ({
+            id: s.id,
+            title: s.title,
+            system: normalizeSystemId(s.system),
+            updated_at: s.updated_at
+          })).sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')))
+        );
       },
 
       loadScenario(id) {
-        return new Promise((resolve, reject) => {
-          try {
-            const sc = readStore().find(s => s.id === id);
-            if (!sc) {
-              reject(new Error('シナリオが見つかりません。'));
-              return;
-            }
-            resolve({
-              id: sc.id,
-              title: sc.title,
-              content: sc.content,
-              system: normalizeSystemId(sc.system),
-              npcs: normalizeNpcList(sc.npcs)
-            });
-          } catch (e) { reject(e); }
+        return idbGet(STORE_SCENARIOS, id).then(sc => {
+          if (!sc) throw new Error('シナリオが見つかりません。');
+          const npcs = normalizeNpcList(sc.npcs);
+          // 立ち絵は別ストアにあるので、ここで表示用URLを付けて返す
+          return attachAvatarUrls(npcs).then(() => ({
+            id: sc.id,
+            title: sc.title,
+            content: sc.content,
+            system: normalizeSystemId(sc.system),
+            npcs: npcs
+          }));
         });
       },
 
       saveScenario(id, title, content, npcsData = [], systemId) {
-        return new Promise((resolve, reject) => {
-          try {
-            const db = readStore();
-            const now = new Date().toISOString();
-            const data = {
-              id: id,
-              title: title,
-              content: content,
-              system: normalizeSystemId(systemId),
-              npcs: normalizeNpcList(npcsData),
-              updated_at: now
-            };
-
-            const index = db.findIndex(s => s.id === id);
-            if (index !== -1) {
-              db[index] = data;
-            } else {
-              db.push(data);
-            }
-
-            writeStore(STORE_KEY, JSON.stringify(db));
-            resolve({ success: true, updated_at: now });
-          } catch (e) { reject(e); }
-        });
+        const now = new Date().toISOString();
+        return idbPut(STORE_SCENARIOS, {
+          id: id,
+          title: title,
+          content: content,
+          system: normalizeSystemId(systemId),
+          npcs: normalizeNpcList(npcsData).map(stripAvatarUrl),
+          updated_at: now
+        }).then(() => ({ success: true, updated_at: now }));
       },
 
       deleteScenario(id) {
-        return new Promise((resolve, reject) => {
-          try {
-            writeStore(STORE_KEY, JSON.stringify(readStore().filter(s => s.id !== id)));
-            resolve({ success: true });
-          } catch (e) { reject(e); }
-        });
+        return idbDelete(STORE_SCENARIOS, id)
+          .then(() => pruneAvatars())
+          .then(() => ({ success: true }));
+      },
+
+      // --- 編集中の作業状態 ---
+      //
+      // シナリオ保存庫とは別物。自動保存はこちらだけを書き、一覧には現れない。
+      loadWorkspace() {
+        return idbGet(STORE_WORKSPACE, WORKSPACE_KEY).then(row => (row ? row.value : null));
+      },
+
+      saveWorkspace(state) {
+        return idbPut(STORE_WORKSPACE, { key: WORKSPACE_KEY, value: state });
+      },
+
+      // --- 立ち絵 ---
+      putAvatar(blob) {
+        const id = generateUUID();
+        return idbPut(STORE_AVATARS, { id: id, blob: blob }).then(() => id);
       },
 
       // --- 端末間のデータ移動 ---
 
-      // ids が null なら全件。書き出したオブジェクトをそのまま JSON にする。
+      // ids が null なら全件。ファイル形式は version 1 のまま変えない。
+      // JSONにBlobは書けないため、画像だけ data URL に戻して書き出す。
       exportScenarios(ids) {
-        const db = readStore();
-        const picked = ids ? db.filter(s => ids.indexOf(s.id) !== -1) : db;
-        return {
-          format: EXPORT_FORMAT,
-          version: EXPORT_VERSION,
-          exportedAt: new Date().toISOString(),
-          scenarios: picked.map(s => ({
-            id: s.id,
-            title: s.title,
-            content: s.content,
-            system: normalizeSystemId(s.system),
-            npcs: normalizeNpcList(s.npcs),
-            updated_at: s.updated_at
-          }))
-        };
+        return idbGetAll(STORE_SCENARIOS).then(async db => {
+          const picked = ids ? db.filter(s => ids.indexOf(s.id) !== -1) : db;
+          const scenarios = [];
+          for (const s of picked) {
+            scenarios.push({
+              id: s.id,
+              title: s.title,
+              content: s.content,
+              system: normalizeSystemId(s.system),
+              npcs: await npcsWithDataUrls(normalizeNpcList(s.npcs)),
+              updated_at: s.updated_at
+            });
+          }
+          return {
+            format: EXPORT_FORMAT,
+            version: EXPORT_VERSION,
+            exportedAt: new Date().toISOString(),
+            scenarios: scenarios
+          };
+        });
       },
 
       // mode: 'merge'（同じIDは上書き、無いものは追加） / 'replace'（保存庫を全置換）
       // 検証に失敗した場合は既存データに一切触れずに例外を投げる。
-      importScenarios(payload, mode) {
+      async importScenarios(payload, mode) {
         if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
           throw new Error('ファイルの中身がJSONオブジェクトではありません。');
         }
@@ -1971,37 +2227,116 @@
           throw new Error('scenarios 配列が見つかりません。ファイルが壊れている可能性があります。');
         }
 
-        const incoming = payload.scenarios.map(s => ({
-          id: (s && s.id) ? s.id : generateUUID(),
-          title: (s && typeof s.title === 'string' && s.title) ? s.title : '無題のシナリオ',
-          content: (s && typeof s.content === 'string') ? s.content : '',
-          system: normalizeSystemId(s && s.system),
-          npcs: normalizeNpcList(s && s.npcs),
-          updated_at: (s && s.updated_at) ? s.updated_at : new Date().toISOString()
-        }));
+        // 検証を通ってから書き始める。画像はここで Blob に移し替える。
+        const incoming = [];
+        const avatarCache = new Map();
+        for (const s of payload.scenarios) {
+          incoming.push({
+            id: (s && s.id) ? s.id : generateUUID(),
+            title: (s && typeof s.title === 'string' && s.title) ? s.title : '無題のシナリオ',
+            content: (s && typeof s.content === 'string') ? s.content : '',
+            system: normalizeSystemId(s && s.system),
+            npcs: await storeAvatarsFromDataUrls(normalizeNpcList(s && s.npcs), avatarCache),
+            updated_at: (s && s.updated_at) ? s.updated_at : new Date().toISOString()
+          });
+        }
 
-        const db = (mode === 'replace') ? [] : readStore();
+        if (mode === 'replace') {
+          await idbRun([STORE_SCENARIOS], 'readwrite', tx => { tx.objectStore(STORE_SCENARIOS).clear(); });
+        }
+
         let added = 0;
         let updated = 0;
+        for (const s of incoming) {
+          const existing = await idbGet(STORE_SCENARIOS, s.id);
+          if (existing) { updated++; } else { added++; }
+          await idbPut(STORE_SCENARIOS, s);
+        }
 
-        incoming.forEach(s => {
-          const index = db.findIndex(x => x.id === s.id);
-          if (index !== -1) {
-            db[index] = s;
-            updated++;
-          } else {
-            db.push(s);
-            added++;
-          }
-        });
+        // 全置換のときに参照を失った画像を片付ける
+        await pruneAvatars();
 
-        writeStore(STORE_KEY, JSON.stringify(db));
-        return { added: added, updated: updated, total: db.length };
+        const keys = await idbGetAllKeys(STORE_SCENARIOS);
+        return { added: added, updated: updated, total: keys.length };
       }
     };
 
-    // 初期起動時の復元
-    window.addEventListener('DOMContentLoaded', () => {
+    // === 旧localStorageからの移行 ===
+    //
+    // 起動時に1回だけ走る。詳細は docs/03_保存方式設計書.html §5。
+    // 途中で失敗したら localStorage には一切触れずに抜ける（消すと復元できないため）。
+    async function migrateFromLocalStorage() {
+      if (localStorage.getItem(MIGRATED_FLAG_KEY)) return;
+
+      let rawScenarios = localStorage.getItem(LS_STORE_KEY);
+      if (rawScenarios === null) rawScenarios = localStorage.getItem(LS_LEGACY_STORE_KEY);
+
+      const wsContent = localStorage.getItem(LS_WORKSPACE_KEYS.content);
+      const hasWorkspace = wsContent !== null
+        || localStorage.getItem(LS_WORKSPACE_KEYS.title) !== null
+        || localStorage.getItem(LS_WORKSPACE_KEYS.npcs) !== null;
+
+      if (rawScenarios === null && !hasWorkspace) {
+        // 移す物が無い（新規の利用者）。印だけ置いて、以後は localStorage を見に行かない
+        localStorage.setItem(MIGRATED_FLAG_KEY, new Date().toISOString());
+        return;
+      }
+
+      let scenarios = [];
+      try {
+        const parsed = JSON.parse(rawScenarios || '[]');
+        if (Array.isArray(parsed)) scenarios = parsed;
+      } catch (e) {
+        console.error('旧シナリオの読み取りに失敗しました:', e);
+      }
+
+      // 同じ画像が保存庫と作業状態の両方にあるため、移行の間は対応表を共有する
+      const avatarCache = new Map();
+
+      for (const s of scenarios) {
+        await idbPut(STORE_SCENARIOS, {
+          id: (s && s.id) ? s.id : generateUUID(),
+          title: (s && s.title) || '無題のシナリオ',
+          content: (s && s.content) || '',
+          system: normalizeSystemId(s && s.system),
+          npcs: await storeAvatarsFromDataUrls(normalizeNpcList(s && s.npcs), avatarCache),
+          updated_at: (s && s.updated_at) || new Date().toISOString()
+        });
+      }
+
+      if (hasWorkspace) {
+        let cachedNpcs = [];
+        try {
+          const raw = localStorage.getItem(LS_WORKSPACE_KEYS.npcs);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) cachedNpcs = parsed;
+          }
+        } catch (e) {
+          console.error('旧NPCキャッシュの読み取りに失敗しました:', e);
+        }
+
+        await API.saveWorkspace({
+          id: localStorage.getItem(LS_WORKSPACE_KEYS.id) || generateUUID(),
+          system: normalizeSystemId(localStorage.getItem(LS_WORKSPACE_KEYS.system)),
+          title: localStorage.getItem(LS_WORKSPACE_KEYS.title) || '無題のシナリオ',
+          content: wsContent || '',
+          npcs: await storeAvatarsFromDataUrls(normalizeNpcList(cachedNpcs), avatarCache)
+        });
+      }
+
+      // すべて書き終えてから旧データを消す。容量を空けるのが移行の目的なので消すが、
+      // 途中で消すと戻れなくなるため順序は変えないこと。
+      localStorage.setItem(MIGRATED_FLAG_KEY, new Date().toISOString());
+      localStorage.removeItem(LS_STORE_KEY);
+      localStorage.removeItem(LS_LEGACY_STORE_KEY);
+      Object.keys(LS_WORKSPACE_KEYS).forEach(k => localStorage.removeItem(LS_WORKSPACE_KEYS[k]));
+      console.info('保存データを IndexedDB へ移行しました。');
+    }
+
+    // 初期起動時の復元。
+    // 作業状態が IndexedDB になったため非同期。復元を待ってから描画する。
+    window.addEventListener('DOMContentLoaded', async () => {
       try {
         // DOM要素のバインド
         editor = document.getElementById('editor');
@@ -2022,27 +2357,41 @@
         shortcutListContainer = document.getElementById('shortcut-list-container');
         shortcutAlert = document.getElementById('shortcut-alert');
 
-        const lastId = localStorage.getItem('trpg_current_id');
-        const cachedContent = localStorage.getItem('trpg_scenario_content');
-        const cachedTitle = localStorage.getItem('trpg_scenario_title');
-        const cachedNpcs = localStorage.getItem('trpg_npcs_cache');
-        
-        if (lastId) currentScenarioId = lastId;
-        currentSystemId = normalizeSystemId(localStorage.getItem('trpg_current_system'));
-        if (cachedContent !== null && editor) editor.value = cachedContent;
-        if (cachedTitle !== null && scenarioTitle) scenarioTitle.value = cachedTitle;
-        
+        // 復元が済むまで打ち込めないようにする。
+        // 待たずに開けると、先に打った内容が復元データで上書きされてしまう。
+        if (editor) editor.readOnly = true;
+        if (saveStatus) saveStatus.innerText = '● 読み込み中...';
+
+        // 旧localStorageのデータがあれば IndexedDB へ移す（1回だけ）。
+        // 失敗しても旧データは消さないので、再読み込みで再試行できる。
         try {
-          if (cachedNpcs) {
-            currentNpcs = JSON.parse(cachedNpcs);
-          } else {
-            currentNpcs = [];
-          }
+          await migrateFromLocalStorage();
         } catch (e) {
-          console.error("NPCキャッシュのデコードに失敗しました:", e);
-          currentNpcs = [];
+          console.error('保存データの移行に失敗しました:', e);
+          alert('保存データの移行に失敗しました。\n\n' + e.message
+            + '\n\n元のデータは残っています。ページを再読み込みすると再試行します。');
         }
-        
+
+        // 編集中の作業状態を復元する
+        try {
+          const ws = await API.loadWorkspace();
+          if (ws) {
+            if (ws.id) currentScenarioId = ws.id;
+            currentSystemId = normalizeSystemId(ws.system);
+            if (editor && typeof ws.content === 'string') editor.value = ws.content;
+            if (scenarioTitle && typeof ws.title === 'string') scenarioTitle.value = ws.title;
+            currentNpcs = normalizeNpcList(ws.npcs);
+            await attachAvatarUrls(currentNpcs);
+          }
+          // 読み込み中の表示を残さない。失敗したときだけ catch 側の文言を出す
+          if (saveStatus) saveStatus.innerText = '✓ 自動保存有効';
+        } catch (e) {
+          console.error('作業状態の復元に失敗しました:', e);
+          if (saveStatus) saveStatus.innerText = '⚠ 前回の続きを読み込めませんでした';
+        }
+
+        if (editor) editor.readOnly = false;
+
         updatePreview();
         // 自由枠は applySystemToUI() の renderRollTiers() が読むので、その前に読み込む
         loadCustomTiers();
@@ -2121,23 +2470,28 @@
 
     function saveToLocal() {
       if (!editor || !scenarioTitle) return;
-      // 自動保存も容量上限に当たりうる（特に立ち絵を持つNPCがいるとき）。
-      // 入力のたびに走る処理なので alert は出さず、状態表示で気づけるようにする。
-      try {
-        writeStore('trpg_current_id', currentScenarioId);
-        writeStore('trpg_current_system', currentSystemId);
-        writeStore('trpg_scenario_content', editor.value);
-        writeStore('trpg_scenario_title', scenarioTitle.value);
-        writeStore('trpg_npcs_cache', JSON.stringify(currentNpcs));
-      } catch (e) {
-        console.error('作業状態の自動保存に失敗しました:', e);
-        if (saveStatus) saveStatus.innerText = '⚠ 保存領域が不足しています（書き出しを推奨）';
-        return;
-      }
 
-      const now = new Date();
-      const timeStr = now.toTimeString().split(' ')[0].substring(0, 5);
-      if (saveStatus) saveStatus.innerText = `✓ ローカル自動保存済み (${timeStr})`;
+      // 立ち絵は avatars ストアに既にあるので、ここでは avatarId しか書かない。
+      // 本文を打つたびに画像を書き直さずに済む。
+      const state = {
+        id: currentScenarioId,
+        system: currentSystemId,
+        title: scenarioTitle.value,
+        content: editor.value,
+        npcs: currentNpcs.map(stripAvatarUrl)
+      };
+
+      // 自動保存も容量上限に当たりうる。入力のたびに走る処理なので
+      // alert は出さず、状態表示で気づけるようにする。
+      API.saveWorkspace(state)
+        .then(() => {
+          const timeStr = new Date().toTimeString().split(' ')[0].substring(0, 5);
+          if (saveStatus) saveStatus.innerText = `✓ ローカル自動保存済み (${timeStr})`;
+        })
+        .catch(e => {
+          console.error('作業状態の自動保存に失敗しました:', e);
+          if (saveStatus) saveStatus.innerText = '⚠ 保存領域が不足しています（書き出しを推奨）';
+        });
     }
 
     function updatePreview() {
@@ -2240,31 +2594,38 @@
       return out || 'シナリオ';
     }
 
-    function exportAllScenarios() {
+    // 立ち絵を data URL に戻す処理が入るため非同期。
+    async function exportAllScenarios() {
       try {
-        const data = API.exportScenarios(null);
+        if (modalStatus) modalStatus.innerText = '書き出し中...';
+        const data = await API.exportScenarios(null);
         if (data.scenarios.length === 0) {
+          if (modalStatus) modalStatus.innerText = '';
           alert('書き出せるシナリオがありません。\n\n先に「💾 保存」でシナリオを保存してください。');
           return;
         }
         downloadJson(data, 'trpg-scenarios-' + exportTimestamp() + '.json');
         if (modalStatus) modalStatus.innerText = data.scenarios.length + '件を書き出しました。';
       } catch (e) {
+        if (modalStatus) modalStatus.innerText = '';
         alert('書き出しに失敗しました:\n\n' + e.message);
       }
     }
 
-    function exportOneScenario(id, event) {
+    async function exportOneScenario(id, event) {
       if (event) event.stopPropagation();
       try {
-        const data = API.exportScenarios([id]);
+        if (modalStatus) modalStatus.innerText = '書き出し中...';
+        const data = await API.exportScenarios([id]);
         if (data.scenarios.length === 0) {
+          if (modalStatus) modalStatus.innerText = '';
           alert('対象のシナリオが見つかりませんでした。');
           return;
         }
         downloadJson(data, 'trpg-' + sanitizeFileName(data.scenarios[0].title) + '-' + exportTimestamp() + '.json');
         if (modalStatus) modalStatus.innerText = '「' + data.scenarios[0].title + '」を書き出しました。';
       } catch (e) {
+        if (modalStatus) modalStatus.innerText = '';
         alert('書き出しに失敗しました:\n\n' + e.message);
       }
     }
@@ -2281,7 +2642,7 @@
 
       const reader = new FileReader();
 
-      reader.onload = e => {
+      reader.onload = async e => {
         let payload;
         try {
           payload = JSON.parse(e.target.result);
@@ -2300,12 +2661,14 @@
         if (!proceed) return;
 
         try {
-          const result = API.importScenarios(payload, 'merge');
+          if (modalStatus) modalStatus.innerText = '読み込み中...';
+          const result = await API.importScenarios(payload, 'merge');
           openListModal();
           if (modalStatus) {
             modalStatus.innerText = '新規 ' + result.added + '件 / 上書き ' + result.updated + '件 を読み込みました。';
           }
         } catch (err) {
+          if (modalStatus) modalStatus.innerText = '';
           alert('読み込みに失敗しました:\n\n' + err.message);
         }
       };
@@ -2453,6 +2816,7 @@
       currentSystemId = normalizeSystemId(systemId);
       scenarioTitle.value = '無題のシナリオ';
       editor.value = '';
+      releaseNpcUrls(currentNpcs);
       currentNpcs = [];
       selectedNpcId = null;
 
@@ -2520,7 +2884,7 @@
     }
 
     function saveCustomTiers() {
-      writeStore(CUSTOM_TIERS_KEY, JSON.stringify(customTiers));
+      writeSetting(CUSTOM_TIERS_KEY, JSON.stringify(customTiers));
     }
 
     // 現在のシステムの自由枠。
@@ -2659,7 +3023,8 @@
           // 以前はここで n.statusJson を読んでいたが、保存側は status（オブジェクト）で
           // 書き込んでいたためキーが食い違い、シナリオを読み直すとNPCの能力値が
           // undefined になって失われていた（2026-08-31 修正）。
-          currentNpcs = normalizeNpcList(res.npcs);
+          releaseNpcUrls(currentNpcs); // 前のシナリオの表示用URLを捨てる
+          currentNpcs = res.npcs;
           selectedNpcId = null;
 
           // 読み込んだシナリオのシステムに画面を合わせる
@@ -2688,6 +3053,7 @@
             currentScenarioId = generateUUID();
             scenarioTitle.value = '無題のシナリオ';
             editor.value = '';
+            releaseNpcUrls(currentNpcs);
             currentNpcs = [];
             selectedNpcId = null;
             saveToLocal();
@@ -3100,7 +3466,14 @@
             // 縮小して逆に大きくなる場合（小さなPNG等）は原本を使う
             if (out.length >= original.length && scale === 1) out = original;
 
-            resolve({ dataUrl: out, width: w, height: h, beforeBytes: original.length, afterBytes: out.length });
+            // 保存は Blob で行う（base64を経由しないぶん約25%小さい）。
+            // dataUrl はここでは使わず、表示は blob: URL に任せる。
+            const blob = dataUrlToBlob(out);
+            if (!blob) {
+              reject(new Error('画像を保存用の形式に変換できませんでした。'));
+              return;
+            }
+            resolve({ blob: blob, width: w, height: h, beforeBytes: original.length, afterBytes: blob.size });
           };
           img.src = original;
         };
@@ -3376,11 +3749,17 @@ ${derivedHTML}
       
       // 原寸で保存すると数枚で保存領域を使い切るため、必ず縮小してから持つ
       shrinkImageFile(file)
-        .then(res => {
-          updateNpcField('avatarUrl', res.dataUrl);
+        .then(res => API.putAvatar(res.blob).then(avatarId => ({ res, avatarId })))
+        .then(({ res, avatarId }) => {
+          const npc = currentNpcs.find(n => n.id === selectedNpcId);
+          if (npc) releaseObjectUrl(npc.avatarUrl); // 前の画像の表示用URLを解放する
+
+          const url = makeObjectUrl(res.blob);
+          updateNpcField('avatarId', avatarId);
+          updateNpcField('avatarUrl', url);
 
           const preview = document.getElementById('npc-editor-avatar-preview');
-          if (preview) preview.style.backgroundImage = `url('${res.dataUrl}')`;
+          if (preview) preview.style.backgroundImage = `url('${url}')`;
 
           // 縮小の効果を見せる（容量が苦しくなったときの判断材料になる）
           const info = document.getElementById('npc-avatar-info');
@@ -3397,6 +3776,9 @@ ${derivedHTML}
     }
 
     function clearNpcAvatar() {
+      const npc = currentNpcs.find(n => n.id === selectedNpcId);
+      if (npc) releaseObjectUrl(npc.avatarUrl);
+      updateNpcField('avatarId', '');
       updateNpcField('avatarUrl', '');
       const preview = document.getElementById('npc-editor-avatar-preview');
       if (preview) preview.style.backgroundImage = '';
@@ -3421,6 +3803,7 @@ ${derivedHTML}
       const newNpc = {
         id: newId,
         name: '新規NPC',
+        avatarId: '',
         avatarUrl: '',
         status: status,
         memo: ''
@@ -3436,6 +3819,7 @@ ${derivedHTML}
     function deleteNpc(id) {
       if (!confirm('本当にこのNPCを削除しますか？')) return;
       
+      releaseNpcUrls(currentNpcs.filter(n => n.id === id));
       currentNpcs = currentNpcs.filter(n => n.id !== id);
 
       // 削除したのが選択中のNPCだったときだけ選択を解除する。

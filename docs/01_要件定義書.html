@@ -18,7 +18,7 @@
   <div class="callout">
     <strong>2026-08-31: 保存方式の移行を完了し、本文を更新した。</strong>
     Google Apps Script + スプレッドシートによるクラウド保存を撤去し、
-    ブラウザの localStorage への一本化を完了している。端末間のデータ移動は
+    ブラウザ内への一本化を完了している。端末間のデータ移動は
     JSONのエクスポート／インポートで行う。公開先は GitHub Pages。
     移行前の記述は git の履歴から辿れる。
   </div>
@@ -35,14 +35,14 @@
       <tbody>
         <tr><td><strong>プラットフォーム</strong></td><td>静的Webアプリケーション（<code>index.html</code> 1枚。GitHub Pages で配信）</td></tr>
         <tr><td><strong>想定クライアント</strong></td><td>Androidタブレット（Google Chrome などのモバイルブラウザ）</td></tr>
-        <tr><td><strong>データの保存先</strong></td><td>ブラウザの localStorage（シナリオ本文・NPCデータとも）</td></tr>
+        <tr><td><strong>データの保存先</strong></td><td>ブラウザの IndexedDB（シナリオ本文・NPCデータ・立ち絵）。設定のみ localStorage。<a href="03_保存方式設計書.html">保存方式設計書</a> を参照</td></tr>
         <tr><td><strong>端末間のデータ移動</strong></td><td>JSONファイルの書き出し／読み込み（利用者が手動で持ち運ぶ）</td></tr>
       </tbody>
     </table>
 
     <div class="callout warn">
       <strong>データは端末ごとに独立している。</strong>
-      localStorage はブラウザ・端末ごとに別々の領域であり、同じURLを開いても別の端末では別のデータが見える。
+      保存領域はブラウザ・端末ごとに別々であり、同じURLを開いても別の端末では別のデータが見える。
       複数の端末で同じシナリオを扱うには、JSONの書き出しと読み込みで明示的に移す必要がある（§2.1）。
       <br><br>
       またブラウザのサイトデータを消すと保存内容も消える。定期的な書き出しを勧めること。
@@ -144,7 +144,7 @@
       <li>
         <strong>立ち絵画像</strong>（2026-09-01 改善） —
         読み込んだ画像は<strong>長辺1024pxへ自動縮小</strong>してから保存する。
-        原寸のまま持つと数枚で保存領域（約5MB）を使い切るため。
+        原寸のまま持つと保存領域を無駄に使い、書き出したJSONも肥大するため。
         縮小前後の容量を画面に表示し、利用者が容量の余裕を判断できるようにする。
       </li>
     </ul>
@@ -503,7 +503,8 @@
       <li>
         <strong>保存容量の上限への対応</strong>
         <ul>
-          <li>localStorage の上限（おおむね5MB）を超えた場合、保存が黙って失敗しないよう、書き出しを促すメッセージを表示する。</li>
+          <li>保存領域の上限を超えた場合、保存が黙って失敗しないよう、書き出しを促すメッセージを表示する。
+              上限そのものは IndexedDB への移行で大幅に緩和した（<a href="03_保存方式設計書.html">保存方式設計書</a>）。</li>
           <li>NPCのアバター画像を base64 で保持しているため容量を大きく消費する。上限に達する主因はこれである。</li>
         </ul>
       </li>

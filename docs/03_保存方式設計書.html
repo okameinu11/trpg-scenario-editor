@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>保存方式設計書 | TRPGシナリオ執筆エディタ</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="page">
+
+  <header class="hero">
+    <div class="eyebrow">TRPG SCENARIO EDITOR / 設計</div>
+    <h1>保存方式設計書</h1>
+    <p class="lead">データをどこに、どの形で置くかを定める。保存に関わる変更を入れる前に、必ずこの文書を読むこと。</p>
+  </header>
+
+  <div class="callout">
+    <strong>2026-09-01: シナリオ本体の保存先を localStorage から IndexedDB へ移した。</strong>
+    設定（ショートカット・判定の自由枠）は引き続き localStorage に置く。
+    移行の理由と、検討して却下した案は §2 にある。
+  </div>
+
+  <section>
+    <h2>1. なぜ移したか</h2>
+    <p>
+      localStorage の容量上限は<strong>おおむね5MB</strong>である。
+      NPCの立ち絵画像を保存するようになった結果、この上限が現実的な制約になった。
+    </p>
+
+    <table>
+      <thead><tr><th>要因</th><th>内容</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>画像が文字列に膨らむ</strong></td>
+          <td>localStorage は文字列しか置けないため、画像を base64 の data URL に変換していた。
+              base64 は元データの<strong>約1.33倍</strong>になる。</td>
+        </tr>
+        <tr>
+          <td><strong>同じ画像が2重に入る</strong></td>
+          <td>シナリオ保存庫（<code>trpg_db_scenarios</code>）と編集中の作業状態（<code>trpg_npcs_cache</code>）の
+              両方に、同じNPCデータが画像込みで入っていた。<strong>実効の上限は半分</strong>だった。</td>
+        </tr>
+        <tr>
+          <td><strong>打つたびに全部書き直す</strong></td>
+          <td>自動保存は本文とNPC全員分をまとめて文字列にして書き込む。
+              localStorage は同期APIなので、データが増えるほど<strong>入力中に画面が止まる</strong>。</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      長辺1024pxのWebP（品質0.85）は1枚あたり100〜400KB程度になる。
+      base64化と2重保存を踏まえると、<strong>立ち絵つきのNPCが10体前後で上限に達する</strong>計算になる。
+      上限を超えると <code>QuotaExceededError</code> が投げられ、保存が失敗する。
+    </p>
+  </section>
+
+  <section>
+    <h2>2. 検討した案と結論</h2>
+
+    <table>
+      <thead><tr><th>案</th><th>容量</th><th>Androidタブレット</th><th>結論</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>localStorage のまま、画像の圧縮を強める</td>
+          <td>△ 焼け石に水</td>
+          <td>✅</td>
+          <td><strong>却下。</strong>上限が5MBである事実は変わらず、画質を落とすだけ</td>
+        </tr>
+        <tr>
+          <td><strong>IndexedDB</strong></td>
+          <td>✅ 空きディスクの一定割合</td>
+          <td>✅</td>
+          <td><strong>採用</strong></td>
+        </tr>
+        <tr>
+          <td>File System Access API（ローカルフォルダを指定）</td>
+          <td>✅ ディスク容量</td>
+          <td>❌ <strong>非対応</strong></td>
+          <td><strong>却下（現時点）。</strong>§2.1 を参照</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>2.1 ローカルフォルダ指定を採らなかった理由</h3>
+    <p>
+      <code>showDirectoryPicker()</code> でユーザーが選んだフォルダへ直接読み書きする案は、
+      容量の問題を解くだけでなく「ブラウザのデータを削除しても消えない」という利点もある。
+      それでも<strong>唯一の保存先には採用しない</strong>。
+    </p>
+    <div class="callout warn">
+      <strong>この機能は Chromium系のデスクトップ（Windows / macOS の Chrome・Edge）にしか無い。</strong>
+      Chrome for Android は非対応であり、Firefox・Safari も非対応である。
+      本エディタは<strong>Androidタブレットでの利用を非機能要件に掲げている</strong>
+      （<a href="01_要件定義書.html">要件定義書</a> §5）ため、主戦場で動かない仕組みを土台にはできない。
+      加えて安全なコンテキストを要求するため、<code>file://</code> で開いた場合も使えず、
+      「渡せば即動く」という本エディタの前提を崩す。
+    </div>
+    <p>
+      将来的には<strong>任意の追加機能</strong>として足す余地がある。
+      その場合の位置づけは「JSONの書き出し／読み込みを自動化したもの」であり、
+      これが無くても全機能が動く状態を保つこと。
+    </p>
+
+    <div class="callout warn">
+      <strong>IndexedDB に移しても「消えない」保証は得られない。</strong>
+      localStorage と同じくブラウザが管理する領域であり、
+      「サイトのデータを削除」で消える。シークレットウィンドウでは残らない。
+      空き容量が逼迫すれば退避（eviction）の対象にもなる。
+      <br><br>
+      解決するのは<strong>容量だけ</strong>である。消失に備える手段は、
+      引き続き<strong>JSONの書き出し</strong>であることを利用者に伝え続けること。
+    </div>
+  </section>
+
+  <section>
+    <h2>3. データの置き場所</h2>
+
+    <h3>3.1 全体像</h3>
+    <table>
+      <thead><tr><th>データ</th><th>置き場所</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>シナリオ保存庫</strong><br>本文・タイトル・システム・NPC</td>
+          <td>IndexedDB <code>scenarios</code></td>
+          <td>容量の主因。一覧・読込・削除の対象</td>
+        </tr>
+        <tr>
+          <td><strong>立ち絵画像</strong></td>
+          <td>IndexedDB <code>avatars</code>（Blob）</td>
+          <td>base64を経由しない。§3.3 を参照</td>
+        </tr>
+        <tr>
+          <td><strong>編集中の作業状態</strong></td>
+          <td>IndexedDB <code>workspace</code></td>
+          <td>NPCを画像ごと持つため、ここも容量を食っていた</td>
+        </tr>
+        <tr>
+          <td><strong>設定</strong><br><code>trpg_shortcuts</code> / <code>trpg_custom_tiers</code></td>
+          <td><strong>localStorage のまま</strong></td>
+          <td>数百バイトしかない。非同期にする利点が無く、同期で読めるほうが起動処理が単純</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>「シナリオ保存庫」と「編集中の作業状態」が別物である点は変わらない。</strong>
+      自動保存は作業状態だけを書き、シナリオ一覧には現れない。
+      保存ボタンを押したものだけが保存庫に入る。
+      置き場所が IndexedDB になっても、この区別はそのままである。
+    </div>
+
+    <h3>3.2 オブジェクトストア</h3>
+    <p>DB名 <code>trpg_scenario_editor</code>、バージョン1。</p>
+    <table>
+      <thead><tr><th>ストア</th><th>キー</th><th>値</th></tr></thead>
+      <tbody>
+        <tr><td><code>scenarios</code></td><td><code>id</code></td><td><code>{ id, title, content, system, npcs, updated_at }</code></td></tr>
+        <tr><td><code>avatars</code></td><td><code>id</code></td><td><code>{ id, blob }</code></td></tr>
+        <tr><td><code>workspace</code></td><td><code>key</code></td><td><code>{ key, value }</code>（キーは <code>current</code> の1件だけ）</td></tr>
+      </tbody>
+    </table>
+
+    <h3>3.3 立ち絵画像の持ち方</h3>
+    <p>
+      画像は<strong>シナリオとは別のストア</strong>に置き、NPCは <code>avatarId</code> で参照する。
+    </p>
+    <div class="do-dont">
+      <div class="do">
+        <div class="label">DO</div>
+        <p>
+          画像を別ストアに分ける。本文を打つたびの自動保存で、
+          <strong>画像を書き直さずに済む</strong>。
+          シナリオ本体は画像を含まないため小さく、頻繁に書き換えても軽い。
+        </p>
+      </div>
+      <div class="dont">
+        <div class="label">DON'T</div>
+        <p>
+          画像をシナリオのレコードに埋め込む。
+          自動保存のたびに数MBを書き直すことになり、
+          localStorage で起きていた「入力中に固まる」問題を持ち込むだけになる。
+        </p>
+      </div>
+    </div>
+
+    <p>
+      メモリ上では、読み込み時に <code>URL.createObjectURL()</code> で作った
+      <code>blob:</code> URL を <code>npc.avatarUrl</code> に入れる。
+      画面側（NPC一覧のサムネイル・編集欄のプレビュー・プレビューのNPCカード）は
+      <strong>従来どおり <code>avatarUrl</code> をそのまま使う</strong>ため、描画コードは変わらない。
+    </p>
+    <div class="callout warn">
+      <strong>作った object URL は必ず解放すること。</strong>
+      <code>blob:</code> URL はドキュメントが生きている限りメモリを掴み続ける。
+      シナリオの切り替え・NPCの削除・画像の差し替えのたびに
+      <code>URL.revokeObjectURL()</code> を呼ぶ。
+      解放漏れを防ぐため、作った URL は1箇所（<code>objectUrlRegistry</code>）で管理し、
+      まとめて破棄できるようにしている。
+    </div>
+  </section>
+
+  <section>
+    <h2>4. 書き出し／読み込み（JSON）</h2>
+    <p>
+      端末間のデータ移動は引き続きJSONで行う。
+      <strong>ファイルの形式は変えない</strong>（<code>format: "trpg-scenario-editor"</code> / <code>version: 1</code>）。
+    </p>
+    <div class="callout">
+      <strong>JSONの中では、画像は従来どおり base64 の data URL で持つ。</strong>
+      JSONにBlobは書けないうえ、この形式は他の端末・他のバージョンとの互換の窓口だからである。
+      書き出し時に Blob → data URL、読み込み時に data URL → Blob へ変換する。
+      <br><br>
+      この変換は非同期なので、<code>exportScenarios()</code> / <code>importScenarios()</code> は
+      Promise を返す形に変えた（他の4メソッドは元から Promise を返していた）。
+    </div>
+  </section>
+
+  <section>
+    <h2>5. 既存データの移行</h2>
+    <p>
+      起動時に localStorage の旧データを検出したら、IndexedDB へ移す。利用者の操作は要らない。
+    </p>
+    <table>
+      <thead><tr><th>移行元（localStorage）</th><th>移行先</th></tr></thead>
+      <tbody>
+        <tr><td><code>trpg_db_scenarios</code>（無ければ旧 <code>trpg_mock_db_scenarios</code>）</td><td><code>scenarios</code> ＋ <code>avatars</code></td></tr>
+        <tr><td><code>trpg_current_id</code> / <code>trpg_current_system</code> / <code>trpg_scenario_content</code> / <code>trpg_scenario_title</code> / <code>trpg_npcs_cache</code></td><td><code>workspace</code></td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      <strong>移行が完全に成功したことを確認してから、localStorage 側を削除する。</strong>
+      容量を空けるのが目的なので消す必要があるが、
+      途中で失敗したまま消すと復元できなくなる。
+      書き込みがすべて完了した後にのみ削除すること。
+      <br><br>
+      移行が失敗した場合は<strong>旧データに一切触れず</strong>、
+      利用者に「JSONで書き出してから再試行してほしい」と伝える。
+      黙って空のシナリオ一覧を見せてはならない。
+    </div>
+
+    <div class="callout">
+      移行は<strong>1回だけ</strong>走る。完了したら <code>trpg_storage_migrated</code> に印を置き、
+      以後は localStorage を見に行かない。
+    </div>
+  </section>
+
+  <section>
+    <h2>6. 起動処理が非同期になる</h2>
+    <p>
+      作業状態の復元が IndexedDB からの読み出しになるため、
+      <code>DOMContentLoaded</code> のハンドラは <code>async</code> になる。
+    </p>
+    <div class="do-dont">
+      <div class="do">
+        <div class="label">DO</div>
+        <p>
+          復元を待ってから <code>updatePreview()</code> と <code>applySystemToUI()</code> を呼ぶ。
+          設定（ショートカット・自由枠）は localStorage なので、待たずに読める。
+        </p>
+      </div>
+      <div class="dont">
+        <div class="label">DON'T</div>
+        <p>
+          復元を待たずに描画する。空の本文でプレビューを描いた後に
+          中身が入ってくるため、一瞬ちらつく。
+          さらに、復元前に利用者が打ち始めると<strong>その入力が復元データで上書きされる</strong>。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>7. 容量超過の扱い</h2>
+    <p>
+      IndexedDB も <code>QuotaExceededError</code> を投げうる。上限が上がっただけで、無限ではない。
+    </p>
+    <ul>
+      <li><strong>明示保存</strong>の失敗は <code>alert</code> で伝える。利用者が保存したつもりのまま進むのを防ぐため。</li>
+      <li><strong>自動保存</strong>の失敗は <code>alert</code> を出さず、ヘッダーの状態表示に出す。
+          入力のたびに走る処理であり、ダイアログが出続けると執筆できなくなるため。</li>
+      <li>どちらの文言にも<strong>「JSONで書き出してから不要なシナリオや画像を消す」</strong>という次の一手を書く。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>8. 実装の入口</h2>
+    <table>
+      <thead><tr><th>関数</th><th>役割</th></tr></thead>
+      <tbody>
+        <tr><td><code>idbOpen()</code></td><td>DBを開く。ストアの作成もここ</td></tr>
+        <tr><td><code>idbGet()</code> / <code>idbGetAll()</code> / <code>idbPut()</code> / <code>idbDelete()</code> / <code>idbClear()</code></td><td>素のIndexedDBを Promise で包んだだけの薄い層</td></tr>
+        <tr><td><code>API</code></td><td><strong>永続化の唯一の窓口。</strong>UI側はここしか呼ばない</td></tr>
+        <tr><td><code>migrateFromLocalStorage()</code></td><td>§5 の移行。起動時に1回だけ</td></tr>
+        <tr><td><code>attachAvatarUrls()</code> / <code>releaseObjectUrls()</code></td><td>Blob と <code>blob:</code> URL の相互変換と解放（§3.3）</td></tr>
+      </tbody>
+    </table>
+    <div class="callout">
+      <strong>外部ライブラリは使わない。</strong>
+      IndexedDB を扱いやすくするライブラリ（idb 等）はあるが、
+      本プロジェクトは <code>index.html</code> 1枚・ビルド工程なしという構成を最優先している
+      （<a href="02_開発計画書.html">開発計画・設計書</a> を参照）。
+      必要なのは薄い Promise の包みだけなので、その分を直接書く。
+    </div>
+  </section>
+
+</div>
+</body>
+</html>
