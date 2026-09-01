@@ -190,11 +190,47 @@
         <tr><td><code>derived</code></td><td>派生値の定義（HP・SAN等）</td><td>NPC編集の派生値欄</td></tr>
         <tr><td><code>autoCalc</code></td><td>派生値の計算式と、その元になる能力値</td><td><code>recalcDerived()</code></td></tr>
         <tr><td><code>skills</code></td><td>分類ごとの技能一覧</td><td>技能判定モーダル</td></tr>
-        <tr><td><code>rollTiers</code></td><td>判定ブロックの成功段階</td><td><code>renderRollTiers()</code></td></tr>
+        <tr><td><code>rollTiers</code></td><td>判定ブロックの成功段階と、その既定のチェック状態</td><td><code>renderRollTiers()</code></td></tr>
+        <tr><td><code>rollSkillPlaceholder</code></td><td>技能判定ダイアログの技能名の例示</td><td><code>applySystemToUI()</code></td></tr>
+        <tr><td><code>profilePlaceholder</code></td><td>NPCの年齢・性別・職業の例示（世界観が違うため）</td><td><code>renderNpcEditor()</code></td></tr>
         <tr><td><code>badges</code></td><td>キーワードとバッジ色の対応</td><td><code>getBadgeInfo()</code></td></tr>
         <tr><td><code>hasEmotions</code> / <code>hasResonanceRoll</code></td><td>エモクロア固有機能の有無</td><td>NPC編集・下部パネル</td></tr>
+        <tr><td><code>gmInfoTag</code> / <code>gmInfoLabel</code></td><td>GM向け情報ブロックの記法タグと呼称（DL／KP）</td><td><code>insertTemplate()</code>・下部パネル・プレビュー見出し</td></tr>
       </tbody>
     </table>
+
+    <h3>分類ピッカー（共通部品）</h3>
+    <p>
+      「分類 → 候補」を選ばせるUIは <code>initPicker(id, config)</code> の1つに集約している。
+      使う場所と種類は <a href="01_要件定義書.html">要件定義書</a> の 3.2 を参照。
+    </p>
+    <table>
+      <thead><tr><th>設定項目</th><th>内容</th></tr></thead>
+      <tbody>
+        <tr><td><code>groups</code></td><td><code>{ 分類名: [候補, ...] }</code>。候補は文字列か <code>[名前, 補足]</code></td></tr>
+        <tr><td><code>mode</code></td><td><code>'single'</code>（既定）／<code>'multi'</code></td></tr>
+        <tr><td><code>compact</code></td><td>入力欄の補助として置くとき <code>true</code>（低くする）</td></tr>
+        <tr><td><code>selected</code></td><td><code>() =&gt; [選択中の値]</code>。<code>multi</code> の番号バッジに使う</td></tr>
+        <tr><td><code>formatValue</code></td><td><code>(entry, category) =&gt; 値</code>。省略時は候補の名前</td></tr>
+        <tr><td><code>onPick</code></td><td><code>(値, entry, 分類) =&gt; void</code></td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout warn">
+      <strong>設定オブジェクトのキーに <code>valueOf</code> を使ってはいけない。</strong>
+      <code>Object.prototype.valueOf</code> が存在するため、
+      設定していなくても <code>config.valueOf</code> は常に真になり、
+      呼ぶと候補の名前ではなく<strong>設定オブジェクト自身</strong>が値として渡る。
+      実際にこれで技能を選んでも何も入らない不具合を作った。現在は <code>formatValue</code> という名前にしてある。
+      <code>toString</code> / <code>constructor</code> / <code>hasOwnProperty</code> も同じ理由で避けること。
+    </div>
+
+    <div class="callout">
+      <strong>プレビューのGM情報見出しはCSSの <code>::before</code> で描いているため、JSから文字列を直接差し替えられない。</strong>
+      <code>applySystemToUI()</code> がCSS変数 <code>--gm-info-label</code> を書き換えることで追従させている。
+      同様に、ショートカット設定画面のラベルは <code>SYSTEM_DEPENDENT_SHORTCUT_TEXT</code> が表示時にだけ差し替える
+      （<code>DEFAULT_SHORTCUTS</code> の値はそのまま localStorage へ書き出されるため、静的な文字列でなければならない）。
+    </div>
 
     <div class="do-dont">
       <div class="do">

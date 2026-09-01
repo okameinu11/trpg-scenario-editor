@@ -33,6 +33,8 @@
     --color-fail: #64748b;
     --color-fumble: #ef4444;
     --color-catastrophe: #7f1d1d;
+    /* 利用者が自分で足した枠。ルール上の成功段階と区別できる色にする */
+    --color-custom: #b45309;
   }
 
   /* === 全体レイアウト === */
@@ -258,7 +260,9 @@
     margin-bottom: 16px;
   }
   #preview-area .dl-info::before {
-    content: "📋 DL情報";
+    /* 呼称はシステムで変わる（エモクロア=DL / CoC=KP）。
+       applySystemToUI() が --gm-info-label を差し替える */
+    content: var(--gm-info-label, "📋 DL情報");
     font-weight: 700;
     color: #d97706 !important;
     display: block;
@@ -390,6 +394,7 @@
   #preview-area .bg-fail { background-color: var(--color-fail) !important; }
   #preview-area .bg-fumble { background-color: var(--color-fumble) !important; }
   #preview-area .bg-catastrophe { background-color: var(--color-catastrophe) !important; }
+  #preview-area .bg-custom { background-color: var(--color-custom) !important; }
 
   /* TIPS・補足 (サイド) */
   #preview-area .side-note {
@@ -582,6 +587,9 @@
   }
   .status-grid-8 .form-group {
     min-width: 0;
+    /* ラベルが2行に折り返しても、同じ行の入力欄どうしの高さが揃うようにする。
+       CoC6版の「マジック・ポイント (MP)」だけ入力欄が下にずれていた。 */
+    justify-content: space-between;
   }
   .form-label {
     font-size: 0.85rem;
@@ -608,64 +616,133 @@
   /* 8能力値グリッド */
   .status-grid-8 {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
+    /* minmax(0, 1fr) にしないと、入力欄の内在幅でカラムが広がり親をはみ出す */
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px 10px;
     margin-bottom: 12px;
   }
 
-  /* 選択肢ボタンのグリッドスタイル */
-  .selector-tabs {
-    display: flex;
-    gap: 6px;
-    overflow-x: auto;
-    padding-bottom: 6px;
-    border-bottom: 1px solid var(--border-color);
-    margin-bottom: 10px;
-  }
-  .tab-btn {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    padding: 6px 12px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    cursor: pointer;
-    border-bottom: 2px solid transparent;
-    white-space: nowrap;
-  }
-  .tab-btn.active {
-    color: var(--accent-color);
-    border-bottom-color: var(--accent-color);
-  }
-  .selector-grid {
+  /* === 分類ピッカー（共通部品） ===
+     「分類 → 候補」の2階層データを選ばせる部品。左に分類を縦積み、右に候補を2カラム。
+     技能判定・NPCの所持技能・共鳴感情で共通に使う。
+     高さを固定して左右のスクロールを揃え、候補の件数でダイアログの丈が変わらないようにする。 */
+  .picker {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-    gap: 8px;
-    max-height: 160px;
-    overflow-y: auto;
-    padding: 8px 0;
+    grid-template-columns: 132px minmax(0, 1fr);
+    gap: 10px;
+    height: 240px;
+    padding: 8px;
+    box-sizing: border-box;
     border: 1px dashed var(--border-color);
     border-radius: 6px;
-    padding: 8px;
     background-color: rgba(0,0,0,0.1);
   }
-  .selector-item {
-    background-color: var(--bg-input);
-    border: 1px solid var(--border-color);
-    color: var(--text-primary);
-    padding: 6px 8px;
+  /* 入力欄の補助として置く場合は低くする（NPC編集・共鳴判定） */
+  .picker-compact {
+    height: 170px;
+  }
+  .picker-cats {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow-y: auto;
+    padding-right: 8px;
+    border-right: 1px solid var(--border-color);
+  }
+  .picker-cat {
+    background: none;
+    border: 1px solid transparent;
+    border-left: 3px solid transparent;
     border-radius: 4px;
-    font-size: 0.8rem;
-    text-align: center;
+    color: var(--text-secondary);
+    padding: 8px 10px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-align: left;
     cursor: pointer;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    flex-shrink: 0;
     transition: all 0.15s;
   }
-  .selector-item:hover {
+  .picker-cat:hover {
+    background-color: var(--border-color);
+    color: var(--text-primary);
+  }
+  .picker-cat.active {
+    background-color: rgba(59, 130, 246, 0.15);
+    border-left-color: var(--accent-color);
+    color: var(--accent-color);
+  }
+  .picker-main {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-rows: min-content;
+    align-content: start;
+    gap: 8px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  /* 候補1件。名前（左）と補足（右）を分けて置き、長い名前は省略記号にする。 */
+  .picker-item {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 7px 9px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .picker-item:hover {
     border-color: var(--accent-color);
     background-color: var(--border-color);
+  }
+  .picker-item.selected {
+    border-color: var(--accent-color);
+    background-color: rgba(59, 130, 246, 0.15);
+  }
+  .picker-item-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* CoC6版の初期値のような補足。名前より弱く見せる。 */
+  .picker-item-hint {
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+  }
+  /* 複数選択のとき、押した順を示す番号 */
+  .picker-item-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background-color: var(--accent-hover);
+    border: 1px solid #ffffff;
+    color: #ffffff;
+    font-size: 0.65rem;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+  }
+  .picker-empty {
+    grid-column: 1 / -1;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+    padding: 8px 4px;
   }
 
   /* 排他的選択ラジオボタングループのスタイリング */
@@ -724,6 +801,48 @@
     accent-color: var(--accent-color);
     width: 16px;
     height: 16px;
+    flex-shrink: 0;
+  }
+  .checkbox-item-text {
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* 利用者が足した枠。ルール上の段階と見分けが付くように色を変える */
+  .checkbox-item-custom .checkbox-item-text {
+    color: var(--color-custom);
+    font-weight: 600;
+  }
+  .tier-remove {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0 2px;
+  }
+  .tier-remove:hover {
+    color: #ef4444;
+  }
+  .tier-add-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .tier-add-row .form-input {
+    flex: 1;
+    min-width: 0;
+  }
+  .tier-add-row .btn {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .tier-message {
+    font-size: 0.78rem;
+    color: #f87171;
+    min-height: 1em;
   }
 
   /* リストコンテナ等 */
@@ -744,13 +863,15 @@
   /* スクロールバー装飾 */
   .list-container::-webkit-scrollbar,
   .preview-section::-webkit-scrollbar,
-  .selector-grid::-webkit-scrollbar,
+  .picker-cats::-webkit-scrollbar,
+  .picker-main::-webkit-scrollbar,
   .npc-editor-area::-webkit-scrollbar {
     width: 6px;
   }
   .list-container::-webkit-scrollbar-thumb,
   .preview-section::-webkit-scrollbar-thumb,
-  .selector-grid::-webkit-scrollbar-thumb,
+  .picker-cats::-webkit-scrollbar-thumb,
+  .picker-main::-webkit-scrollbar-thumb,
   .npc-editor-area::-webkit-scrollbar-thumb {
     background-color: var(--border-color);
     border-radius: 3px;
@@ -810,7 +931,7 @@
 
   /* === NPC管理モーダル個別スタイル === */
   .npc-sidebar {
-    width: 220px;
+    width: 200px;
     border-right: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
@@ -844,6 +965,65 @@
     background-color: rgba(59, 130, 246, 0.15);
     border-color: var(--accent-color);
   }
+  /* 立ち絵。プレビュー・操作ボタン・注記を1行に並べる。
+     以前は「職業」と横並びの半分の幅しかなく、注記が折り返して崩れていた。 */
+  .npc-avatar-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .npc-avatar-preview {
+    width: 84px;
+    height: 84px;
+    flex-shrink: 0;
+    border-radius: 8px;
+    background-color: var(--bg-input);
+    background-size: cover;
+    background-position: center top;
+    border: 1px solid var(--border-color);
+  }
+  .npc-avatar-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  /* 能力値ボックス。左に能力値＋派生値、右にレーダーチャート。
+     派生値を左へ入れることでチャートと縦の丈が釣り合い、右下に大きな余白ができない。 */
+  .npc-status-box {
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 12px;
+    background-color: rgba(0,0,0,0.15);
+    box-sizing: border-box;
+    width: 100%;
+  }
+  .npc-status-title {
+    display: block;
+    margin-bottom: 10px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+  .npc-status-layout {
+    display: flex;
+    gap: 18px;
+    align-items: flex-start;
+  }
+  .npc-status-fields {
+    flex: 1;
+    min-width: 0;
+  }
+  /* 派生値はラベルもプレースホルダーも長い（「ダメージ・ボーナス」「(CON+SIZ)÷2 切上」）。
+     能力値と同じ4カラムだと文字が切れるので、幅が足りる分だけ並べる。 */
+  .npc-derived-grid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    margin-bottom: 0;
+  }
+  .npc-radar-box {
+    flex-shrink: 0;
+  }
+
   .npc-avatar-thumb {
     width: 32px;
     height: 32px;
@@ -895,6 +1075,13 @@
       grid-template-columns: 1fr;
       gap: 0;
     }
+    .picker {
+      grid-template-columns: 100px minmax(0, 1fr);
+      height: 220px;
+    }
+    .picker-compact {
+      height: 170px;
+    }
     .modal-content-npc {
       height: 95% !important;
     }
@@ -908,6 +1095,22 @@
       border-bottom: 1px solid var(--border-color) !important;
       padding-right: 0 !important;
       padding-bottom: 15px !important;
+    }
+    /* 1行に4項目・4カラムは指が入らないので、縦画面では折り返す */
+    .form-row {
+      flex-wrap: wrap;
+    }
+    .form-row .form-group {
+      min-width: 120px;
+    }
+    .status-grid-8 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .npc-status-layout {
+      flex-direction: column;
+    }
+    .npc-radar-box {
+      align-self: center;
     }
   }
 
@@ -1054,7 +1257,7 @@
       <div class="app-logo" onclick="openListModal()" title="シナリオ一覧を表示">
         <span>📂</span> <span>一覧</span>
       </div>
-      <span class="version-tag">v1.3.0</span>
+      <span class="version-tag">v1.4.0</span>
       <span class="version-tag" id="system-badge" title="このシナリオのゲームシステム（作成時に固定）">エモクロア</span>
       <input type="text" id="scenario-title" class="scenario-title-input" value="無題のシナリオ" placeholder="シナリオタイトルを入力">
       <span class="save-status" id="save-status">✓ 自動保存有効</span>
@@ -1138,7 +1341,7 @@
 
   <!-- 🎲 技能判定モーダル -->
   <div id="roll-modal" class="modal">
-    <div class="modal-content">
+    <div class="modal-content" style="max-width: 720px;">
       <div class="modal-header">
         <h3>🎲 技能判定の挿入</h3>
         <button class="btn-close" onclick="closeRollModal()">&times;</button>
@@ -1149,20 +1352,16 @@
           <input type="text" id="roll-skill-name" class="form-input" placeholder="例: 観察眼 または 調査">
         </div>
         
-        <!-- 技能クイックセレクタ -->
+        <!-- 技能クイックセレクタ（左：カテゴリ／右：技能一覧） -->
         <div class="form-group">
-          <span class="form-label">エモクロア技能クイック選択（複数選択・押した順に結合）</span>
-          <div class="selector-tabs" id="skill-tabs">
-            <!-- カテゴリタブ -->
-          </div>
-          <div class="selector-grid" id="skill-grid">
-            <!-- 技能一覧ボタン -->
-          </div>
+          <span class="form-label">技能クイック選択（複数選択・押した順に結合）</span>
+          <!-- 中身は initPicker() が組み立てる -->
+          <div id="roll-skill-picker"></div>
         </div>
 
         <!-- 提示タイプ (強制、提示推奨、非提示推奨) の選択欄 -->
         <div class="form-group">
-          <span class="form-label">提示タイプ（エモクロアTRPG用）</span>
+          <span class="form-label">提示タイプ</span>
           <div class="radio-tile-group">
             <div style="flex: 1; position: relative;">
               <input type="radio" id="type-none" name="roll-display-type" value="" checked>
@@ -1187,6 +1386,12 @@
           <span class="form-label">作成する成功度の枠（チェックをいれたものを生成）</span>
           <!-- 成功段階はシステムごとに異なるため renderRollTiers() が生成する -->
           <div class="checkbox-grid" id="roll-tier-checks"></div>
+          <div class="tier-add-row">
+            <input type="text" id="roll-tier-new" class="form-input" maxlength="20"
+                   placeholder="枠を自分で追加（例: 特殊成功／決定で追加）">
+            <button class="btn" onmousedown="event.preventDefault(); addCustomTier()">＋ 枠を追加</button>
+          </div>
+          <div class="tier-message" id="roll-tier-message"></div>
         </div>
 
         <div class="modal-actions" style="justify-content: flex-end; margin-top: 10px;">
@@ -1219,15 +1424,10 @@
           <input type="text" id="res-emotion" class="form-input" placeholder="例: 憧憬（理想） / 恐怖（情念）">
         </div>
 
-        <!-- 感情クイックセレクタ -->
+        <!-- 感情クイックセレクタ（技能ピッカーと同じ部品） -->
         <div class="form-group">
-          <span class="form-label">感情ルーツ クイック選択</span>
-          <div class="selector-tabs" id="emotion-tabs">
-            <!-- カテゴリタブ -->
-          </div>
-          <div class="selector-grid" id="emotion-grid" style="grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));">
-            <!-- 感情ボタン -->
-          </div>
+          <span class="form-label">感情ルーツ クイック選択（押すと上の欄に入ります）</span>
+          <div id="res-emotion-picker"></div>
         </div>
 
         <div class="modal-actions" style="justify-content: flex-end; margin-top: 10px;">
@@ -1239,7 +1439,7 @@
 
   <!-- 👥 NPC管理モーダル -->
   <div id="npc-modal" class="modal">
-    <div class="modal-content modal-content-npc" style="max-width: 800px; height: 85%;">
+    <div class="modal-content modal-content-npc" style="max-width: 1040px; height: 90%;">
       <div class="modal-header">
         <h3>👥 NPC管理</h3>
         <button class="btn-close" onclick="closeNpcModal()">&times;</button>
@@ -1399,6 +1599,12 @@
         ],
         skills: EMOKLORE_SKILLS,
         skillPlaceholder: '例: 観察眼:Lv2 (決定で追加)',
+        rollSkillPlaceholder: '例: 観察眼 または 調査',
+        // NPCのプロフィール欄の例示。世界観がシステムで違うため定義から引く
+        profilePlaceholder: { age: '例: 17', gender: '例: 女性', occupation: '例: 高校生' },
+        // GM向け情報ブロックの呼称。エモクロアのGMは「ディーラー(DL)」。
+        gmInfoTag: 'DL',
+        gmInfoLabel: 'DL情報',
         hasEmotions: true,
         emotions: EMOKLORE_EMOTIONS,
         hasResonanceRoll: true,
@@ -1459,21 +1665,31 @@
         ],
         skills: COC6_SKILLS,
         skillPlaceholder: '例: 目星:45 (決定で追加)',
+        rollSkillPlaceholder: '例: 目星 または 図書館',
+        // 6版の標準は1920年代のアメリカ。現代日本の例だと合わない
+        profilePlaceholder: { age: '例: 42', gender: '例: 男性', occupation: '例: 私立探偵' },
+        // CoCのGMは「キーパー(KP)」。
+        gmInfoTag: 'KP',
+        gmInfoLabel: 'KP情報',
         hasEmotions: false,
         hasResonanceRoll: false,
+        // 6版の呼称は「クリティカル」「ファンブル」。成否とこの2つは判定のたびに
+        // 分岐しうるため、既定でチェックを入れておく（スペシャルは任意）。
         rollTiers: [
-          { id: 'critical', label: '決定的成功', checked: false },
+          { id: 'critical', label: 'クリティカル', checked: true },
           { id: 'special', label: 'スペシャル', checked: false },
           { id: 'success', label: '成功', checked: true },
           { id: 'failure', label: '失敗', checked: true },
-          { id: 'fumble', label: '致命的失敗', checked: false }
+          { id: 'fumble', label: 'ファンブル', checked: true }
         ],
+        // match には旧ラベル（決定的成功・致命的失敗）も残す。
+        // 呼称を変える前に書いたシナリオのバッジが無色にならないようにするため。
         badges: [
-          { match: ['決定的成功', 'クリティカル'], label: '決定的成功', class: 'bg-miracle' },
+          { match: ['クリティカル', '決定的成功'], label: 'クリティカル', class: 'bg-miracle' },
           { match: ['スペシャル', 'イクストリーム'], label: 'スペシャル', class: 'bg-double' },
           { match: ['成功', 'レギュラー', '通常成功'], label: '成功', class: 'bg-single' },
           { match: ['失敗'], label: '失敗', class: 'bg-fail' },
-          { match: ['致命的失敗', 'ファンブル'], label: '致命的失敗', class: 'bg-fumble' }
+          { match: ['ファンブル', '致命的失敗'], label: 'ファンブル', class: 'bg-fumble' }
         ]
       }
     };
@@ -1498,6 +1714,11 @@
       return GAME_SYSTEMS[currentSystemId] || GAME_SYSTEMS[DEFAULT_SYSTEM_ID];
     }
 
+    // GM向け情報ブロックの呼称。記法のタグ・下部パネルのボタン名・プレビューの見出しが
+    // 同じ呼称を使うため、ここに集約する（エモクロア=DL / CoC=KP）。
+    function gmInfoTag() { return currentSystem().gmInfoTag || 'DL'; }
+    function gmInfoLabel() { return currentSystem().gmInfoLabel || 'DL情報'; }
+
     // 2. グローバルステート
     let currentScenarioId = generateUUID();
     // 編集中シナリオのゲームシステム。シナリオ作成時に決まり、以降は変更しない
@@ -1511,12 +1732,17 @@
     // 判定モーダルでの複数技能選択状態管理 (押した順番)
     let rollModalSelectedSkills = [];
 
+    // 判定ブロックの自由枠。{ システムID: [枠の名称, ...] }
+    let customTiers = {};
+
     // === ショートカットキー設定 ===
     const DEFAULT_SHORTCUTS = {
       'scene': { key: '1', altKey: true, ctrlKey: false, shiftKey: false, label: '🎬 シーン見出し', desc: '行頭に # を挿入' },
       'search-title': { key: '2', altKey: true, ctrlKey: false, shiftKey: false, label: '📌 探索小見出し', desc: '行頭に ## を挿入' },
       'search-list': { key: '3', altKey: true, ctrlKey: false, shiftKey: false, label: '🔍 探索一覧', desc: '探索箇所ブロックを挿入' },
       'read': { key: '4', altKey: true, ctrlKey: false, shiftKey: false, label: '💬 情景描写', desc: '行頭に > を挿入' },
+      // label / desc はエモクロアの呼称。CoCでは KP情報 / [KP] と表示する
+      // （SYSTEM_DEPENDENT_SHORTCUT_TEXT が表示時に差し替える）。
       'dl': { key: '5', altKey: true, ctrlKey: false, shiftKey: false, label: '📋 DL情報', desc: '行頭に [DL] を挿入' },
       'roll': { key: '6', altKey: true, ctrlKey: false, shiftKey: false, label: '🎲 技能判定', desc: '技能判定モーダルを開く' },
       'resonance': { key: '7', altKey: true, ctrlKey: false, shiftKey: false, label: '🌀 共鳴判定', desc: '共鳴判定モーダルを開く' },
@@ -1818,6 +2044,8 @@
         }
         
         updatePreview();
+        // 自由枠は applySystemToUI() の renderRollTiers() が読むので、その前に読み込む
+        loadCustomTiers();
         // 技能リスト・判定段階・NPCの能力値欄はシステムごとに違うので、
         // 個別に初期化せず applySystemToUI() に集約する
         applySystemToUI();
@@ -1847,15 +2075,24 @@
         if (editor) editor.addEventListener('input', handleInput);
         if (scenarioTitle) scenarioTitle.addEventListener('input', handleInput);
         
+        // 枠の名称は Enter でも追加できるようにする。
+        // NPCの技能欄と同じく、日本語入力の変換確定のEnterは拾わない。
+        const newTierInput = document.getElementById('roll-tier-new');
+        if (newTierInput) {
+          newTierInput.addEventListener('keydown', e => {
+            if (e.key !== 'Enter') return;
+            if (e.isComposing || e.keyCode === 229) return;
+            e.preventDefault();
+            addCustomTier();
+          });
+        }
+
         // 技能入力欄の手動入力時に選択バッジ状態を連動リセット
         const skillInput = document.getElementById('roll-skill-name');
         if (skillInput) {
           skillInput.addEventListener('input', () => {
             rollModalSelectedSkills = [];
-            const activeTab = document.querySelector('#skill-tabs .tab-btn.active');
-            if (activeTab) {
-              renderSkillGrid(activeTab.innerText);
-            }
+            renderPickerItems('roll-skill-picker');
           });
         }
 
@@ -2238,10 +2475,76 @@
       const resBtn = document.getElementById('btn-shortcut-resonance');
       if (resBtn) resBtn.style.display = sys.hasResonanceRoll ? '' : 'none';
 
+      // 判定する技能名の例示。技能の呼び方がシステムで違うため定義から引く
+      const rollSkillInput = document.getElementById('roll-skill-name');
+      if (rollSkillInput) rollSkillInput.placeholder = sys.rollSkillPlaceholder || '例: 技能名';
+
+      // プレビューのGM情報ブロックは見出しをCSSの ::before で描くため、CSS変数で渡す
+      document.documentElement.style.setProperty('--gm-info-label', '"📋 ' + gmInfoLabel() + '"');
+      updateAssistantPanelShortcutLabels();
+
       initRollModalData();
       renderRollTiers();
       if (sys.hasResonanceRoll) initResonanceModalData();
       renderNpcEditor();
+    }
+
+    // === 判定ブロックの成功段階 ===
+    //
+    // システム定義の段階に続けて、利用者が名前を付けて足した「自由枠」を並べる。
+    // 自由枠はシナリオ本体ではなく、ショートカット設定と同じ「この端末の設定」として
+    // 専用キーへ保存する。シナリオごとに持たせると、同じ枠を使うたびに作り直すことに
+    // なるため。システムごとに分けて持つ（成功段階の考え方がシステムで違うため）。
+    const CUSTOM_TIERS_KEY = 'trpg_custom_tiers';
+    const MAX_CUSTOM_TIERS = 12;
+
+    function loadCustomTiers() {
+      customTiers = {};
+      try {
+        const raw = localStorage.getItem(CUSTOM_TIERS_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return;
+        // 壊れた値・他バージョンの値が混ざっていても画面ごと落とさない
+        for (const id in parsed) {
+          if (!Array.isArray(parsed[id])) continue;
+          customTiers[id] = parsed[id]
+            .filter(v => typeof v === 'string' && v.trim())
+            .map(v => v.trim())
+            .slice(0, MAX_CUSTOM_TIERS);
+        }
+      } catch (e) {
+        console.error('自由枠の読み込みに失敗しました:', e);
+        customTiers = {};
+      }
+    }
+
+    function saveCustomTiers() {
+      writeStore(CUSTOM_TIERS_KEY, JSON.stringify(customTiers));
+    }
+
+    // 現在のシステムの自由枠。
+    function currentCustomTiers() {
+      const list = customTiers[currentSystem().id];
+      return Array.isArray(list) ? list : [];
+    }
+
+    function setTierMessage(text) {
+      const el = document.getElementById('roll-tier-message');
+      if (el) el.innerText = text || '';
+    }
+
+    // 再描画でチェック状態が既定へ戻らないよう、いま入っているものを覚えておく
+    function readCheckedTiers() {
+      return Array.from(document.querySelectorAll('#roll-tier-checks input[type="checkbox"]'))
+        .filter(cb => cb.checked)
+        .map(cb => cb.dataset.tier);
+    }
+
+    function restoreCheckedTiers(names) {
+      document.querySelectorAll('#roll-tier-checks input[type="checkbox"]').forEach(cb => {
+        cb.checked = names.indexOf(cb.dataset.tier) !== -1;
+      });
     }
 
     // 判定ブロックの成功段階チェックボックスを生成する
@@ -2249,13 +2552,93 @@
       const box = document.getElementById('roll-tier-checks');
       if (!box) return;
       box.innerHTML = '';
-      currentSystem().rollTiers.forEach(tier => {
-        const label = document.createElement('label');
-        label.className = 'checkbox-item';
-        label.innerHTML =
-          `<input type="checkbox" data-tier="${escapeHTML(tier.label)}"${tier.checked ? ' checked' : ''}> ${escapeHTML(tier.label)}`;
-        box.appendChild(label);
+      currentSystem().rollTiers.forEach((tier, i) => {
+        box.appendChild(buildTierItem('tier-def-' + i, tier.label, tier.checked, false));
       });
+      currentCustomTiers().forEach((name, i) => {
+        box.appendChild(buildTierItem('tier-custom-' + i, name, true, true));
+      });
+      setTierMessage('');
+    }
+
+    // チェックボックス1件分。自由枠には削除ボタンを付ける。
+    function buildTierItem(id, label, checked, isCustom) {
+      const row = document.createElement('div');
+      row.className = 'checkbox-item' + (isCustom ? ' checkbox-item-custom' : '');
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.id = id;
+      cb.dataset.tier = label;
+      cb.checked = !!checked;
+      row.appendChild(cb);
+
+      const text = document.createElement('label');
+      text.className = 'checkbox-item-text';
+      text.setAttribute('for', id);
+      text.innerText = label;
+      text.title = label;
+      row.appendChild(text);
+
+      if (isCustom) {
+        const del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'tier-remove';
+        del.innerHTML = '&times;';
+        del.title = label + ' を削除';
+        del.onmousedown = (e) => { e.preventDefault(); removeCustomTier(label); };
+        row.appendChild(del);
+      }
+      return row;
+    }
+
+    function addCustomTier() {
+      const input = document.getElementById('roll-tier-new');
+      if (!input) return;
+      const name = input.value.trim();
+      if (!name) return;
+
+      // 同名があると、生成される行もチェックボックスも見分けが付かなくなる
+      const existing = currentSystem().rollTiers.map(t => t.label).concat(currentCustomTiers());
+      if (existing.indexOf(name) !== -1) {
+        setTierMessage(name + ' はすでにあります。');
+        return;
+      }
+      if (currentCustomTiers().length >= MAX_CUSTOM_TIERS) {
+        setTierMessage('追加できる枠は ' + MAX_CUSTOM_TIERS + ' 件までです。');
+        return;
+      }
+
+      const sysId = currentSystem().id;
+      const before = currentCustomTiers();
+      const kept = readCheckedTiers();
+      customTiers[sysId] = before.concat([name]);
+      try {
+        saveCustomTiers();
+      } catch (e) {
+        customTiers[sysId] = before; // 保存できなかったら画面にも足さない
+        setTierMessage(e.message);
+        return;
+      }
+      input.value = '';
+      renderRollTiers();
+      restoreCheckedTiers(kept.concat([name]));
+    }
+
+    function removeCustomTier(name) {
+      const sysId = currentSystem().id;
+      const before = currentCustomTiers();
+      const kept = readCheckedTiers().filter(v => v !== name);
+      customTiers[sysId] = before.filter(v => v !== name);
+      try {
+        saveCustomTiers();
+      } catch (e) {
+        customTiers[sysId] = before;
+        setTierMessage(e.message);
+        return;
+      }
+      renderRollTiers();
+      restoreCheckedTiers(kept);
     }
 
     function selectScenario(id) {
@@ -2318,77 +2701,153 @@
         });
     }
 
-    // === 🎲 技能判定モーダル制御・データ初期化 ===
-    function initRollModalData() {
-      const tabsContainer = document.getElementById('skill-tabs');
-      if (!tabsContainer) return;
-      tabsContainer.innerHTML = '';
-      
-      // 前のシステムの選択状態が残らないようにする
-      rollModalSelectedSkills = [];
+    // === 分類ピッカー（共通部品） ===
+    //
+    // 「分類 → 候補」の2階層データから選ばせる部品。左に分類を縦積み、右に候補を2カラム。
+    // 技能判定・NPCの所持技能・共鳴感情で同じものを使う。
+    // 以前は箇所ごとに別実装で、片方だけ直す取りこぼしが起きていた。
+    //
+    // 種類は2つ。
+    //   single … 押した候補を onPick に渡すだけ（入力欄に入れる用途）
+    //   multi  … 押した順を覚えて番号バッジを出す（複数技能を結合する用途）
+    //
+    // 設定は id ごとに持つ。NPC編集のように親ごと作り直される場所でも、
+    // 同じ id で initPicker() を呼び直せば直前に見ていた分類のまま復帰する。
+    const pickerConfigs = {};
+    const pickerLastCategory = {};
 
-      let isFirst = true;
-      for (const category in currentSystem().skills) {
-        const tabBtn = document.createElement('button');
-        tabBtn.className = `tab-btn ${isFirst ? 'active' : ''}`;
-        tabBtn.innerText = category;
-        tabBtn.onmousedown = (e) => {
+    /**
+     * ピッカーを組み立てる。
+     * @param {string} id      描画先の要素ID
+     * @param {Object} config
+     *   groups    : { 分類名: [候補, ...] } 候補は文字列か [名前, 補足]
+     *   mode      : 'single'（既定）| 'multi'
+     *   compact   : true で低め（入力欄の補助として置くとき）
+     *   selected  : () => [選択中の値]      multi のときだけ使う
+     *   formatValue : (entry, category) => 値 省略時は候補の名前
+     *                 （valueOf という名前は使わないこと。Object.prototype に同名が
+     *                   あるため、設定していなくても常に真になり、候補の名前の代わりに
+     *                   設定オブジェクト自身が値として渡ってしまう）
+     *   onPick    : (値, entry, 分類) => void
+     */
+    function initPicker(id, config) {
+      const root = document.getElementById(id);
+      if (!root) return;
+      pickerConfigs[id] = config;
+
+      root.className = 'picker' + (config.compact ? ' picker-compact' : '');
+      root.innerHTML = '<div class="picker-cats"></div><div class="picker-main"></div>';
+
+      const cats = root.querySelector('.picker-cats');
+      const groups = config.groups || {};
+      const names = Object.keys(groups);
+
+      names.forEach(category => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'picker-cat';
+        btn.innerText = category;
+        btn.title = category;
+        // 表示名ではなく data 属性から引く（ラベルに装飾を足しても壊れないように）
+        btn.dataset.category = category;
+        btn.onmousedown = (e) => {
           e.preventDefault();
-          document.querySelectorAll('#skill-tabs .tab-btn').forEach(b => b.classList.remove('active'));
-          tabBtn.classList.add('active');
-          renderSkillGrid(category);
+          selectPickerCategory(id, category);
         };
-        tabsContainer.appendChild(tabBtn);
-        
-        if (isFirst) {
-          renderSkillGrid(category);
-          isFirst = false;
-        }
-      }
+        cats.appendChild(btn);
+      });
+
+      // 作り直しでも直前に見ていた分類へ戻す
+      const remembered = pickerLastCategory[id];
+      const start = (remembered && groups[remembered]) ? remembered : names[0];
+      if (start) selectPickerCategory(id, start);
     }
 
-    function renderSkillGrid(category) {
-      const gridContainer = document.getElementById('skill-grid');
-      if (!gridContainer) return;
-      gridContainer.innerHTML = '';
-      
-      const skills = currentSystem().skills[category] || [];
-      skills.forEach(raw => {
-        const entry = skillEntry(raw);
-        const skill = entry.name;
-        const item = document.createElement('div');
-        
-        // 複数選択の状態判定
-        const idx = rollModalSelectedSkills.indexOf(skill);
-        const isSelected = idx !== -1;
-        
-        item.className = `selector-item ${isSelected ? 'active' : ''}`;
-        
-        // 選択された順番を示すバッジ（数字）のHTMLを生成
-        let badgeHTML = '';
-        if (isSelected) {
-          badgeHTML = `<span style="position: absolute; top: -5px; right: -5px; background-color: var(--accent-hover); color: #ffffff; border-radius: 50%; width: 16px; height: 16px; font-size: 0.65rem; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 1px solid #ffffff; z-index: 10;">${idx + 1}</span>`;
-          item.style.borderColor = 'var(--accent-color)';
-          item.style.backgroundColor = 'rgba(59, 130, 246, 0.15)';
-        }
-        item.style.position = 'relative'; // バッジ用
+    function selectPickerCategory(id, category) {
+      const root = document.getElementById(id);
+      if (!root) return;
+      root.dataset.category = category;
+      pickerLastCategory[id] = category;
+      root.querySelectorAll('.picker-cat').forEach(b => {
+        b.classList.toggle('active', b.dataset.category === category);
+      });
+      renderPickerItems(id);
+    }
 
-        // CoC6版は初期値を併記する（技能名だけでは目標値が分からないため）
+    // 選択中の分類の候補を描き直す。選択状態（番号バッジ）の反映にも使う。
+    function renderPickerItems(id) {
+      const root = document.getElementById(id);
+      const config = pickerConfigs[id];
+      if (!root || !config) return;
+
+      const main = root.querySelector('.picker-main');
+      if (!main) return;
+
+      const category = root.dataset.category;
+      const items = (config.groups || {})[category] || [];
+
+      main.innerHTML = '';
+      main.scrollTop = 0;
+      if (!items.length) {
+        main.innerHTML = '<div class="picker-empty">この分類に候補がありません。</div>';
+        return;
+      }
+
+      const selected = (config.mode === 'multi' && config.selected) ? (config.selected() || []) : [];
+
+      items.forEach(raw => {
+        const entry = skillEntry(raw);
+        const value = config.formatValue ? config.formatValue(entry, category) : entry.name;
+        const idx = selected.indexOf(value);
+        const isSelected = idx !== -1;
+
+        const item = document.createElement('div');
+        item.className = 'picker-item' + (isSelected ? ' selected' : '');
+        item.title = entry.hint ? entry.name + '（' + entry.hint + '）' : entry.name;
+
+        // CoC6版の初期値のような補足は、名前の右へ小さく添える
         const hintHTML = entry.hint
-          ? `<span style="font-size: 0.7rem; color: var(--text-secondary); margin-left: 4px;">${escapeHTML(entry.hint)}</span>`
+          ? `<span class="picker-item-hint">${escapeHTML(entry.hint)}</span>`
           : '';
-        item.innerHTML = `<span>${escapeHTML(skill)}</span>${hintHTML}${badgeHTML}`;
-        
+        const badgeHTML = isSelected
+          ? `<span class="picker-item-badge">${idx + 1}</span>`
+          : '';
+        item.innerHTML = `<span class="picker-item-name">${escapeHTML(entry.name)}</span>${hintHTML}${badgeHTML}`;
+
         item.onmousedown = (e) => {
           e.preventDefault();
-          toggleSkillSelection(skill, category);
+          config.onPick(value, entry, category);
+          renderPickerItems(id);
         };
-        gridContainer.appendChild(item);
+        main.appendChild(item);
+      });
+    }
+
+    // 選んだ値を入力欄へ入れる。single のピッカーはどれもこの動きをする。
+    function fillInputFromPicker(inputId, value) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+      input.value = value;
+      input.focus();
+      // 続けて「:Lv2」「:45」などを打てるよう、カーソルは末尾に置く
+      const end = input.value.length;
+      input.setSelectionRange(end, end);
+    }
+
+    // === 🎲 技能判定モーダル制御・データ初期化 ===
+    function initRollModalData() {
+      // 前のシステムの選択状態が残らないようにする
+      rollModalSelectedSkills = [];
+      initPicker('roll-skill-picker', {
+        groups: currentSystem().skills,
+        mode: 'multi',
+        selected: () => rollModalSelectedSkills,
+        onPick: (skill) => toggleSkillSelection(skill)
       });
     }
 
     // 複数選択トグル ＆ 押した順番に自動結合
-    function toggleSkillSelection(skill, category) {
+    function toggleSkillSelection(skill) {
       const idx = rollModalSelectedSkills.indexOf(skill);
       if (idx !== -1) {
         // すでに選択されていれば解除
@@ -2403,9 +2862,7 @@
       if (input) {
         input.value = rollModalSelectedSkills.join(' または ');
       }
-
-      // グリッドを更新して選択状態とインデックス数字バッジを反映
-      renderSkillGrid(category);
+      // 番号バッジの反映は呼び出し元の renderPickerItems() が行う
     }
 
     function openRollModal() {
@@ -2414,11 +2871,10 @@
         document.getElementById('roll-skill-name').value = '';
         document.getElementById('type-none').checked = true; // 提示タイプをリセット
         rollModalSelectedSkills = []; // 選択中の技能をクリア
-        
-        const activeTab = document.querySelector('#skill-tabs .tab-btn.active');
-        if (activeTab) {
-          renderSkillGrid(activeTab.innerText);
-        }
+        const tierInput = document.getElementById('roll-tier-new');
+        if (tierInput) tierInput.value = '';
+        setTierMessage('');
+        renderPickerItems('roll-skill-picker');
       }
     }
 
@@ -2453,47 +2909,20 @@
     }
 
     // === 🌀 共鳴判定モーダル制御・データ初期化 ===
-    function initResonanceModalData() {
-      const tabsContainer = document.getElementById('emotion-tabs');
-      if (!tabsContainer) return;
-      tabsContainer.innerHTML = '';
-      
-      let isFirst = true;
-      for (const category in EMOKLORE_EMOTIONS) {
-        const tabBtn = document.createElement('button');
-        tabBtn.className = `tab-btn ${isFirst ? 'active' : ''}`;
-        tabBtn.innerText = category;
-        tabBtn.onmousedown = (e) => {
-          e.preventDefault();
-          document.querySelectorAll('#emotion-tabs .tab-btn').forEach(b => b.classList.remove('active'));
-          tabBtn.classList.add('active');
-          renderEmotionGrid(category);
-        };
-        tabsContainer.appendChild(tabBtn);
-        
-        if (isFirst) {
-          renderEmotionGrid(category);
-          isFirst = false;
-        }
-      }
+    // 感情は「感情名（ルーツ）」の形で記法にもNPCデータにも載せるため、
+    // 値の組み立てを formatValue に持たせる。共鳴判定とNPC編集で同じ設定を使う。
+    function emotionPickerConfig(inputId) {
+      return {
+        groups: EMOKLORE_EMOTIONS,
+        mode: 'single',
+        compact: true,
+        formatValue: (entry, category) => entry.name + '（' + category + '）',
+        onPick: (value) => fillInputFromPicker(inputId, value)
+      };
     }
 
-    function renderEmotionGrid(category) {
-      const gridContainer = document.getElementById('emotion-grid');
-      if (!gridContainer) return;
-      gridContainer.innerHTML = '';
-      
-      const emotions = EMOKLORE_EMOTIONS[category];
-      emotions.forEach(emotion => {
-        const item = document.createElement('div');
-        item.className = 'selector-item';
-        item.innerText = emotion;
-        item.onmousedown = (e) => {
-          e.preventDefault();
-          document.getElementById('res-emotion').value = `${emotion}（${category}）`;
-        };
-        gridContainer.appendChild(item);
-      });
+    function initResonanceModalData() {
+      initPicker('res-emotion-picker', emotionPickerConfig('res-emotion'));
     }
 
     function openResonanceModal() {
@@ -2572,7 +3001,7 @@
     function buildRadarChartSVG(npc, opts) {
       const sys = currentSystem();
       const o = opts || {};
-      const size = o.size || 190;
+      const size = o.size || 210;
       const pad = o.pad || 30;
       const abilities = sys.abilities;
       const n = abilities.length;
@@ -2729,6 +3158,11 @@
       });
 
       const sys = currentSystem();
+      // プロフィール欄の例示。定義が無い古いシステム定義でも落ちないようにする
+      const profilePh = Object.assign(
+        { age: '例: 17', gender: '例: 女性', occupation: '例: 職業' },
+        sys.profilePlaceholder || {}
+      );
 
       // 能力値の入力欄をシステム定義から生成する。
       // 値を変えるたびに recalcDerived() を呼び、HP等の派生値を追従させる。
@@ -2764,6 +3198,7 @@
             <input type="text" id="npc-new-emotion" class="form-input" style="flex: 1;" placeholder="例: 執着（欲望） (決定で追加)">
             <button class="btn btn-primary" style="padding: 6px 12px;" onclick="addNpcEmotion()">追加</button>
           </div>
+          <div id="npc-emotion-picker"></div>
           <div id="npc-emotions-list" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
             ${emotionsHTML || '<span style="font-size: 0.8rem; color: var(--text-secondary);">追加された感情はありません。</span>'}
           </div>
@@ -2798,71 +3233,70 @@
         </div>
 
         <div class="form-row">
-          <div class="form-group" style="flex: 2;">
+          <div class="form-group" style="flex: 3;">
             <label class="form-label">NPC名</label>
             <input type="text" class="form-input" value="${escapeHTML(npc.name || '')}" oninput="updateNpcField('name', this.value)">
           </div>
           <div class="form-group">
             <label class="form-label">年齢</label>
-            <input type="text" class="form-input" value="${escapeHTML(age)}" placeholder="例: 17" oninput="updateNpcStatusField('age', this.value)">
+            <input type="text" class="form-input" value="${escapeHTML(age)}" placeholder="${escapeHTML(profilePh.age)}" oninput="updateNpcStatusField('age', this.value)">
           </div>
           <div class="form-group">
             <label class="form-label">性別</label>
-            <input type="text" class="form-input" value="${escapeHTML(gender)}" placeholder="例: 女性" oninput="updateNpcStatusField('gender', this.value)">
+            <input type="text" class="form-input" value="${escapeHTML(gender)}" placeholder="${escapeHTML(profilePh.gender)}" oninput="updateNpcStatusField('gender', this.value)">
+          </div>
+          <div class="form-group" style="flex: 2;">
+            <label class="form-label">職業</label>
+            <input type="text" class="form-input" value="${escapeHTML(occupation)}" placeholder="${escapeHTML(profilePh.occupation)}" oninput="updateNpcStatusField('occupation', this.value)">
           </div>
         </div>
 
-        <div class="form-row">
-          <div class="form-group" style="flex: 2;">
-            <label class="form-label">職業</label>
-            <input type="text" class="form-input" value="${escapeHTML(occupation)}" placeholder="例: 高校生" oninput="updateNpcStatusField('occupation', this.value)">
-          </div>
-          
-          <!-- アバター画像ローカル読み込み (URL入力欄を廃止し、ローカルファイル読み込みに一本化) -->
-          <div class="form-group" style="flex: 2;">
-            <label class="form-label">立ち絵画像</label>
-            <div style="display: flex; align-items: flex-start; gap: 12px;">
-              <div id="npc-editor-avatar-preview" style="width: 84px; height: 84px; flex-shrink: 0; border-radius: 8px; background-color: var(--bg-input); background-size: cover; background-position: center top; border: 1px solid var(--border-color); ${avatarStyle}"></div>
-              <div style="display: flex; flex-direction: column; gap: 6px; min-width: 0;">
-                <input type="file" id="npc-avatar-file" accept="image/*" style="display: none;" onchange="handleNpcAvatarFile(this)">
-                <div style="display: flex; gap: 6px;">
-                  <button class="btn btn-small" onclick="document.getElementById('npc-avatar-file').click()">画像を選択</button>
-                  <button class="btn btn-small btn-danger-small" style="padding: 6px 10px;" onclick="clearNpcAvatar()">削除</button>
-                </div>
-                <span id="npc-avatar-info" style="font-size: 0.7rem; color: var(--text-secondary); line-height: 1.4;">保存時に長辺1024pxへ自動縮小されます</span>
+        <!-- アバター画像ローカル読み込み (URL入力欄を廃止し、ローカルファイル読み込みに一本化)。
+             プレビュー・ボタン・注記が窮屈にならないよう、行を分けて幅いっぱいを使う。 -->
+        <div class="form-group">
+          <label class="form-label">立ち絵画像</label>
+          <div class="npc-avatar-row">
+            <div id="npc-editor-avatar-preview" class="npc-avatar-preview" style="${avatarStyle}"></div>
+            <div class="npc-avatar-actions">
+              <input type="file" id="npc-avatar-file" accept="image/*" style="display: none;" onchange="handleNpcAvatarFile(this)">
+              <div style="display: flex; gap: 8px;">
+                <button class="btn btn-small" onclick="document.getElementById('npc-avatar-file').click()">画像を選択</button>
+                <button class="btn btn-small btn-danger-small" style="padding: 6px 10px;" onclick="clearNpcAvatar()">削除</button>
               </div>
+              <span id="npc-avatar-info" style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.5;">保存時に長辺1024pxへ自動縮小されます</span>
             </div>
           </div>
         </div>
 
         <!-- 能力値と派生値はシステム定義から生成する（この関数の先頭を参照）。
              システムごとに項目数も名称も違うため、ここに直接書かないこと。 -->
-        <div style="border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; background-color: rgba(0,0,0,0.15); box-sizing: border-box; width: 100%;">
-          <span class="form-label" style="display: block; margin-bottom: 8px; font-weight: 700; color: var(--text-primary);">${escapeHTML(sys.abilityBoxLabel)}</span>
+        <div class="npc-status-box">
+          <span class="form-label npc-status-title">${escapeHTML(sys.abilityBoxLabel)}</span>
 
-          <div style="display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap;">
-            <div style="flex: 1; min-width: 250px;">
+          <div class="npc-status-layout">
+            <div class="npc-status-fields">
               <div class="status-grid-8">
 ${abilitiesHTML}
               </div>
+              <div class="status-grid-8 npc-derived-grid">
+${derivedHTML}
+              </div>
+              ${legacyNote}
             </div>
             <!-- 能力値の偏りを一目で見るためのレーダーチャート -->
-            <div id="npc-radar" style="flex-shrink: 0; margin: 0 auto;">${buildRadarChartSVG(npc)}</div>
+            <div id="npc-radar" class="npc-radar-box">${buildRadarChartSVG(npc)}</div>
           </div>
-
-          <div class="status-grid-8" style="margin-top: 12px;">
-${derivedHTML}
-          </div>
-          ${legacyNote}
         </div>
 
-        <!-- 所持技能 -->
+        <!-- 所持技能。技能名は判定ダイアログと同じピッカーから選べる（単数選択）。
+             値は「技能名:Lv2」「技能名:45」の形なので、名前だけ入れて後ろは手で足す。 -->
         <div class="form-group">
           <label class="form-label">所持技能</label>
           <div style="display: flex; gap: 8px;">
             <input type="text" id="npc-new-skill" class="form-input" style="flex: 1;" placeholder="${escapeHTML(sys.skillPlaceholder)}">
             <button class="btn btn-primary" style="padding: 6px 12px;" onclick="addNpcSkill()">追加</button>
           </div>
+          <div id="npc-skill-picker"></div>
           <div id="npc-skills-list" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
             ${skillsHTML || '<span style="font-size: 0.8rem; color: var(--text-secondary);">追加された技能はありません。</span>'}
           </div>
@@ -2881,6 +3315,18 @@ ${derivedHTML}
         </div>
       `;
       
+      // 入力欄の補助ピッカー。npcEditorArea ごと作り直されるため、描画のたびに組み立てる
+      // （initPicker() は直前に見ていた分類を覚えているので、選び直す手間は増えない）。
+      initPicker('npc-skill-picker', {
+        groups: sys.skills,
+        mode: 'single',
+        compact: true,
+        onPick: (name) => fillInputFromPicker('npc-new-skill', name)
+      });
+      if (sys.hasEmotions) {
+        initPicker('npc-emotion-picker', emotionPickerConfig('npc-new-emotion'));
+      }
+
       // Enterでの追加は npcEditorArea への委譲で処理している（DOMContentLoaded を参照）。
       // かつてここで keypress を直接張っていたが、
       //   ・keypress は非推奨で、日本語入力の変換確定と区別できない
@@ -2963,16 +3409,20 @@ ${derivedHTML}
 
     function addNewNpc() {
       const newId = generateUUID();
+      const sys = currentSystem();
+
+      // 能力値・派生値のキーはシステムごとに違う。
+      // 以前はエモクロアの8能力値を直接書いていたため、CoCのNPCに
+      // 意味のないキー（agi など）が入り、必要なキーは入っていなかった。
+      const status = { skills: [], emotions: [], gender: '', age: '', occupation: '' };
+      sys.abilities.forEach(ab => { status[ab.key] = ''; });
+      sys.derived.forEach(d => { status[d.key] = ''; });
+
       const newNpc = {
         id: newId,
         name: '新規NPC',
         avatarUrl: '',
-        status: { 
-          hp: '', mp: '', resonance: '', 
-          skills: [], emotions: [],
-          gender: '', age: '', occupation: '',
-          str: '', agi: '', dex: '', spi: '', sen: '', int: '', cha: '', soc: ''
-        },
+        status: status,
         memo: ''
       };
       
@@ -3115,7 +3565,7 @@ ${derivedHTML}
         // 共鳴感情の行はエモクロアのときだけ出す
         const emotionsRow = profSys.hasEmotions ? `\n・共鳴感情：${emotions}` : '';
 
-        template = `\n\n[DL] 【NPC紹介：${name}】\n・プロフィール：年齢 ${age} / 性別 ${gender} / 職業 ${occupation}\n・能力値：${abilityLine}\n・ステータス：${derivedLine}\n・所持技能：${skills}${emotionsRow}\n・設定メモ：${memo}\n`;
+        template = `\n\n[${gmInfoTag()}] 【NPC紹介：${name}】\n・プロフィール：年齢 ${age} / 性別 ${gender} / 職業 ${occupation}\n・能力値：${abilityLine}\n・ステータス：${derivedLine}\n・所持技能：${skills}${emotionsRow}\n・設定メモ：${memo}\n`;
         insertAtCursor(template);
       } 
       else if (mode === 'card') {
@@ -3211,8 +3661,10 @@ ${derivedHTML}
           return `<div class="read-text">${content}</div>`;
         }
 
-        // DL情報 (行頭 '[DL]')
-        if (html.startsWith('[DL]')) {
+        // GM向け情報 (行頭 '[DL]' または '[KP]')。
+        // 見出しの呼称だけがシステムで変わり、記法はどちらも常に受け付ける。
+        // シナリオを別システムで開き直しても本文が素通しにならないようにするため。
+        if (html.startsWith('[DL]') || html.startsWith('[KP]')) {
           const content = html.substring(4).trim().replace(/\n/g, '<br>');
           return `<div class="dl-info">${content}</div>`;
         }
@@ -3443,6 +3895,10 @@ ${resultsHTML}            </div>
           return { label: b.label, class: b.class };
         }
       }
+      // 利用者が足した自由枠は、ルール上の成功段階と別の色で出す
+      if (currentCustomTiers().indexOf(k) !== -1) {
+        return { label: k, class: 'bg-custom' };
+      }
       return { label: k, class: 'bg-fail' };
     }
 
@@ -3464,7 +3920,7 @@ ${resultsHTML}            </div>
           template = '\n\n> ';
           break;
         case 'dl':
-          template = '\n\n[DL] ';
+          template = '\n\n[' + gmInfoTag() + '] ';
           break;
         case 'tips':
           template = ' >> [TIPS] ';
@@ -3509,8 +3965,22 @@ ${resultsHTML}            </div>
     // 保存済み設定に古いバージョンのIDが残っていると、
     // DEFAULT_SHORTCUTS[id].label が undefined 参照になって画面ごと壊れていた。
     function shortcutLabel(actionId) {
+      return shortcutDisplay(actionId).label;
+    }
+
+    // ラベル・説明のうち、ゲームシステムによって呼称が変わるもの。
+    // DEFAULT_SHORTCUTS には静的な文字列しか置けないため（localStorage へ
+    // そのまま書き出されるため）、表示するときだけここで差し替える。
+    const SYSTEM_DEPENDENT_SHORTCUT_TEXT = {
+      'dl': () => ({ label: '📋 ' + gmInfoLabel(), desc: '行頭に [' + gmInfoTag() + '] を挿入' })
+    };
+
+    // 設定画面・通知に出す表示用のラベルと説明を返す。
+    function shortcutDisplay(actionId) {
       const def = DEFAULT_SHORTCUTS[actionId];
-      return def ? def.label : actionId;
+      if (!def) return { label: actionId, desc: '' };
+      const override = SYSTEM_DEPENDENT_SHORTCUT_TEXT[actionId];
+      return override ? override() : { label: def.label, desc: def.desc };
     }
 
     function loadShortcuts() {
@@ -3590,7 +4060,7 @@ ${resultsHTML}            </div>
         'search-title': { id: 'btn-shortcut-search-title', baseText: '📌 探索小見出し' },
         'search-list': { id: 'btn-shortcut-search-list', baseText: '🔍 探索一覧' },
         'read': { id: 'btn-shortcut-read', baseText: '💬 情景描写' },
-        'dl': { id: 'btn-shortcut-dl', baseText: '📋 DL情報' },
+        'dl': { id: 'btn-shortcut-dl', baseText: '📋 ' + gmInfoLabel() },
         'roll': { id: 'btn-shortcut-roll', baseText: '🎲 技能判定' },
         'resonance': { id: 'btn-shortcut-resonance', baseText: '🌀 共鳴判定' },
         'tips': { id: 'btn-shortcut-tips', baseText: '💡 TIPS/補足' },
@@ -3710,7 +4180,7 @@ ${resultsHTML}            </div>
       shortcutListContainer.innerHTML = '';
 
       for (const actionId in DEFAULT_SHORTCUTS) {
-        const defaultInfo = DEFAULT_SHORTCUTS[actionId];
+        const defaultInfo = shortcutDisplay(actionId);
         const s = shortcuts[actionId];
         const isRecording = recordingActionId === actionId;
 

@@ -41,9 +41,9 @@ perl scripts/devenv/setup.pl --version           # devenv の版
 
 | キー | 役割 |
 |---|---|
-| `trpg_mock_db_scenarios` | シナリオの**保存庫**。一覧・読込・削除の対象 |
-| `trpg_current_id` / `trpg_scenario_content` / `trpg_scenario_title` / `trpg_npcs_cache` | **編集中の作業状態**。ブラウザを閉じても続きから再開するためのもの |
-| `trpg_shortcuts` | ショートカットキーの割当 |
+| `trpg_db_scenarios` | シナリオの**保存庫**。一覧・読込・削除の対象（旧キー `trpg_mock_db_scenarios` は初回読み込み時に移行する） |
+| `trpg_current_id` / `trpg_current_system` / `trpg_scenario_content` / `trpg_scenario_title` / `trpg_npcs_cache` | **編集中の作業状態**。ブラウザを閉じても続きから再開するためのもの |
+| `trpg_shortcuts` / `trpg_custom_tiers` | **この端末の設定**。ショートカットキーの割当と、判定ブロックの自由枠（シナリオには属さない） |
 
 ### 保存の2系統
 
