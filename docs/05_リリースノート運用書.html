@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>リリースノート運用書 | TRPGシナリオ執筆エディタ</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="page">
+
+  <header class="hero">
+    <div class="eyebrow">TRPG SCENARIO EDITOR / OPERATION</div>
+    <h1>リリースノート運用書</h1>
+    <p class="lead">
+      版を上げるときに<strong>どこを、どの順で書き換えるか</strong>と、
+      なぜ文面を2箇所に持っているかを残す。画面上の見え方は
+      <a href="01_要件定義書.html">要件定義書 §2.8</a> にある。
+    </p>
+  </header>
+
+  <section>
+    <h2>1. このドキュメントの守備範囲</h2>
+    <p>
+      リリースノートは<strong>利用者に向けた告知</strong>であり、開発の記録ではない。
+      コミット履歴と違い、書く相手も粒度も違うため、機械的に生成して終わりにはできない。
+      一方で「毎回どこを直すのか」が残っていないと、版を上げるたびに書き換え漏れが出る。
+    </p>
+    <table>
+      <thead><tr><th>知りたいこと</th><th>読む場所</th></tr></thead>
+      <tbody>
+        <tr><td>画面でどう見えるか（閲覧UIの要件）</td><td><a href="01_要件定義書.html">要件定義書 §2.8</a></td></tr>
+        <tr><td>版を上げるときの手順</td><td>このドキュメント §3</td></tr>
+        <tr><td>何を載せ、何を載せないか</td><td>このドキュメント §4</td></tr>
+        <tr><td>文面を生成する道具</td><td>Claude Code の <code>/release-notes</code> スキル（このリポジトリの外にある）</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>2. 文面はどこにあるか</h2>
+    <p>
+      同じ文面が<strong>2箇所</strong>にある。役割が違うので、どちらか片方だけを直すと食い違う。
+    </p>
+    <table>
+      <thead><tr><th>場所</th><th>役割</th><th>区分</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>release-notes/&lt;版&gt;/&lt;版&gt;.md</code></td>
+          <td>文面の<strong>原文</strong>。<code>/release-notes</code> スキルが生成する。リポジトリを見る人・配布先の告知に流用する</td>
+          <td><span class="badge required">正本</span></td>
+        </tr>
+        <tr>
+          <td><code>index.html</code> の <code>RELEASE_NOTES</code></td>
+          <td>アプリが実際に表示する実体。ヘッダーのバージョン表記もここの先頭から描く</td>
+          <td><span class="badge required">必須</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>なぜ <code>.md</code> を読みに行かないのか。</strong>
+      このアプリは <code>index.html</code> 1枚で配布し、<code>file://</code> で開いても動くことを前提にしている。
+      <code>fetch()</code> でリポジトリ内のファイルを読む作りにすると、
+      ローカルで開いた瞬間に読み込みが失敗し、リリースノートが空になる。
+      「渡せば即動く」という単一ファイル構成の前提のほうが優先される
+      （理由は <code>CLAUDE.md</code> の「なぜ1枚構成なのか」にある）。
+    </div>
+
+    <div class="callout warn">
+      <strong>二重管理は放置すると必ず乖離する。</strong>
+      そのため <code>release-notes/</code> を変更したコミットに <code>index.html</code> が
+      含まれていない場合、コミットゲート（<code>release-notes-sync</code>）が警告を出す。
+      ブロックにしていないのは、文面の推敲だけを先にコミットする場合があるため。
+    </div>
+  </section>
+
+  <section>
+    <h2>3. 版を上げるときの手順</h2>
+    <ol class="steps">
+      <li><code>/release-notes v&lt;新しい版&gt;</code> を実行し、<code>release-notes/&lt;版&gt;/&lt;版&gt;.md</code> を生成する。</li>
+      <li>生成された文面を §4 の基準で見直す（開発者向けの言い回しが残っていないか）。</li>
+      <li><code>index.html</code> の <code>RELEASE_NOTES</code> の<strong>先頭</strong>に同じ内容を追加する。日付は公開日。</li>
+      <li>ブラウザで開き、ヘッダーのバージョン表記が新しい版になっていることを確認する。</li>
+    </ol>
+
+    <div class="callout">
+      <strong>ヘッダーの数字を直接書き換える場所は無い。</strong>
+      <code>index.html</code> のHTML側には版番号を持たせず、<code>renderVersionTag()</code> が
+      <code>RELEASE_NOTES[0].version</code> から描いている。
+      以前のように2箇所に数字があると、片方だけ上げた状態が普通に起こるため。
+    </div>
+
+    <ul class="checklist">
+      <li><code>release-notes/&lt;版&gt;/&lt;版&gt;.md</code> と <code>RELEASE_NOTES</code> の文面が一致しているか</li>
+      <li><code>RELEASE_NOTES</code> の先頭が新しい版になっているか（並び順は新しい版が上）</li>
+      <li>利用者から見て何も変わらない項目が混ざっていないか</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>4. 何を載せ、何を載せないか</h2>
+    <p>
+      読者は<strong>このエディタを使うGM</strong>であって、開発者ではない。
+      コミット件名をそのまま並べると、内部の整理まで「変わったこと」として並んでしまう。
+    </p>
+    <div class="do-dont">
+      <div class="do">
+        <div class="label">DO</div>
+        <p>
+          画面の操作や結果が変わったものだけを、利用者の言葉で書く。<br>
+          例:「技能判定の結果に複数行の説明を書いたとき、2行目以降が表示されなかった問題を直しました」
+        </p>
+      </div>
+      <div class="dont">
+        <div class="label">DON'T</div>
+        <p>
+          内部の関数名・保存先の名前・リファクタリングを載せる。<br>
+          例:「<code>parseRollResultLines()</code> を追加」「ピッカーを共通部品化」<br>
+          触っても画面が変わらない項目が混ざると、リリースノート全体が読まれなくなる。
+        </p>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>迷ったら載せない側に倒す。</strong>
+      実際には変わっていない項目を載せるほうが、載せ漏らすより害が大きい
+      （利用者が探しても見つからず、記述そのものが信用されなくなる）。
+    </div>
+  </section>
+
+  <section>
+    <h2>5. 過去の版をどう区切ったか</h2>
+    <p>
+      v1.7.0 で閲覧UIを作った時点で、過去の版のリリースノートは存在しなかった。
+      そこで<strong>各コミット時点の <code>index.html</code> のバージョン表記</strong>を読み、
+      表記が変わる直前までのコミット件名をその版の内容として再構成した。
+    </p>
+    <div class="callout warn">
+      <strong>v1.2.1 が最古である。</strong>
+      リポジトリの初回コミットの時点ですでに v1.2.1 と表記されており、
+      それ以前の変更内容はどこにも残っていない。遡って書き足すことはできないので、
+      v1.2.1 の項目は「初期リリース以降に分かっている範囲」として扱う。
+    </div>
+  </section>
+
+  <section>
+    <h2>6. 却下した案</h2>
+    <table>
+      <thead><tr><th>案</th><th>却下の理由</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>index.html</code> から <code>release-notes/*.md</code> を <code>fetch()</code> して表示する</td>
+          <td><code>file://</code> で開くと必ず失敗し、配布した相手の環境でリリースノートが空になる。単一ファイルで渡せる前提が崩れる</td>
+        </tr>
+        <tr>
+          <td><code>.md</code> を作らず <code>RELEASE_NOTES</code> だけを持つ</td>
+          <td>二重管理は消えるが、リポジトリを見る人と配布先の告知に流用できる原文が無くなる。生成する道具（<code>/release-notes</code>）の出力先とも噛み合わない</td>
+        </tr>
+        <tr>
+          <td>ビルド時に <code>.md</code> から <code>RELEASE_NOTES</code> を生成する</td>
+          <td>乖離は機械的に防げるが、このプロジェクトはビルド工程を持たないことを制約として選んでいる。生成を挟むと、配布と改造の敷居が上がる</td>
+        </tr>
+        <tr>
+          <td>別ページ（<code>docs/</code> 配下のHTML）へのリンクにする</td>
+          <td>アプリを配布した相手はリポジトリを持たない。エディタ単体で読めないと、告知として届かない</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>7. 将来拡張の入り口</h2>
+    <table>
+      <thead><tr><th>やりたいこと</th><th>触る場所</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>版ごとの項目を増やす・見出しを足す</td>
+          <td><code>RELEASE_NOTES</code> の <code>sections</code>（<code>title</code> と <code>items</code> の組を足すだけでよい）。補足の段落は <code>note</code></td>
+        </tr>
+        <tr>
+          <td>初回起動時に未読の版を自動で開く</td>
+          <td><code>openReleaseModal()</code> と、既読の版を控えるキー（設定なので localStorage 側）</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="callout">
+      <strong>未読の自動表示は、今は入れていない。</strong>
+      起動直後にダイアログが出ると、書きに来た人の手が止まる。
+      入れるなら「開いた瞬間に塞ぐ」形ではなく、バージョン表記に印を付ける程度に留めること。
+    </div>
+  </section>
+
+  <nav class="pagenav">
+    <a href="00_INDEX.html">← 目次</a>
+    <a href="01_要件定義書.html">要件定義書 §2.8（閲覧UIの要件） →</a>
+  </nav>
+
+  <footer class="pagefoot">
+    最終更新: 2026-09-02（新規作成。リリースノートの閲覧UI追加に伴い、文面の置き場所・版を上げる手順・却下した案を集約）
+  </footer>
+
+</div>
+</body>
+</html>

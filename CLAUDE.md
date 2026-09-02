@@ -78,6 +78,12 @@ perl scripts/devenv/setup.pl --version           # devenv の版
 
 記法の一覧は `docs/01_要件定義書.html` §4、**なぜその記法にしたか**（却下案・変換順序の根拠・拡張の入り口）は `docs/04_記法設計書.html` にある。記法を足す前に後者を読むこと。
 
+### リリースノート
+
+版ごとの変更点は `index.html` の `RELEASE_NOTES` にあり、ヘッダー左上のバージョン表記もこの配列の先頭から描かれる。**版を上げるときに書き換えるのはこの1箇所である**（HTML側に版番号は無い）。
+
+文面の原文は `release-notes/<版>/<版>.md`（`/release-notes` スキルが生成）。同じ文面を2箇所に持つ理由・版を上げる手順・載せる／載せない基準は `docs/05_リリースノート運用書.html` にある。
+
 ### Code.gs（旧バックエンド）
 
 `Code.gs` は Google Apps Script 版のバックエンドで、Googleスプレッドシートをデータベースとして使う。**現在は使っていない**（「注意事項」の脱却方針を参照）。
@@ -124,6 +130,7 @@ pre-commit フック（`.githooks/pre-commit`）から `scripts/devenv/check-doc
 | `docs-index-sync` | ブロック | `docs/**/*.html`（diffFilter: ADR） | すべて: `docs/00_INDEX.html` | ドキュメントを追加・削除・改名したら docs/00_INDEX.html の一覧も同じコミットで更新すること。目次から辿れないドキュメントは無いのと同じになる。 |
 | `app-doc-sync` | 警告 | `index.html` | いずれか: `docs/**` | index.html を変更したら docs/ の仕様書の更新要否を確認すること（このコミットには docs/ の更新が含まれていません）。 |
 | `md-draft-leftover` | 警告 | `docs/**/*.md`（diffFilter: A） | （通知のみ） | docs/ のドキュメントはHTMLで持つこと。.md は下書き専用で、コミットには含めない。 |
+| `release-notes-sync` | 警告 | `release-notes/**/*.md` | すべて: `index.html` | リリースノートを追加・変更したら、index.html の RELEASE_NOTES にも同じ内容を反映すること（このコミットには index.html の変更が含まれていません）。 |
 | `doc-path-refs` | 警告 | `scripts/**`, `.claude/**`（diffFilter: ADR） | 記述された参照先が実在すること | ドキュメント中のファイル参照を、改名・削除に追従させること（存在しないファイルを指しています）。 |
 
 <!--

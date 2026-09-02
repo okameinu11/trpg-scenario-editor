@@ -90,6 +90,88 @@
     display: inline-block;
     -webkit-text-fill-color: initial !important; 
   }
+  /* バージョン番号はリリースノートを開くボタンを兼ねる。
+     button 要素なので、span 用の .version-tag だけでは字体と行送りが揃わない。 */
+  .version-tag-btn {
+    font-family: inherit;
+    line-height: 1.5;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .version-tag-btn:hover {
+    border-color: var(--accent-color);
+    color: var(--text-primary) !important;
+  }
+
+  /* リリースノート（版ごとの折りたたみ） */
+  .release-entry {
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: var(--bg-input);
+  }
+  .release-entry + .release-entry {
+    margin-top: 10px;
+  }
+  .release-entry > summary {
+    padding: 10px 14px;
+    cursor: pointer;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    /* 既定の三角マーカーを消して、自前の ::before に差し替える
+       （Safari は list-style だけでは消えないので -webkit- 側も要る） */
+    list-style: none;
+  }
+  .release-entry > summary::-webkit-details-marker {
+    display: none;
+  }
+  .release-entry > summary::before {
+    content: '▶';
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+    transition: transform 0.15s;
+  }
+  .release-entry[open] > summary::before {
+    transform: rotate(90deg);
+  }
+  .release-latest-badge {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #fff;
+    background-color: var(--accent-color);
+    border-radius: 4px;
+    padding: 1px 6px;
+  }
+  .release-date {
+    margin-left: auto;
+    font-size: 0.78rem;
+    font-weight: 400;
+    color: var(--text-secondary);
+  }
+  .release-body {
+    padding: 0 14px 12px;
+  }
+  .release-body h4 {
+    margin: 10px 0 6px;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+  }
+  .release-body ul {
+    margin: 0;
+    padding-left: 1.25em;
+  }
+  .release-body li {
+    font-size: 0.88rem;
+    line-height: 1.75;
+    margin-bottom: 4px;
+  }
+  .release-note {
+    margin: 10px 0 0;
+    font-size: 0.82rem;
+    line-height: 1.7;
+    color: var(--text-secondary);
+  }
   .scenario-title-input {
     background-color: var(--bg-input);
     border: 1px solid var(--border-color);
@@ -1368,7 +1450,8 @@
       <div class="app-logo" onclick="openListModal()" title="シナリオ一覧を表示">
         <span>📂</span> <span>一覧</span>
       </div>
-      <span class="version-tag">v1.6.0</span>
+      <button type="button" class="version-tag version-tag-btn" id="version-tag"
+              onclick="openReleaseModal()" title="リリースノートを表示"></button>
       <span class="version-tag" id="system-badge" title="このシナリオのゲームシステム（作成時に固定）">エモクロア</span>
       <input type="text" id="scenario-title" class="scenario-title-input" value="無題のシナリオ" placeholder="シナリオタイトルを入力">
       <span class="save-status" id="save-status">✓ 自動保存有効</span>
@@ -1675,6 +1758,20 @@
       <div class="modal-footer" style="padding: 15px; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; background-color: var(--bg-card);">
         <button class="btn" onclick="resetShortcutsToDefault()">デフォルトに戻す</button>
         <button class="btn btn-primary" onclick="closeShortcutModal()">完了</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 📜 リリースノートモーダル -->
+  <div id="release-modal" class="modal">
+    <div class="modal-content" style="max-width: 640px;">
+      <div class="modal-header">
+        <h3>📜 リリースノート</h3>
+        <button class="btn-close" onclick="closeReleaseModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="gap: 0;">
+        <!-- 中身は renderReleaseNotes() が組み立てる（履歴の定義は RELEASE_NOTES 1箇所） -->
+        <div id="release-list"></div>
       </div>
     </div>
   </div>
@@ -2015,6 +2112,7 @@
     let listModal, scenarioListContainer, modalStatus, btnSave, importFileInput;
     let rollModal, resModal, sanModal, colorModal, npcModal, npcListContainer, npcEditorArea;
     let shortcutModal, shortcutListContainer, shortcutAlert;
+    let releaseModal, releaseList, versionTag;
 
     // === データ永続化層 ===
     //
@@ -2612,6 +2710,12 @@
         shortcutModal = document.getElementById('shortcut-modal');
         shortcutListContainer = document.getElementById('shortcut-list-container');
         shortcutAlert = document.getElementById('shortcut-alert');
+        releaseModal = document.getElementById('release-modal');
+        releaseList = document.getElementById('release-list');
+        versionTag = document.getElementById('version-tag');
+
+        // ヘッダーのバージョン表記は RELEASE_NOTES の先頭から描く
+        renderVersionTag();
 
         // 復元が済むまで打ち込めないようにする。
         // 待たずに開けると、先に打った内容が復元データで上書きされてしまう。
@@ -2949,7 +3053,8 @@
       'san-modal': () => closeSanModal(),
       'color-modal': () => closeColorModal(),
       'npc-modal': () => closeNpcModal(),
-      'shortcut-modal': () => closeShortcutModal()
+      'shortcut-modal': () => closeShortcutModal(),
+      'release-modal': () => closeReleaseModal()
     };
 
     function closeModalElement(el) {
@@ -4960,6 +5065,123 @@ ${parseRollResultLines(lines, 1)}            </div>
           el.innerText = actions[actionId].baseText + shortcutStr;
         }
       }
+    }
+
+    // === リリースノート ===
+    //
+    // 版ごとの変更点。ヘッダーのバージョン表記もこの配列の先頭から描くので、
+    // 版を上げるときに書き換えるのはここ1箇所でよい（HTML側に数字を持たせない）。
+    //
+    // 文面の元は release-notes/<版>/<版>.md にある。単一ファイル構成のため
+    // fetch では読めない（file:// で開くと必ず失敗する）ので、ここへ転記して持つ。
+    // 文面を直すときは両方を揃えること。
+    const RELEASE_NOTES = [
+      {
+        version: '1.7.0', date: '2026-09-02',
+        sections: [
+          { title: '新機能', items: [
+            '画面左上のバージョン番号をクリックすると、リリースノートを読めるようになりました。過去のバージョンでの変更内容も、まとめてさかのぼって確認できます。'
+          ] }
+        ]
+      },
+      {
+        version: '1.6.0', date: '2026-09-01',
+        sections: [
+          { title: '新機能', items: [
+            '本文の文字に色を付けられるようになりました。パレットから選ぶほか、任意の色も指定できます。',
+            'SANチェックを挿入できるようになりました。'
+          ] },
+          { title: '不具合修正', items: [
+            '技能判定・SANチェックの結果に複数行の説明を書いたとき、2行目以降がプレビューに表示されなかった問題を直しました。'
+          ] }
+        ]
+      },
+      {
+        version: '1.5.0', date: '2026-09-01',
+        sections: [
+          { title: '改善', items: [
+            'シナリオの保存方式を変更し、保存できる容量が大幅に増えました。立ち絵を多く使ったシナリオでも、保存の上限に当たりにくくなっています。'
+          ] }
+        ],
+        note: '保存先はこれまで通りこの端末のブラウザ内です。ブラウザの「サイトのデータを削除」を行うと消えるため、大事なシナリオはJSONファイルへの書き出しでバックアップを取ってください。'
+      },
+      {
+        version: '1.4.0', date: '2026-09-01',
+        sections: [
+          { title: '改善', items: [
+            '技能・感情を選ぶ画面の使い勝手を、どの入力欄でも同じになるように揃えました。',
+            '選んでいるゲームシステムに応じて、表示される技能・感情の一覧が切り替わるようになりました。'
+          ] }
+        ]
+      },
+      {
+        version: '1.3.0', date: '2026-09-01',
+        sections: [
+          { title: '新機能', items: [
+            'クトゥルフ神話TRPG 第6版に対応しました。シナリオを作るときにゲームシステムを選べます。',
+            'NPCの能力値をレーダーチャートで表示するようにしました。数値の偏りがひと目で分かります。',
+            'NPCの立ち絵を登録すると自動で縮小されるようになりました。大きな画像をそのまま入れても保存領域を圧迫しません。'
+          ] },
+          { title: '不具合修正', items: [
+            'エモクロアTRPGの能力値とHP／MPの算出を、公式ルールに合わせて修正しました。'
+          ] }
+        ]
+      },
+      {
+        version: '1.2.1', date: '2026-09-01',
+        sections: [
+          { title: '新機能', items: [
+            'シナリオをJSONファイルとして書き出し・読み込みできるようになりました。別の端末へ移すときや、バックアップを取るときに使えます。'
+          ] },
+          { title: '改善', items: [
+            'シナリオの保存先をこの端末のブラウザ内に一本化しました。外部のサービスに接続しなくても、開いてすぐ書き始められます。'
+          ] },
+          { title: '不具合修正', items: [
+            '長いタイトルや長い入力値を入れたときに、画面のレイアウトが崩れる問題を直しました。',
+            'メモに記号を入力すると表示が乱れる問題を直しました。',
+            '技能・感情を追加するとき、日本語入力の変換確定のEnterが「追加」として拾われてしまう問題を直しました。',
+            'ボタン操作まわりの不具合をまとめて洗い出し、修正しました。'
+          ] }
+        ]
+      }
+    ];
+
+    // ヘッダーのバージョン表記。HTML側は空にしてあるので、ここが唯一の描画元。
+    function renderVersionTag() {
+      if (!versionTag) return;
+      const latest = RELEASE_NOTES[0];
+      versionTag.textContent = latest ? 'v' + latest.version : '';
+    }
+
+    // リリースノートの中身を組み立てる。最新版だけ開いた状態で出す。
+    function renderReleaseNotes() {
+      if (!releaseList) return;
+      releaseList.innerHTML = RELEASE_NOTES.map((rel, index) => {
+        const body = (rel.sections || []).map(sec => `
+            <h4>${escapeHTML(sec.title)}</h4>
+            <ul>${(sec.items || []).map(item => `<li>${escapeHTML(item)}</li>`).join('')}</ul>`).join('');
+        const note = rel.note ? `<p class="release-note">${escapeHTML(rel.note)}</p>` : '';
+        const badge = index === 0 ? '<span class="release-latest-badge">最新</span>' : '';
+        return `
+          <details class="release-entry"${index === 0 ? ' open' : ''}>
+            <summary>v${escapeHTML(rel.version)}${badge}<span class="release-date">${escapeHTML(rel.date)}</span></summary>
+            <div class="release-body">${body}${note}</div>
+          </details>`;
+      }).join('');
+    }
+
+    function openReleaseModal() {
+      if (!releaseModal) return;
+      // 中身は変化しないので、初回に1度だけ組み立てる
+      if (!releaseModal.dataset.rendered) {
+        renderReleaseNotes();
+        releaseModal.dataset.rendered = '1';
+      }
+      releaseModal.classList.add('active');
+    }
+
+    function closeReleaseModal() {
+      if (releaseModal) releaseModal.classList.remove('active');
     }
 
     // === グローバルキーイベントハンドラ ===

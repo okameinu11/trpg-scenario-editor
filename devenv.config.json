@@ -50,6 +50,18 @@
         "HTML化して .md を削除してからコミットしてください。",
         "手順は .claude/skills/doc-html-writer/SKILL.md および knowledge-doc-writer/SKILL.md にあります。"
       ]
+    },
+    {
+      "//": "リリースノートの文面は release-notes/<版>/<版>.md と index.html の RELEASE_NOTES の2箇所にある。単一ファイル構成のため fetch では読めず、転記して持つしかない。片方だけを直すと食い違う。文面の推敲だけを先にコミットする場合があるため warn。",
+      "id": "release-notes-sync",
+      "level": "warn",
+      "trigger": { "changed": ["release-notes/**/*.md"] },
+      "require": { "all": ["index.html"] },
+      "message": [
+        "リリースノートを追加・変更したら、index.html の RELEASE_NOTES にも同じ内容を反映すること（このコミットには index.html の変更が含まれていません）。",
+        "アプリが表示するのは index.html 内の RELEASE_NOTES であり、release-notes/ の .md は読み込んでいません（file:// で開けるようにするため）。",
+        "手順は docs/05_リリースノート運用書.html にあります。"
+      ]
     }
   ],
 
