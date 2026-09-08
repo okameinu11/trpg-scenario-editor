@@ -1440,15 +1440,348 @@
   .btn-shortcut-clear:hover {
     background-color: rgba(239, 68, 68, 0.15);
   }
+
+  /* === 場面図（場面ツリー） === */
+  /*
+     執筆モードと場面図モードは body[data-mode] で出し分ける。
+     JSで style.display を直接いじらないのは、インラインスタイルだと
+     印刷CSSの !important から上書きできなくなるため。
+     DOMごと差し替えないのは、textarea を外すとブラウザの取り消し履歴が消えるため。
+  */
+  body[data-mode="scene"] .workspace       { display: none; }
+  body[data-mode="write"] .scene-workspace { display: none; }
+  body[data-mode="scene"] .assistant-panel { display: none; }
+
+  .mode-tabs {
+    display: flex;
+    gap: 3px;
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 3px;
+  }
+  .mode-tab {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.2s, color 0.2s;
+  }
+  .mode-tab:hover { color: var(--text-primary); }
+  /* 選択状態はCSSだけで決める。JSでクラスを付け替えると状態の置き場が2つに散る。 */
+  body[data-mode="write"] .mode-tab[data-target-mode="write"],
+  body[data-mode="scene"] .mode-tab[data-target-mode="scene"] {
+    background-color: var(--accent-color);
+    color: #ffffff;
+  }
+
+  .scene-workspace {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    background-color: var(--bg-app);
+  }
+  .scene-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .scene-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-card);
+    flex-wrap: wrap;
+  }
+  .scene-toolbar .btn { height: auto; padding: 7px 12px; font-size: 0.82rem; }
+  .scene-viewport {
+    flex: 1;
+    overflow: auto;
+    position: relative;
+  }
+  .scene-canvas-wrap { position: relative; }
+  .scene-canvas {
+    position: relative;
+    /* カードは絶対配置なので、キャンバス自身が大きさを持たないとスクロールできない */
+    min-width: 100%;
+    min-height: 100%;
+    transform-origin: top left;
+  }
+  .scene-toolbar select {
+    background-color: var(--bg-input);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 0.82rem;
+  }
+  .scene-hint {
+    margin-left: auto;
+    color: var(--text-secondary);
+    font-size: 0.76rem;
+  }
+  .scene-hint kbd {
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-family: inherit;
+    font-size: 0.72rem;
+  }
+  .scene-empty {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    line-height: 2;
+    padding: 48px 24px;
+    text-align: center;
+  }
+
+  /* 接続線。カードの下に敷き、クリックはカードへ通す */
+  .scene-edges {
+    position: absolute;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+  }
+
+  /* 場面カード */
+  .scene-node {
+    position: absolute;
+    box-sizing: border-box;
+    /* 大きさは固定する。内容によって伸び縮みすると、計算した座標と実寸がずれ、
+       段の間隔が狂ったり、線の端点が浮いたりする（JS側の SCENE_CARD_W / _H と同じ値）。 */
+    width: 180px;
+    height: 72px;
+    overflow: hidden;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-left: 4px solid var(--text-secondary);
+    border-radius: 8px;
+    padding: 8px 10px;
+    cursor: pointer;
+    /* ドラッグ中に文字が選択されると図の操作にならない */
+    user-select: none;
+    /* これが無いとタブレットでブラウザ側のスクロールが始まり、pointermove が来ない */
+    touch-action: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .scene-node:hover { border-color: var(--accent-color); }
+  .scene-node.selected {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.35);
+  }
+  /* Ctrl＋ドラッグで接続を引いている間の見た目 */
+  body.scene-linking .scene-node { cursor: crosshair; }
+  .scene-node.link-ok {
+    border-color: #22c55e !important;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.45);
+  }
+  .scene-node.link-ng {
+    border-color: #ef4444 !important;
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.4);
+  }
+  .scene-node-title {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.35;
+    /* タイトルが長いカードだけ縦に伸びると、計算した座標と実寸がずれる */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .scene-node-title.is-empty { color: var(--text-secondary); font-weight: 500; }
+  .scene-node-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 6px;
+    /* 折り返させない。折り返すとカードの高さが変わってしまう */
+    flex-wrap: nowrap;
+    overflow: hidden;
+  }
+  .scene-node-meta > * { flex-shrink: 0; }
+  .scene-kind-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .scene-node-kind { font-size: 0.68rem; color: var(--text-secondary); }
+  .scene-badge {
+    font-size: 0.64rem;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background-color: rgba(245, 158, 11, 0.18);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+  }
+  .scene-badge.linked {
+    background-color: rgba(20, 184, 166, 0.15);
+    color: #5eead4;
+    border-color: rgba(20, 184, 166, 0.35);
+  }
+  .scene-badge.hidden-in-diagram {
+    background-color: rgba(148, 163, 184, 0.15);
+    color: var(--text-secondary);
+    border-color: rgba(148, 163, 184, 0.3);
+  }
+
+  /* 右のインスペクタ */
+  .scene-inspector {
+    width: 310px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--border-color);
+    background-color: var(--bg-card);
+    overflow-y: auto;
+    padding: 16px;
+    box-sizing: border-box;
+  }
+  .scene-inspector h4 {
+    margin: 0 0 12px 0;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+  }
+  .scene-inspector .form-group { margin-bottom: 14px; }
+  .scene-inspector-hint {
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    line-height: 1.9;
+  }
+  .scene-tray {
+    border-top: 1px solid var(--border-color);
+    margin-top: 18px;
+    padding-top: 14px;
+  }
+  .scene-tray-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 8px;
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    margin-bottom: 6px;
+    font-size: 0.82rem;
+    color: var(--text-primary);
+  }
+  .scene-tray-item span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .scene-tray-item button {
+    flex-shrink: 0;
+    background-color: var(--accent-color);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 3px 9px;
+    font-size: 0.78rem;
+    cursor: pointer;
+  }
+  .scene-warn {
+    font-size: 0.78rem;
+    color: #fbbf24;
+    line-height: 1.7;
+    margin-top: 8px;
+  }
+
+  @media (max-width: 768px) {
+    /* .workspace 用の column-reverse は別要素のここには効かないので独自に指定する */
+    .scene-workspace { flex-direction: column; }
+    .scene-main { height: 62%; }
+    .scene-inspector {
+      width: 100%;
+      height: 38%;
+      border-left: none;
+      border-top: 1px solid var(--border-color);
+    }
+  }
+
+  /* ヘッダーは要素が多く、幅が足りないと文字が縦に潰れる。
+     画面が狭くなったらタブはアイコンだけにして、先に場所を譲る。 */
+  @media (max-width: 1100px) {
+    .mode-tab-label { display: none; }
+    .mode-tab { padding: 5px 9px; }
+  }
+
+  /* プレビュー・紙に出す場面図 */
+  #preview-area .scene-map-block {
+    margin: 20px 0;
+    text-align: center;
+  }
+  #preview-area .scene-map-block svg {
+    max-width: 100%;
+    height: auto;
+  }
+  #preview-area .scene-map-error,
+  #preview-area .scene-map-note {
+    background-color: #fff7ed !important;
+    border: 1px solid #fed7aa !important;
+    border-left: 4px solid #f97316 !important;
+    color: #7c2d12 !important;
+    padding: 10px 14px;
+    border-radius: 0 4px 4px 0;
+    margin-bottom: 16px;
+    font-size: 0.88rem;
+  }
+
+  /* 本文の中の文字位置を測るための隠し要素。
+     textarea と同じ幅・同じ字送りで組み、折り返しを含めた実際の位置を得る。 */
+  #editor-mirror {
+    position: absolute;
+    visibility: hidden;
+    left: -9999px;
+    top: 0;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+
+  @media print {
+    /* 場面図モードのまま印刷しても紙にはプレビューが出るようにする。
+       上の印刷ブロックにある .workspace { display: block !important } が
+       body[data-mode="scene"] の指定に勝つので、こちらを消すだけでよい。 */
+    .scene-workspace { display: none !important; }
+
+    #preview-area .scene-map-block {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    /* 幅に合わせるだけだと、段の多い図は縦が1ページに収まらず途中で切れる
+       （SVGはページをまたいで分割できない）。高さの上限を決めて必ず1枚に収める。 */
+    #preview-area .scene-map-block svg {
+      max-height: 240mm;
+      width: auto;
+      max-width: 100%;
+    }
+  }
 </style>
 </head>
-<body>
+<body data-mode="write">
 
   <!-- ヘッダー -->
   <header class="control-header">
     <div class="header-left">
       <div class="app-logo" onclick="openListModal()" title="シナリオ一覧を表示">
         <span>📂</span> <span>一覧</span>
+      </div>
+      <div class="mode-tabs">
+        <button type="button" class="mode-tab" data-target-mode="write"
+                onclick="setAppMode('write')" title="本文を書く">✍ <span class="mode-tab-label">執筆</span></button>
+        <button type="button" class="mode-tab" data-target-mode="scene"
+                onclick="setAppMode('scene')" title="場面を樹形図で並べて整理する">🗺 <span class="mode-tab-label">場面図</span></button>
       </div>
       <button type="button" class="version-tag version-tag-btn" id="version-tag"
               onclick="openReleaseModal()" title="リリースノートを表示"></button>
@@ -1480,6 +1813,34 @@
 
   </div>
 
+  <!-- 場面図モード：場面カードを樹形図で並べる（body[data-mode] で出し分ける） -->
+  <div class="scene-workspace">
+    <section class="scene-main">
+      <div class="scene-toolbar">
+        <button type="button" class="btn" onclick="syncSceneHeadings(true)"
+                title="本文の見出しを読み直し、まだカードになっていないものを一覧に出す">🔄 本文を再走査</button>
+        <button type="button" class="btn" onclick="addSceneNode()">＋ 場面を追加</button>
+        <button type="button" class="btn" onclick="realignSceneNodes()"
+                title="手で動かした位置を捨てて自動配置に戻す">📐 整列</button>
+        <select id="scene-scale" onchange="setSceneScale(this.value)" title="表示の大きさ">
+          <option value="1">100%</option>
+          <option value="0.75">75%</option>
+          <option value="0.5">50%</option>
+          <option value="fit">全体に合わせる</option>
+        </select>
+        <span class="scene-hint">カードを <kbd>Ctrl</kbd>＋ドラッグでつなぐ／そのままドラッグで移動</span>
+      </div>
+      <div id="scene-viewport" class="scene-viewport">
+        <!-- 縮小したときにスクロールできる範囲を正しくするため、
+             transform をかける本体を1枚の入れ物で包んでいる -->
+        <div id="scene-canvas-wrap" class="scene-canvas-wrap">
+          <div id="scene-canvas" class="scene-canvas"></div>
+        </div>
+      </div>
+    </section>
+    <aside class="scene-inspector" id="scene-inspector"></aside>
+  </div>
+
   <!-- 下部：執筆アシスタントパネル -->
   <footer class="assistant-panel">
     <span class="panel-label">クイック挿入:</span>
@@ -1493,6 +1854,7 @@
     <button id="btn-shortcut-san" class="btn-panel" onmousedown="event.preventDefault(); openSanModal()">🧠 SANチェック</button>
     <button id="btn-shortcut-tips" class="btn-panel" onmousedown="event.preventDefault(); insertTemplate('tips')">💡 TIPS/補足</button>
     <button id="btn-shortcut-color" class="btn-panel" onmousedown="event.preventDefault(); openColorModal()">🎨 文字色</button>
+    <button id="btn-shortcut-scene-map-insert" class="btn-panel" onmousedown="event.preventDefault(); insertTemplate('scene-map')">🗺 場面図を挿入</button>
     <button id="btn-shortcut-npc" class="btn-panel" style="background-color: #1e293b; border-color: #3b82f6;" onmousedown="event.preventDefault(); openNpcModal()">👥 NPC管理</button>
   </footer>
 
@@ -2068,6 +2430,33 @@
     function gmInfoTag() { return currentSystem().gmInfoTag || 'DL'; }
     function gmInfoLabel() { return currentSystem().gmInfoLabel || 'DL情報'; }
 
+    // ===== 場面ツリー =====
+    //
+    // 場面をカードにして、分岐と合流を樹形図で並べるための定義。
+    // カードは本文の「# 見出し」と title の完全一致で対応づける（本文側にマーカーは書かない）。
+    // 設計の根拠と却下した案は docs/06_場面ツリー設計書.html にある。
+
+    // 場面の種別。color は画面（暗い背景）用、print は紙とプレビュー（白背景）用。
+    // print 側は INLINE_COLORS と同じパレットから採っている。白い紙で潰れない濃さが
+    // 検証済みの色だからで、ここで新しい色を決める理由が無い。
+    const SCENE_KINDS = {
+      intro:       { label: '導入',           color: '#3b82f6', print: '#2563eb' },
+      investigate: { label: '調査',           color: '#14b8a6', print: '#059669' },
+      event:       { label: 'イベント',       color: '#a78bfa', print: '#7c3aed' },
+      combat:      { label: '戦闘',           color: '#f87171', print: '#dc2626' },
+      climax:      { label: 'クライマックス', color: '#fbbf24', print: '#d97706' },
+      ending:      { label: 'エンド',         color: '#94a3b8', print: '#64748b' },
+      other:       { label: 'その他',         color: '#94a3b8', print: '#94a3b8' }
+    };
+    const DEFAULT_SCENE_KIND = 'other';
+
+    // カードの大きさと間隔。画面の樹形図と [場面図] のSVGで同じ値を使う。
+    // 別々に持つと、レイアウト計算とHTMLの実寸がずれてエッジの端点が浮く。
+    const SCENE_CARD_W = 180;
+    const SCENE_CARD_H = 72;
+    const SCENE_GAP_X = 40;
+    const SCENE_GAP_Y = 80;
+
     // 2. グローバルステート
     let currentScenarioId = generateUUID();
     // 編集中シナリオのゲームシステム。シナリオ作成時に決まり、以降は変更しない
@@ -2075,6 +2464,9 @@
     let currentSystemId = DEFAULT_SYSTEM_ID;
     let currentNpcs = []; // 現在のNPCデータ一覧
     let selectedNpcId = null; // 選択中のNPC ID
+    // 場面ツリー。形は normalizeSceneGraph() が保証する（常に閉路の無いDAG）。
+    let currentScenes = { nodes: [], edges: [] };
+    let selectedSceneId = null; // 選択中の場面カード ID
     let isSaving = false;
     let debounceTimer;
     
@@ -2099,6 +2491,9 @@
       'npc': { key: '9', altKey: true, ctrlKey: false, shiftKey: false, label: '👥 NPC管理', desc: 'NPC管理モーダルを開く' },
       'san': { key: '0', altKey: true, ctrlKey: false, shiftKey: false, label: '🧠 SANチェック', desc: 'SANチェックモーダルを開く（CoCのみ）' },
       'color': { key: 'c', altKey: true, ctrlKey: false, shiftKey: false, label: '🎨 文字色', desc: '選択した文字に色を付ける' },
+      // 記法の挿入ではなく画面の切り替えなので、場面図を開いている間も受け付ける
+      'scene-map': { key: 'm', altKey: true, ctrlKey: false, shiftKey: false, label: '🗺 場面図', desc: '執筆と場面図を切り替える' },
+      'scene-map-insert': { key: 'z', altKey: true, ctrlKey: false, shiftKey: false, label: '🗺 場面図を挿入', desc: '本文に [場面図] を挿入する' },
       // キー名 'cloud-save' は保存済みのユーザー設定(trpg_shortcuts)との互換のため残している。
       // 保存先はクラウドからローカルへ変わったが、キーを変えると既存の割り当てが失われる。
       'cloud-save': { key: 's', altKey: false, ctrlKey: true, shiftKey: false, label: '💾 保存', desc: '編集中のシナリオをシナリオ一覧に保存' }
@@ -2474,6 +2869,114 @@
       return list.map(normalizeNpc).filter(n => n !== null);
     }
 
+    // 場面ツリーの正規化。
+    //
+    // 保存・読込・書き出し・読み込み・移行のすべての入口をここに通す。
+    // 場面カードはNPCと違い「ノードとエッジ」という参照関係を持つため、壊れた参照
+    // （端点の無いエッジ・自己ループ・閉路）が混ざると描画やレイアウト計算が止まる。
+    // 画面を落とさないために、この1本で必ず健全なDAGへ均す。
+    function normalizeSceneNode(n) {
+      if (!n || typeof n !== 'object') return null;
+      const num = v => (typeof v === 'number' && isFinite(v)) ? v : null;
+      return {
+        id: n.id || generateUUID(),
+        // 本文の「# 見出し」と照合するキー。空でも構わない（まだ書いていない構想カード）。
+        title: typeof n.title === 'string' ? n.title : '',
+        summary: typeof n.summary === 'string' ? n.summary : '',
+        kind: (typeof n.kind === 'string' && SCENE_KINDS[n.kind]) ? n.kind : DEFAULT_SCENE_KIND,
+        // NPCは名前ではなく id で持つ。ピッカーから選ぶ項目なので、id にしておけば
+        // NPCを改名しても追従する（著者が手で打つ本文の [NPC:名前] とは事情が違う）。
+        npcIds: Array.isArray(n.npcIds) ? n.npcIds.filter(v => typeof v === 'string') : [],
+        inDiagram: n.inDiagram !== false,
+        // null は「自動配置に従う」。数値はドラッグで動かした結果。
+        x: num(n.x),
+        y: num(n.y)
+      };
+    }
+
+    function normalizeSceneGraph(raw) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { nodes: [], edges: [] };
+
+      const nodes = [];
+      const nodeIds = new Set();
+      (Array.isArray(raw.nodes) ? raw.nodes : []).forEach(n => {
+        const node = normalizeSceneNode(n);
+        if (!node || nodeIds.has(node.id)) return;
+        nodeIds.add(node.id);
+        nodes.push(node);
+      });
+
+      // 端点が実在しないエッジ・自己ループ・重複した接続を捨てる
+      const edges = [];
+      const seenPair = new Set();
+      (Array.isArray(raw.edges) ? raw.edges : []).forEach(e => {
+        if (!e || typeof e !== 'object') return;
+        if (!nodeIds.has(e.from) || !nodeIds.has(e.to) || e.from === e.to) return;
+        const pair = e.from + '>' + e.to;
+        if (seenPair.has(pair)) return;
+        seenPair.add(pair);
+        edges.push({
+          id: e.id || generateUUID(),
+          from: e.from,
+          to: e.to,
+          label: typeof e.label === 'string' ? e.label : ''
+        });
+      });
+
+      return { nodes: nodes, edges: dropCyclicEdges(nodes, edges) };
+    }
+
+    // 閉路を作っている接続を捨てる。
+    //
+    // 閉路は本来「作らせない」（接続を足すときに到達可能性を調べて拒否する）のが主で、
+    // ここは手で編集したJSONや将来のバグに対する保険である。ここを通したあとは
+    // DAGであることが保証されるので、レイアウト計算を無限ループの心配なく書ける。
+    function dropCyclicEdges(nodes, edges) {
+      const out = new Map();
+      nodes.forEach(n => out.set(n.id, []));
+      edges.forEach(e => out.get(e.from).push(e));
+
+      // 深さ優先で辿り、「今たどっている途中のノード」へ戻る辺（後退辺）だけを捨てる。
+      //
+      // Kahn法で位相順に入らなかったノードごと落とす書き方だと、閉路が1本混ざった
+      // だけで、その閉路と繋がっている合流構造まで丸ごと消える（a→b→d, a→c→d に
+      // d→a を足すと4本とも消えた）。捨てるのは閉路を成立させている辺だけでよい。
+      //
+      // 再帰は場面が深いとスタックを使い切りうるので、明示スタックで回す。
+      const WHITE = 0, GRAY = 1, BLACK = 2; // 未訪問 / 探索中 / 探索済み
+      const color = new Map();
+      nodes.forEach(n => color.set(n.id, WHITE));
+      const dropped = new Set();
+
+      nodes.forEach(root => {
+        if (color.get(root.id) !== WHITE) return;
+        color.set(root.id, GRAY);
+        const stack = [{ id: root.id, i: 0 }];
+        while (stack.length) {
+          const top = stack[stack.length - 1];
+          const list = out.get(top.id);
+          if (top.i >= list.length) {
+            color.set(top.id, BLACK);
+            stack.pop();
+            continue;
+          }
+          const e = list[top.i++];
+          const c = color.get(e.to);
+          if (c === GRAY) {
+            dropped.add(e.id); // 探索中のノードへ戻る＝この辺が閉路を作っている
+          } else if (c === WHITE) {
+            color.set(e.to, GRAY);
+            stack.push({ id: e.to, i: 0 });
+          }
+        }
+      });
+
+      if (!dropped.size) return edges;
+      console.warn('場面ツリーに循環があったため、'
+        + dropped.size + ' 本の接続を無視しました。');
+      return edges.filter(e => !dropped.has(e.id));
+    }
+
     // 保存庫の読み出し。旧キーにしかデータが無い場合はここで新キーへ移行する。
     const API = {
       // 一覧は更新の新しい順。IndexedDB の取り出し順はキー（UUID）順で
@@ -2499,12 +3002,15 @@
             title: sc.title,
             content: sc.content,
             system: normalizeSystemId(sc.system),
-            npcs: npcs
+            npcs: npcs,
+            // この機能より前に保存されたシナリオには scenes が無い。
+            // normalizeSceneGraph() が undefined を空のグラフに均すので分岐は要らない。
+            scenes: normalizeSceneGraph(sc.scenes)
           }));
         });
       },
 
-      saveScenario(id, title, content, npcsData = [], systemId) {
+      saveScenario(id, title, content, npcsData = [], systemId, scenesData) {
         const now = new Date().toISOString();
         return idbPut(STORE_SCENARIOS, {
           id: id,
@@ -2512,6 +3018,7 @@
           content: content,
           system: normalizeSystemId(systemId),
           npcs: normalizeNpcList(npcsData).map(stripAvatarUrl),
+          scenes: normalizeSceneGraph(scenesData),
           updated_at: now
         }).then(() => ({ success: true, updated_at: now }));
       },
@@ -2554,6 +3061,8 @@
               content: s.content,
               system: normalizeSystemId(s.system),
               npcs: await npcsWithDataUrls(normalizeNpcList(s.npcs)),
+              // 場面ツリーはBlobを含まないので、画像のような変換は要らない
+              scenes: normalizeSceneGraph(s.scenes),
               updated_at: s.updated_at
             });
           }
@@ -2589,6 +3098,7 @@
             content: (s && typeof s.content === 'string') ? s.content : '',
             system: normalizeSystemId(s && s.system),
             npcs: await storeAvatarsFromDataUrls(normalizeNpcList(s && s.npcs), avatarCache),
+            scenes: normalizeSceneGraph(s && s.scenes),
             updated_at: (s && s.updated_at) ? s.updated_at : new Date().toISOString()
           });
         }
@@ -2652,6 +3162,9 @@
           content: (s && s.content) || '',
           system: normalizeSystemId(s && s.system),
           npcs: await storeAvatarsFromDataUrls(normalizeNpcList(s && s.npcs), avatarCache),
+          // 旧localStorage時代のデータに場面ツリーは無いが、分岐を書くより
+          // 同じ式を通すほうが「ここだけ漏れる」事故を防げる。
+          scenes: normalizeSceneGraph(s && s.scenes),
           updated_at: (s && s.updated_at) || new Date().toISOString()
         });
       }
@@ -2741,6 +3254,7 @@
             if (editor && typeof ws.content === 'string') editor.value = ws.content;
             if (scenarioTitle && typeof ws.title === 'string') scenarioTitle.value = ws.title;
             currentNpcs = normalizeNpcList(ws.npcs);
+            currentScenes = normalizeSceneGraph(ws.scenes);
             await attachAvatarUrls(currentNpcs);
           }
           // 読み込み中の表示を残さない。失敗したときだけ catch 側の文言を出す
@@ -2783,6 +3297,20 @@
           });
         }
         
+        // 場面カードは renderSceneCanvas() で丸ごと作り直すため、
+        // 個々のカードではなくキャンバスにイベントを委譲する（NPC編集欄と同じ理由）。
+        //
+        // マウスとタッチで実装を分けないよう pointer で受ける。
+        // このアプリはタブレットでの利用を想定しており、二重に書く価値が無い。
+        const sceneCanvasEl = document.getElementById('scene-canvas');
+        if (sceneCanvasEl) {
+          sceneCanvasEl.addEventListener('pointerdown', onScenePointerDown);
+          sceneCanvasEl.addEventListener('pointermove', onScenePointerMove);
+          sceneCanvasEl.addEventListener('pointerup', onScenePointerUp);
+          // 指が画面外へ出たときなど、ブラウザ側で操作が打ち切られる場合がある
+          sceneCanvasEl.addEventListener('pointercancel', onScenePointerUp);
+        }
+
         if (editor) editor.addEventListener('input', handleInput);
         if (scenarioTitle) scenarioTitle.addEventListener('input', handleInput);
         
@@ -2840,7 +3368,8 @@
         system: currentSystemId,
         title: scenarioTitle.value,
         content: editor.value,
-        npcs: currentNpcs.map(stripAvatarUrl)
+        npcs: currentNpcs.map(stripAvatarUrl),
+        scenes: currentScenes
       };
 
       // 自動保存も容量上限に当たりうる。入力のたびに走る処理なので
@@ -2898,7 +3427,7 @@
       const title = scenarioTitle.value || '無題のシナリオ';
       const content = editor.value;
 
-      API.saveScenario(currentScenarioId, title, content, currentNpcs, currentSystemId)
+      API.saveScenario(currentScenarioId, title, content, currentNpcs, currentSystemId, currentScenes)
         .then(res => {
           const now = new Date(res.updated_at);
           const timeStr = now.toTimeString().split(' ')[0].substring(0, 5);
@@ -3184,6 +3713,10 @@
       releaseNpcUrls(currentNpcs);
       currentNpcs = [];
       selectedNpcId = null;
+      // 場面ツリーも必ず捨てる。残すと前のシナリオの図が新しいシナリオに
+      // 紛れ込み、そのまま保存されてしまう。
+      currentScenes = { nodes: [], edges: [] };
+      selectedSceneId = null;
 
       applySystemToUI();
       saveToLocal();
@@ -3399,6 +3932,8 @@
           releaseNpcUrls(currentNpcs); // 前のシナリオの表示用URLを捨てる
           currentNpcs = res.npcs;
           selectedNpcId = null;
+          currentScenes = res.scenes || { nodes: [], edges: [] };
+          selectedSceneId = null;
 
           // 読み込んだシナリオのシステムに画面を合わせる
           applySystemToUI();
@@ -3429,6 +3964,8 @@
             releaseNpcUrls(currentNpcs);
             currentNpcs = [];
             selectedNpcId = null;
+            currentScenes = { nodes: [], edges: [] };
+            selectedSceneId = null;
             saveToLocal();
             updatePreview();
           }
@@ -4520,6 +5057,1282 @@ ${derivedHTML}
       if (editor) editor.focus();
     }
 
+    // ===== 場面図モード =====
+    //
+    // 場面カードの表示・編集と、本文の見出しとの対応づけ。
+    // データの持ち方と設計の根拠は docs/06_場面ツリー設計書.html にある。
+
+    let sceneSaveTimer;             // 場面カード編集の自動保存タイマー
+    let sceneUntrackedTitles = [];  // 本文にはあるが、まだカードになっていない見出し
+    let sceneLooseHeadings = [];    // 見出しのつもりで書かれているが、見出しにならない行
+    let sceneLayout = null;         // 直近のレイアウト結果（座標と全体の大きさ）
+
+    // 執筆モードと場面図モードの切り替え。
+    function setAppMode(mode) {
+      const next = (mode === 'scene') ? 'scene' : 'write';
+      if (document.body.dataset.mode === next) return;
+
+      // 幅や高さを測る処理より先に属性を変える。display:none の要素は
+      // clientWidth が 0 になり、そこで測ると桁違いの値が出る。
+      document.body.dataset.mode = next;
+
+      if (next === 'scene') {
+        syncSceneHeadings(false);
+        renderSceneView();
+      } else {
+        // 場面図で編集した内容を作業状態へ書き、プレビューも合わせる
+        handleInput();
+        if (editor) editor.focus();
+      }
+    }
+
+    // 場面カードの編集を作業状態へ書く。
+    //
+    // NPC管理はモーダルを閉じるときに保存しているが、場面図はタブなので
+    // 「閉じる瞬間」が無い。本文入力と同じ 500ms のデバウンスで書く。
+    // タイマーを debounceTimer と共有しないのは、片方がもう片方を打ち消す事故を
+    // 構造として無くしておくため。
+    function scheduleSceneSave() {
+      clearTimeout(sceneSaveTimer);
+      sceneSaveTimer = setTimeout(() => {
+        saveToLocal();
+        // 本文に [場面図] が無ければプレビューは変わらないので描き直さない
+        if (editor && editor.value.indexOf('[場面図') !== -1) updatePreview();
+      }, 500);
+    }
+
+    function sceneNodeById(id) {
+      return currentScenes.nodes.find(n => n.id === id) || null;
+    }
+
+    // --- 本文の見出しとの対応づけ ---
+
+    // 本文から場面の見出しを取り出す。
+    //
+    // parseMarkdown() と同じ規則で切ること。あちらは「空行2つ以上で区切ったブロックの
+    // 先頭が #」だけを見出しにするので、行頭の # を拾う実装にすると、
+    // プレビューでは見出しになっていない行までカードの対象になってしまう。
+    //
+    // \r\n の正規化はしない。文字数が変わって、返すオフセットが本文とずれる。
+    // textarea.value の改行は仕様上 LF に揃っているので、そもそも不要である。
+    function extractSceneHeadings(text) {
+      const headings = [];
+      const loose = [];
+      if (typeof text !== 'string' || !text) return { headings: headings, loose: loose };
+
+      const pushBlock = (start, end) => {
+        const raw = text.slice(start, end);
+        const lead = raw.length - raw.replace(/^\s+/, '').length;
+        const body = raw.trim();
+        if (!body || body[0] !== '#' || body.startsWith('##')) return;
+        const firstLine = body.split('\n')[0];
+        headings.push({
+          title: firstLine.replace(/^#\s*/, '').trim(),
+          start: start + lead,
+          end: start + lead + firstLine.length
+        });
+      };
+
+      const sep = /\n{2,}/g;
+      let blockStart = 0;
+      let m;
+      while ((m = sep.exec(text)) !== null) {
+        pushBlock(blockStart, m.index);
+        blockStart = sep.lastIndex;
+      }
+      pushBlock(blockStart, text.length);
+
+      // 「# 見出し」のつもりで書かれているのに、前に空行が無いせいで
+      // 見出しにならない行を拾う。プレビューに出ないので気づきにくく、
+      // 気づかないまま長く放置されやすい書き間違いである。
+      const known = new Set(headings.map(h => h.start));
+      const lineRe = /^#(?!#)[ \t]*(.+)$/gm;
+      let lm;
+      while ((lm = lineRe.exec(text)) !== null) {
+        if (!known.has(lm.index)) loose.push(lm[1].trim());
+      }
+      return { headings: headings, loose: loose };
+    }
+
+    // 本文にある見出しを「タイトル → 出現回数」で返す
+    function sceneLinkedTitles() {
+      const map = new Map();
+      extractSceneHeadings(editor ? editor.value : '').headings.forEach(h => {
+        if (!h.title) return;
+        map.set(h.title, (map.get(h.title) || 0) + 1);
+      });
+      return map;
+    }
+
+    // 本文の見出しを読み直し、まだカードになっていないものを控えておく。
+    //
+    // カードを自動で作りも消しもしないのは、見出しの改名が「削除と新規作成」に化けて、
+    // メモ・種別・接続がまとめて失われるのを避けるため（docs/06 §5 を参照）。
+    function syncSceneHeadings(redraw) {
+      const res = extractSceneHeadings(editor ? editor.value : '');
+      const known = new Set(currentScenes.nodes.map(n => n.title).filter(Boolean));
+      const seen = new Set();
+      sceneUntrackedTitles = [];
+      res.headings.forEach(h => {
+        if (!h.title || known.has(h.title) || seen.has(h.title)) return;
+        seen.add(h.title);
+        sceneUntrackedTitles.push(h.title);
+      });
+      sceneLooseHeadings = res.loose;
+      if (redraw) renderSceneView();
+      return sceneUntrackedTitles.length;
+    }
+
+    function importAllSceneHeadings() {
+      sceneUntrackedTitles.slice().forEach(t => addSceneNode(t, true));
+      syncSceneHeadings(false);
+      renderSceneView();
+      scheduleSceneSave();
+    }
+
+    // --- カードの追加・削除・編集 ---
+
+    function addSceneNode(title, quiet) {
+      const node = normalizeSceneNode({
+        id: generateUUID(),
+        title: typeof title === 'string' ? title : '',
+        kind: DEFAULT_SCENE_KIND
+      });
+      currentScenes.nodes.push(node);
+      selectedSceneId = node.id;
+      if (!quiet) {
+        syncSceneHeadings(false);
+        renderSceneView();
+        scheduleSceneSave();
+      }
+      return node;
+    }
+
+    function deleteSceneNode(id) {
+      const node = sceneNodeById(id);
+      if (!node) return;
+      if (!confirm('「' + (node.title || '名前のない場面') + '」をこの図から削除しますか？\n本文は消えません。')) return;
+      currentScenes.nodes = currentScenes.nodes.filter(n => n.id !== id);
+      currentScenes.edges = currentScenes.edges.filter(e => e.from !== id && e.to !== id);
+      if (selectedSceneId === id) selectedSceneId = null;
+      syncSceneHeadings(false);
+      renderSceneView();
+      scheduleSceneSave();
+    }
+
+    function selectSceneNode(id) {
+      selectedSceneId = id;
+      renderSceneView();
+    }
+
+    // 入力のたびにインスペクタを作り直すとフォーカスが飛ぶので、
+    // 値だけ書き換えて、見た目はカード側だけ描き直す（NPC編集と同じ考え方）。
+    function updateSceneField(field, value) {
+      const node = sceneNodeById(selectedSceneId);
+      if (!node) return;
+      node[field] = value;
+      if (field === 'title') syncSceneHeadings(false);
+      renderSceneCanvas();
+      scheduleSceneSave();
+    }
+
+    function toggleSceneNpc(npcId, on) {
+      const node = sceneNodeById(selectedSceneId);
+      if (!node) return;
+      node.npcIds = node.npcIds.filter(id => id !== npcId);
+      if (on) node.npcIds.push(npcId);
+      renderSceneCanvas();
+      scheduleSceneSave();
+    }
+
+    // --- レイアウト ---
+
+    // 位相順（親が必ず先に来る並び）。normalizeSceneGraph() が閉路を落としているので、
+    // ここに来る時点で必ず全ノードが並ぶ。
+    function topoOrder(nodes, edges) {
+      const indeg = new Map();
+      const out = new Map();
+      nodes.forEach(n => { indeg.set(n.id, 0); out.set(n.id, []); });
+      edges.forEach(e => { indeg.set(e.to, indeg.get(e.to) + 1); out.get(e.from).push(e.to); });
+
+      const queue = nodes.filter(n => indeg.get(n.id) === 0).map(n => n.id);
+      const order = [];
+      while (queue.length) {
+        const id = queue.shift();
+        order.push(id);
+        out.get(id).forEach(to => {
+          const left = indeg.get(to) - 1;
+          indeg.set(to, left);
+          if (left === 0) queue.push(to);
+        });
+      }
+      return order;
+    }
+
+    // カードの座標と、接続線が通る経由点を決める。
+    //
+    // 段は「入口からの最長経路」で決める。最短経路にすると、合流する場面が
+    // 一番浅い親のすぐ下に置かれ、深いほうの親からは上向きの線が出てしまう。
+    // 上へ戻る線は「話が戻る」と読めるので、必ず下向きになる最長経路を採る。
+    function layoutSceneGraph(nodes, edges) {
+      const pos = {};
+      const waypoints = {};
+      if (!nodes.length) return { pos: pos, waypoints: waypoints, width: 0, height: 0, layers: [] };
+
+      // 1. 段を決める
+      const parentsOf = new Map();
+      nodes.forEach(n => parentsOf.set(n.id, []));
+      edges.forEach(e => parentsOf.get(e.to).push(e.from));
+
+      const rank = new Map();
+      nodes.forEach(n => rank.set(n.id, 0));
+      topoOrder(nodes, edges).forEach(id => {
+        let r = 0;
+        parentsOf.get(id).forEach(p => { r = Math.max(r, rank.get(p) + 1); });
+        rank.set(id, r);
+      });
+
+      // 2. 段を2つ以上またぐ接続には、途中の段に仮の点を置く。
+      //    置かないと、線が途中の段のカードを突き抜けるうえ、
+      //    途中の段を並べ替えるときにその接続の情報がまったく効かない。
+      const virtual = new Set();
+      const vRank = new Map();
+      const vParents = new Map();
+      const vChildren = new Map();
+      const allIds = [];
+      const addPoint = (id, r) => {
+        allIds.push(id);
+        vRank.set(id, r);
+        vParents.set(id, []);
+        vChildren.set(id, []);
+      };
+      const link = (a, b) => { vChildren.get(a).push(b); vParents.get(b).push(a); };
+
+      nodes.forEach(n => addPoint(n.id, rank.get(n.id)));
+
+      const chains = {};
+      edges.forEach(e => {
+        const r1 = rank.get(e.from);
+        const r2 = rank.get(e.to);
+        chains[e.id] = [];
+        if (r2 - r1 <= 1) { link(e.from, e.to); return; }
+        let prev = e.from;
+        for (let r = r1 + 1; r < r2; r++) {
+          const vid = 'v' + e.id + '' + r;
+          addPoint(vid, r);
+          virtual.add(vid);
+          link(prev, vid);
+          chains[e.id].push(vid);
+          prev = vid;
+        }
+        link(prev, e.to);
+      });
+
+      const widthOf = id => virtual.has(id) ? 24 : SCENE_CARD_W;
+
+      // 3. 段ごとに並べる
+      const layers = [];
+      allIds.forEach(id => {
+        const r = vRank.get(id);
+        if (!layers[r]) layers[r] = [];
+        layers[r].push(id);
+      });
+      for (let i = 0; i < layers.length; i++) if (!layers[i]) layers[i] = [];
+
+      // 初期の並びは配列の順（＝本文の見出しの出現順に取り込まれた順）。
+      // 著者が執筆時点で既に並べているという手がかりを、そのまま出発点に使う。
+      const seq = new Map();
+      allIds.forEach((id, i) => seq.set(id, i));
+      layers.forEach(layer => layer.sort((a, b) => seq.get(a) - seq.get(b)));
+
+      // そのあと、隣の段での位置の平均で寄せて線の交差を減らす（重心法）。
+      const orderIn = new Map();
+      const writeOrder = () => layers.forEach(l => l.forEach((id, i) => orderIn.set(id, i)));
+      writeOrder();
+      for (let sweep = 0; sweep < 4; sweep++) {
+        const downward = (sweep % 2 === 0);
+        for (let k = 0; k < layers.length; k++) {
+          const layer = layers[downward ? k : layers.length - 1 - k];
+          if (layer.length < 2) continue;
+          const key = new Map();
+          layer.forEach((id, i) => {
+            const ns = downward ? vParents.get(id) : vChildren.get(id);
+            if (!ns.length) { key.set(id, i); return; }
+            let sum = 0;
+            ns.forEach(x => { sum += orderIn.get(x); });
+            key.set(id, sum / ns.length);
+          });
+          layer.sort((a, b) => key.get(a) - key.get(b));
+          writeOrder();
+        }
+      }
+
+      // 4. 座標にする
+      const margin = 24;
+      const rowWidth = layer => layer.reduce((w, id, i) => w + widthOf(id) + (i ? SCENE_GAP_X : 0), 0);
+      let widest = 0;
+      layers.forEach(l => { widest = Math.max(widest, rowWidth(l)); });
+
+      layers.forEach((layer, r) => {
+        let x = margin + (widest - rowWidth(layer)) / 2;
+        layer.forEach(id => {
+          pos[id] = { x: x, y: margin + r * (SCENE_CARD_H + SCENE_GAP_Y) };
+          x += widthOf(id) + SCENE_GAP_X;
+        });
+      });
+
+      // 手で動かしたカードは、その位置を優先する
+      const manual = new Set();
+      nodes.forEach(n => {
+        if (n.x !== null && n.y !== null) {
+          pos[n.id] = { x: n.x, y: n.y };
+          manual.add(n.id);
+        }
+      });
+
+      edges.forEach(e => {
+        waypoints[e.id] = chains[e.id].map(vid => ({
+          x: pos[vid].x + widthOf(vid) / 2,
+          y: pos[vid].y + SCENE_CARD_H / 2
+        }));
+      });
+
+      let width = 0;
+      let height = 0;
+      nodes.forEach(n => {
+        width = Math.max(width, pos[n.id].x + SCENE_CARD_W);
+        height = Math.max(height, pos[n.id].y + SCENE_CARD_H);
+      });
+      return {
+        pos: pos,
+        waypoints: waypoints,
+        manual: manual,
+        width: width + margin,
+        height: height + margin,
+        layers: layers.map(l => l.filter(id => !virtual.has(id)))
+      };
+    }
+
+    // --- 接続（エッジ） ---
+
+    // from から辿って to に着けるか。接続を足す前の循環チェックに使う。
+    function isSceneReachable(fromId, toId) {
+      const out = new Map();
+      currentScenes.nodes.forEach(n => out.set(n.id, []));
+      currentScenes.edges.forEach(e => { if (out.has(e.from)) out.get(e.from).push(e.to); });
+
+      const stack = [fromId];
+      const seen = new Set([fromId]);
+      while (stack.length) {
+        const id = stack.pop();
+        if (id === toId) return true;
+        (out.get(id) || []).forEach(next => {
+          if (!seen.has(next)) { seen.add(next); stack.push(next); }
+        });
+      }
+      return false;
+    }
+
+    function sceneTitleOf(id) {
+      const n = sceneNodeById(id);
+      return n ? (n.title || '名前のない場面') : '?';
+    }
+
+    function addSceneEdge(fromId, toId) {
+      if (!fromId || !toId || fromId === toId) return false;
+      if (currentScenes.edges.some(e => e.from === fromId && e.to === toId)) return false;
+
+      // 行き先から辿って出発点に戻れるなら、この接続は循環を作る。
+      // 引かせてから消すのではなく、引く前に断る（引いた線が消える体験を避ける）。
+      if (isSceneReachable(toId, fromId)) {
+        alert('この接続は循環になります。\n\n'
+          + '「' + sceneTitleOf(toId) + '」は、すでに「' + sceneTitleOf(fromId) + '」より後ろにあります。');
+        return false;
+      }
+
+      currentScenes.edges.push({ id: generateUUID(), from: fromId, to: toId, label: '' });
+      renderSceneView();
+      scheduleSceneSave();
+      return true;
+    }
+
+    function addSceneEdgeFromInspector() {
+      const sel = document.getElementById('scene-edge-target');
+      if (!sel || !sel.value || !selectedSceneId) return;
+      addSceneEdge(selectedSceneId, sel.value);
+    }
+
+    function removeSceneEdge(edgeId) {
+      currentScenes.edges = currentScenes.edges.filter(e => e.id !== edgeId);
+      renderSceneView();
+      scheduleSceneSave();
+    }
+
+    function updateSceneEdgeLabel(edgeId, label) {
+      const edge = currentScenes.edges.find(e => e.id === edgeId);
+      if (!edge) return;
+      edge.label = label;
+      renderSceneCanvas();
+      scheduleSceneSave();
+    }
+
+    // --- 描画 ---
+
+    function svgNum(v) { return Math.round(v * 10) / 10; }
+
+    // SVGのテキストは幅を測れないので、全角1文字・半角0.55文字ぶんとして概算する。
+    // ラベルの下敷きの大きさを決めるためだけなので、この精度で足りる。
+    function svgTextWidth(str, fontSize) {
+      let units = 0;
+      for (const ch of String(str)) units += (ch.charCodeAt(0) > 0xff) ? 1 : 0.55;
+      return units * fontSize;
+    }
+
+    // onclick 属性へ文字列を埋めるためのエスケープ。
+    // IDは読み込んだJSON由来のこともあるので、素のまま引用符で囲まない。
+    function jsArg(str) {
+      return JSON.stringify(String(str)).replace(/"/g, '&quot;');
+    }
+
+    // 接続線をSVGで組み立てる。
+    //
+    // 曲線にしているのは、合流のある図では複数の線が同じ縦の道を通るため。
+    // 直角の折れ線だと線がぴったり重なって1本に見え、
+    // 「3つのルートが合流している」という肝心のことが読めなくなる。
+    // 2枚のカードの、どの辺どうしを結ぶかを決める。
+    //
+    // 常に「下端から上端へ」だと、カードを横に並べ替えたときに線が大きく回り込み、
+    // 隣に置いただけなのに遠回りして見える。中心の位置関係を見て、
+    // 縦につなぐか横につなぐかを切り替える。
+    //
+    // カードは横長（180×72）なので、差をそのまま比べると縦の判定に寄る。
+    // 幅と高さで割ってから比べることで、目で見た向きと一致する。
+    function sceneAnchorPair(a, b) {
+      const W = SCENE_CARD_W;
+      const H = SCENE_CARD_H;
+      const ax = a.x + W / 2;
+      const ay = a.y + H / 2;
+      const bx = b.x + W / 2;
+      const by = b.y + H / 2;
+      const dx = bx - ax;
+      const dy = by - ay;
+
+      if (Math.abs(dy) / H >= Math.abs(dx) / W) {
+        return (dy >= 0)
+          ? { from: { x: ax, y: a.y + H }, to: { x: bx, y: b.y },     dir: 'down' }
+          : { from: { x: ax, y: a.y },     to: { x: bx, y: b.y + H }, dir: 'up' };
+      }
+      return (dx >= 0)
+        ? { from: { x: a.x + W, y: ay }, to: { x: b.x,     y: by }, dir: 'right' }
+        : { from: { x: a.x,     y: ay }, to: { x: b.x + W, y: by }, dir: 'left' };
+    }
+
+    // 制御点は辺の法線方向へ引き出す。そうするとカードに吸い付いて見える。
+    // outgoing が false のときは、入る点の手前側へずらす。
+    function sceneControlOffset(p, dir, pull, outgoing) {
+      const d = outgoing ? pull : -pull;
+      if (dir === 'down')  return { x: p.x, y: p.y + d };
+      if (dir === 'up')    return { x: p.x, y: p.y - d };
+      if (dir === 'right') return { x: p.x + d, y: p.y };
+      return { x: p.x - d, y: p.y };
+    }
+
+    // 矢頭。marker 要素は file:// で開く運用と印刷での実績がこのコードベースに
+    // 無いので、buildRadarChartSVG と同じく多角形を直接置く。
+    function sceneArrowPolygon(x, y, dir, fill) {
+      const s = 5;
+      const len = 9;
+      let pts;
+      if (dir === 'down')       pts = [[x - s, y - len], [x + s, y - len], [x, y]];
+      else if (dir === 'up')    pts = [[x - s, y + len], [x + s, y + len], [x, y]];
+      else if (dir === 'right') pts = [[x - len, y - s], [x - len, y + s], [x, y]];
+      else                      pts = [[x + len, y - s], [x + len, y + s], [x, y]];
+      return '<polygon points="'
+        + pts.map(p => svgNum(p[0]) + ',' + svgNum(p[1])).join(' ')
+        + '" fill="' + fill + '"/>';
+    }
+
+    function buildSceneEdgesSVG(edges, layout, opts) {
+      const o = opts || {};
+      const stroke = o.stroke || '#64748b';
+      const labelColor = o.labelColor || '#cbd5e1';
+      const labelBg = o.labelBg || '#181c24';
+      const fontSize = o.fontSize || 11;
+
+      let out = '';
+      edges.forEach(e => {
+        const a = layout.pos[e.from];
+        const b = layout.pos[e.to];
+        if (!a || !b) return;
+
+        // 手で動かしたカードが絡む接続では、自動配置のときに置いた経由点を使わない。
+        // 経由点は段と段の間にあるので、カードを動かしたあとでは
+        // まったく関係のない場所を通る線になる。
+        const moved = layout.manual
+          && (layout.manual.has(e.from) || layout.manual.has(e.to));
+        const via = moved ? [] : (layout.waypoints[e.id] || []);
+        const anchors = sceneAnchorPair(a, b);
+
+        let d;
+        let endDir;
+        let points;
+
+        if (via.length) {
+          // 経由点があるのは自動配置のときだけなので、素直に上から下へ降ろす
+          points = [{ x: a.x + SCENE_CARD_W / 2, y: a.y + SCENE_CARD_H }]
+            .concat(via)
+            .concat([{ x: b.x + SCENE_CARD_W / 2, y: b.y }]);
+          d = 'M ' + svgNum(points[0].x) + ' ' + svgNum(points[0].y);
+          for (let i = 1; i < points.length; i++) {
+            const p0 = points[i - 1];
+            const p1 = points[i];
+            const dy = Math.max(18, (p1.y - p0.y) * 0.45);
+            d += ' C ' + svgNum(p0.x) + ' ' + svgNum(p0.y + dy)
+               + ', ' + svgNum(p1.x) + ' ' + svgNum(p1.y - dy)
+               + ', ' + svgNum(p1.x) + ' ' + svgNum(p1.y);
+          }
+          endDir = 'down';
+        } else {
+          const p0 = anchors.from;
+          const p1 = anchors.to;
+          points = [p0, p1];
+          const span = Math.max(Math.abs(p1.x - p0.x), Math.abs(p1.y - p0.y));
+          const pull = Math.max(24, span * 0.45);
+          const c0 = sceneControlOffset(p0, anchors.dir, pull, true);
+          const c1 = sceneControlOffset(p1, anchors.dir, pull, false);
+          d = 'M ' + svgNum(p0.x) + ' ' + svgNum(p0.y)
+            + ' C ' + svgNum(c0.x) + ' ' + svgNum(c0.y)
+            + ', ' + svgNum(c1.x) + ' ' + svgNum(c1.y)
+            + ', ' + svgNum(p1.x) + ' ' + svgNum(p1.y);
+          endDir = anchors.dir;
+        }
+
+        // 図に出さない場面を通り抜けてできた接続は破線にする。
+        // 実線と同じに描くと、直接つながっているように読めてしまう。
+        out += '<path d="' + d + '" fill="none" stroke="' + stroke + '" stroke-width="1.6"'
+          + (e.indirect ? ' stroke-dasharray="5 4"' : '') + '/>';
+
+        const end = points[points.length - 1];
+        out += sceneArrowPolygon(end.x, end.y, endDir, stroke);
+
+        if (e.label) {
+          const mid = (points.length === 2)
+            ? { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 }
+            : points[Math.floor(points.length / 2)];
+          const w = svgTextWidth(e.label, fontSize) + 12;
+          const h = fontSize * 1.8;
+          out += '<rect x="' + svgNum(mid.x - w / 2) + '" y="' + svgNum(mid.y - h / 2) + '"'
+            + ' width="' + svgNum(w) + '" height="' + svgNum(h) + '" rx="4"'
+            + ' fill="' + labelBg + '" stroke="' + stroke + '" stroke-width="0.8"/>';
+          out += '<text x="' + svgNum(mid.x) + '" y="' + svgNum(mid.y + fontSize * 0.35) + '"'
+            + ' text-anchor="middle" font-size="' + fontSize + '" fill="' + labelColor + '">'
+            + escapeHTML(e.label) + '</text>';
+        }
+      });
+      return out;
+    }
+
+    function renderSceneView() {
+      renderSceneCanvas();
+      renderSceneInspector();
+    }
+
+    function renderSceneCanvas() {
+      const canvas = document.getElementById('scene-canvas');
+      if (!canvas) return;
+
+      if (!currentScenes.nodes.length) {
+        sceneLayout = null;
+        canvas.style.width = '';
+        canvas.style.height = '';
+        canvas.innerHTML = '<div class="scene-empty">場面がまだありません。<br>'
+          + '本文に <code>#</code> の見出しを書いて「🔄 本文を再走査」するか、'
+          + '「＋ 場面を追加」で作ってください。</div>';
+        applySceneScale();
+        return;
+      }
+
+      const layout = layoutSceneGraph(currentScenes.nodes, currentScenes.edges);
+      sceneLayout = layout;
+      canvas.style.width = layout.width + 'px';
+      canvas.style.height = layout.height + 'px';
+
+      const linked = sceneLinkedTitles();
+      let html = '';
+      currentScenes.nodes.forEach(n => {
+        const p = layout.pos[n.id];
+        const kind = SCENE_KINDS[n.kind] || SCENE_KINDS[DEFAULT_SCENE_KIND];
+        const hits = n.title ? (linked.get(n.title) || 0) : 0;
+
+        // バッジは「気にかけるべき状態」だけに出す。正常なカードにも印を付けると、
+        // 図全体が印だらけになって、直すべきカードが埋もれる。
+        let badges = '';
+        if (!n.title) badges += '<span class="scene-badge">⚠ 見出し未設定</span>';
+        else if (hits === 0) badges += '<span class="scene-badge">⚠ 未執筆</span>';
+        if (hits > 1) badges += '<span class="scene-badge">同名 ×' + hits + '</span>';
+        if (!n.inDiagram) badges += '<span class="scene-badge hidden-in-diagram">図解に出さない</span>';
+
+        html += '<div class="scene-node' + (n.id === selectedSceneId ? ' selected' : '') + '"'
+          + ' data-scene-id="' + escapeHTML(n.id) + '"'
+          + ' style="left:' + p.x + 'px; top:' + p.y + 'px; border-left-color:' + kind.color + ';">'
+          + (n.title
+              ? '<div class="scene-node-title">' + escapeHTML(n.title) + '</div>'
+              : '<div class="scene-node-title is-empty">名前のない場面</div>')
+          + '<div class="scene-node-meta">'
+          + '<span class="scene-kind-dot" style="background-color:' + kind.color + ';"></span>'
+          + '<span class="scene-node-kind">' + escapeHTML(kind.label) + '</span>'
+          + badges
+          + '</div></div>';
+      });
+
+      // 線を先に敷き、その上にカードを置く
+      canvas.innerHTML = '<svg class="scene-edges" width="' + layout.width + '" height="' + layout.height + '"'
+        + ' viewBox="0 0 ' + layout.width + ' ' + layout.height + '" aria-hidden="true">'
+        + buildSceneEdgesSVG(currentScenes.edges, layout)
+        + '</svg>' + html;
+      applySceneScale();
+    }
+
+    function renderSceneInspector() {
+      const box = document.getElementById('scene-inspector');
+      if (!box) return;
+
+      const node = sceneNodeById(selectedSceneId);
+      const linked = sceneLinkedTitles();
+      let html = '';
+
+      if (!node) {
+        html += '<div class="scene-inspector-hint">'
+          + 'カードを選ぶと、ここで見出し・概要メモ・種別・登場NPCを編集できます。'
+          + '</div>';
+      } else {
+        const hits = node.title ? (linked.get(node.title) || 0) : 0;
+        html += '<h4>場面の設定</h4>';
+
+        html += '<div class="form-group"><label>見出し（本文の # と同じ文字列）</label>'
+          + '<input type="text" id="scene-title-input" value="' + escapeHTML(node.title) + '"'
+          + ' placeholder="例: 書斎の捜索"'
+          + ' oninput="updateSceneField(\'title\', this.value)"></div>';
+
+        if (hits === 0) {
+          html += '<div class="scene-warn">この見出しは本文にありません。'
+            + 'まだ書いていないか、本文側で名前を変えた可能性があります。</div>'
+            + '<div class="modal-actions" style="margin-bottom:14px;">'
+            + '<button type="button" class="btn" onclick="createHeadingForScene()">本文に見出しを作る</button>'
+            + '</div>';
+        } else {
+          if (hits > 1) {
+            html += '<div class="scene-warn">同じ見出しが本文に ' + hits + ' か所あります。'
+              + '飛べるのは最初の1つだけなので、名前を分けることをおすすめします。</div>';
+          }
+          html += '<div class="modal-actions" style="margin-bottom:14px;">'
+            + '<button type="button" class="btn btn-primary" onclick="jumpToScene()">本文へジャンプ</button>'
+            + '</div>';
+        }
+
+        html += '<div class="form-group"><label>概要メモ</label>'
+          + '<textarea rows="4" placeholder="この場面で何が起きるか"'
+          + ' oninput="updateSceneField(\'summary\', this.value)">' + escapeHTML(node.summary) + '</textarea></div>';
+
+        html += '<div class="form-group"><label>種別</label><select onchange="updateSceneField(\'kind\', this.value)">';
+        Object.keys(SCENE_KINDS).forEach(k => {
+          html += '<option value="' + k + '"' + (k === node.kind ? ' selected' : '') + '>'
+            + escapeHTML(SCENE_KINDS[k].label) + '</option>';
+        });
+        html += '</select></div>';
+
+        // つながり
+        const outs = currentScenes.edges.filter(e => e.from === node.id);
+        const ins = currentScenes.edges.filter(e => e.to === node.id);
+
+        if (ins.length) {
+          html += '<div class="form-group"><label>ここへ来る場面</label>';
+          ins.forEach(e => {
+            html += '<div class="scene-tray-item"><span>' + escapeHTML(sceneTitleOf(e.from)) + ' →</span>'
+              + '<button type="button" title="この接続を外す"'
+              + ' onclick="removeSceneEdge(' + jsArg(e.id) + ')">×</button></div>';
+          });
+          html += '</div>';
+        }
+
+        html += '<div class="form-group"><label>ここから次の場面へ</label>';
+        outs.forEach(e => {
+          html += '<div class="scene-tray-item"><span>→ ' + escapeHTML(sceneTitleOf(e.to)) + '</span>'
+            + '<button type="button" title="この接続を外す"'
+            + ' onclick="removeSceneEdge(' + jsArg(e.id) + ')">×</button></div>'
+            + '<input type="text" style="margin-bottom:8px;" value="' + escapeHTML(e.label) + '"'
+            + ' placeholder="分岐の条件（例: 【目星】成功）"'
+            + ' oninput="updateSceneEdgeLabel(' + jsArg(e.id) + ', this.value)">';
+        });
+
+        const candidates = currentScenes.nodes.filter(n =>
+          n.id !== node.id && !outs.some(e => e.to === n.id));
+        if (candidates.length) {
+          html += '<select id="scene-edge-target"><option value="">（つなぐ先を選ぶ）</option>';
+          candidates.forEach(n => {
+            html += '<option value="' + escapeHTML(n.id) + '">'
+              + escapeHTML(n.title || '名前のない場面') + '</option>';
+          });
+          html += '</select>'
+            + '<div class="modal-actions"><button type="button" class="btn"'
+            + ' onclick="addSceneEdgeFromInspector()">つなぐ</button></div>';
+        }
+        html += '</div>';
+
+        if (currentNpcs.length) {
+          html += '<div class="form-group"><label>登場NPC</label>';
+          currentNpcs.forEach(npc => {
+            const on = node.npcIds.indexOf(npc.id) !== -1;
+            html += '<label style="display:flex; align-items:center; gap:8px; font-weight:400; margin-bottom:4px;">'
+              + '<input type="checkbox"' + (on ? ' checked' : '')
+              + ' onchange="toggleSceneNpc(' + jsArg(npc.id) + ', this.checked)">'
+              + '<span>' + escapeHTML(npc.name) + '</span></label>';
+          });
+          html += '</div>';
+        }
+
+        html += '<div class="form-group">'
+          + '<label style="display:flex; align-items:center; gap:8px; font-weight:400;">'
+          + '<input type="checkbox"' + (node.inDiagram ? ' checked' : '')
+          + ' onchange="updateSceneField(\'inDiagram\', this.checked)">'
+          + '<span>[場面図] に出す</span></label></div>';
+
+        html += '<div class="modal-actions">'
+          + '<button type="button" class="btn" style="color:#ef4444;" onclick="deleteSceneNode(selectedSceneId)">'
+          + 'この場面を削除</button></div>';
+      }
+
+      // 未取り込みの見出し
+      if (sceneUntrackedTitles.length) {
+        html += '<div class="scene-tray"><h4>本文にある未取り込みの見出し</h4>';
+        sceneUntrackedTitles.forEach(t => {
+          html += '<div class="scene-tray-item"><span>' + escapeHTML(t) + '</span>'
+            + '<button type="button" onclick="addSceneNode(' + jsArg(t) + ')">＋</button></div>';
+        });
+        if (sceneUntrackedTitles.length > 1) {
+          html += '<div class="modal-actions"><button type="button" class="btn" onclick="importAllSceneHeadings()">'
+            + 'すべて取り込む（' + sceneUntrackedTitles.length + '件）</button></div>';
+        }
+        html += '</div>';
+      }
+
+      if (sceneLooseHeadings.length) {
+        html += '<div class="scene-tray"><h4>見出しになっていない行</h4>'
+          + '<div class="scene-warn">次の行は <code>#</code> で始まっていますが、'
+          + '直前に空行が無いためプレビューでは見出しになりません。'
+          + '<br>' + sceneLooseHeadings.map(t => escapeHTML(t)).join('<br>')
+          + '</div></div>';
+      }
+
+      box.innerHTML = html;
+    }
+
+    // --- ドラッグと縮尺 ---
+
+    let sceneScale = 1;
+    let sceneDrag = null;
+
+    // 画面上の座標を、図の中の座標へ直す。
+    // 縮尺を掛けているので、この換算を通さないと縮小表示のときにカードが指からずれる。
+    // 換算をこの1本に閉じ込めておくのは、書き忘れが必ず起きる箇所だからである。
+    function canvasPointFromEvent(e) {
+      const canvas = document.getElementById('scene-canvas');
+      if (!canvas) return { x: 0, y: 0 };
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: (e.clientX - rect.left) / sceneScale,
+        y: (e.clientY - rect.top) / sceneScale
+      };
+    }
+
+    function onScenePointerDown(e) {
+      const card = e.target.closest('.scene-node');
+      if (!card) return;
+      const node = sceneNodeById(card.dataset.sceneId);
+      if (!node || !sceneLayout) return;
+
+      e.preventDefault();
+      // 指やカーソルが要素の外へ出ても追い続ける。
+      // 捕捉できない状況（対応していない環境や合成イベント）でも
+      // 移動そのものは動くので、失敗しても止めない。
+      try { card.setPointerCapture(e.pointerId); } catch (err) { /* 続行 */ }
+      const p = canvasPointFromEvent(e);
+      const base = sceneLayout.pos[node.id] || { x: 0, y: 0 };
+
+      // Ctrl（Macでは⌘）を押しながらだと、カードを動かすのではなく接続を引く。
+      // 右のペインで相手を選ぶより、図の上で直接つなげるほうが速い。
+      // つなげない相手はここで一度だけ調べておく。指を動かすたびに
+      // 循環の判定をやり直すと、場面が増えたときに重くなる。
+      const linking = e.ctrlKey || e.metaKey;
+      sceneDrag = {
+        id: node.id,
+        card: card,
+        pointerId: e.pointerId,
+        linking: linking,
+        blocked: linking ? sceneUnlinkableFrom(node.id) : null,
+        hover: null,
+        pointer: p,
+        grabX: p.x - base.x,
+        grabY: p.y - base.y,
+        startX: e.clientX,
+        startY: e.clientY,
+        moved: false,
+        pending: null,
+        raf: null
+      };
+      if (linking) document.body.classList.add('scene-linking');
+    }
+
+    // その場面からつなげない相手を、理由つきで集める。
+    function sceneUnlinkableFrom(fromId) {
+      const blocked = new Map();
+      currentScenes.nodes.forEach(n => {
+        if (n.id === fromId) return;
+        if (currentScenes.edges.some(e => e.from === fromId && e.to === n.id)) {
+          blocked.set(n.id, 'すでにつながっています');
+        } else if (isSceneReachable(n.id, fromId)) {
+          blocked.set(n.id, '循環になります');
+        }
+      });
+      return blocked;
+    }
+
+    // ポインタの下にあるカードを探す。
+    // ドラッグ中は e.target がつかんだカードに固定されるため、座標から引き直す。
+    function sceneCardAt(clientX, clientY) {
+      const el = document.elementFromPoint(clientX, clientY);
+      const card = (el && el.closest) ? el.closest('.scene-node') : null;
+      return card ? card.dataset.sceneId : null;
+    }
+
+    // ID から要素を引く。IDは読み込んだJSON由来のこともあるので、
+    // セレクタに埋め込まずに走査して探す。
+    function sceneCardElement(id) {
+      return Array.from(document.querySelectorAll('.scene-node'))
+        .find(el => el.dataset.sceneId === id) || null;
+    }
+
+    function clearSceneLinkMarks() {
+      document.querySelectorAll('.scene-node.link-ok, .scene-node.link-ng')
+        .forEach(el => el.classList.remove('link-ok', 'link-ng'));
+    }
+
+    // 引きかけの接続線を描く。相手の上に来ていれば、つないだ後と同じ辺どうしを結ぶ。
+    function drawSceneLinkPreview() {
+      const svg = document.querySelector('.scene-edges');
+      if (!svg || !sceneLayout || !sceneDrag) return;
+
+      const from = sceneLayout.pos[sceneDrag.id];
+      if (!from) return;
+
+      const hover = sceneDrag.hover;
+      const reason = hover ? sceneDrag.blocked.get(hover) : null;
+      const ok = hover && hover !== sceneDrag.id && !reason;
+      const color = hover ? (ok ? '#22c55e' : '#ef4444') : '#94a3b8';
+
+      let p0;
+      let p1;
+      let arrowDir = null;
+      const target = (hover && hover !== sceneDrag.id) ? sceneLayout.pos[hover] : null;
+      if (target) {
+        const anchors = sceneAnchorPair(from, target);
+        p0 = anchors.from;
+        p1 = anchors.to;
+        arrowDir = anchors.dir;
+      } else {
+        p0 = { x: from.x + SCENE_CARD_W / 2, y: from.y + SCENE_CARD_H / 2 };
+        p1 = sceneDrag.pointer;
+      }
+
+      let extra = '<path d="M ' + svgNum(p0.x) + ' ' + svgNum(p0.y)
+        + ' L ' + svgNum(p1.x) + ' ' + svgNum(p1.y) + '"'
+        + ' fill="none" stroke="' + color + '" stroke-width="2" stroke-dasharray="6 4"/>';
+      // どちらからどちらへ繋ごうとしているかは、この機能でいちばん大事な情報なので
+      // 相手の上に来たら矢頭も出す
+      if (arrowDir) extra += sceneArrowPolygon(p1.x, p1.y, arrowDir, color);
+
+      // つなげない相手なら、なぜ赤いのかをその場に出す。
+      // 印だけだと理由が分からず、操作が効いていないように見える。
+      if (reason) {
+        const mx = (p0.x + p1.x) / 2;
+        const my = (p0.y + p1.y) / 2;
+        const w = svgTextWidth(reason, 11) + 12;
+        extra += '<rect x="' + svgNum(mx - w / 2) + '" y="' + svgNum(my - 10) + '"'
+          + ' width="' + svgNum(w) + '" height="20" rx="4" fill="#7f1d1d" stroke="#ef4444"/>'
+          + '<text x="' + svgNum(mx) + '" y="' + svgNum(my + 4) + '" text-anchor="middle"'
+          + ' font-size="11" fill="#fecaca">' + escapeHTML(reason) + '</text>';
+      }
+
+      svg.innerHTML = buildSceneEdgesSVG(currentScenes.edges, sceneLayout) + extra;
+
+      clearSceneLinkMarks();
+      if (hover && hover !== sceneDrag.id) {
+        const el = sceneCardElement(hover);
+        if (el) el.classList.add(ok ? 'link-ok' : 'link-ng');
+      }
+    }
+
+    function onScenePointerMove(e) {
+      if (!sceneDrag || e.pointerId !== sceneDrag.pointerId) return;
+
+      // 押しただけの手ぶれで動かさない。動いていなければ、指を離したときは選択として扱う。
+      if (!sceneDrag.moved) {
+        const dist = Math.abs(e.clientX - sceneDrag.startX) + Math.abs(e.clientY - sceneDrag.startY);
+        if (dist < 5) return;
+        sceneDrag.moved = true;
+      }
+
+      if (sceneDrag.linking) {
+        sceneDrag.pointer = canvasPointFromEvent(e);
+        sceneDrag.hover = sceneCardAt(e.clientX, e.clientY);
+        if (sceneDrag.raf) return;
+        sceneDrag.raf = requestAnimationFrame(() => {
+          if (!sceneDrag) return;
+          sceneDrag.raf = null;
+          drawSceneLinkPreview();
+        });
+        return;
+      }
+
+      const p = canvasPointFromEvent(e);
+      sceneDrag.pending = {
+        x: Math.max(0, p.x - sceneDrag.grabX),
+        y: Math.max(0, p.y - sceneDrag.grabY)
+      };
+      if (sceneDrag.raf) return;
+      sceneDrag.raf = requestAnimationFrame(() => {
+        if (!sceneDrag) return;
+        sceneDrag.raf = null;
+        const node = sceneNodeById(sceneDrag.id);
+        if (!node || !sceneDrag.pending) return;
+        node.x = sceneDrag.pending.x;
+        node.y = sceneDrag.pending.y;
+        sceneDrag.card.style.left = node.x + 'px';
+        sceneDrag.card.style.top = node.y + 'px';
+        // 動かしている間は段を計算し直さない。
+        // 他のカードが逃げ回ると、狙った場所に置けなくなる。
+        redrawSceneEdges();
+      });
+    }
+
+    function onScenePointerUp(e) {
+      if (!sceneDrag || e.pointerId !== sceneDrag.pointerId) return;
+      const drag = sceneDrag;
+      sceneDrag = null;
+      if (drag.raf) cancelAnimationFrame(drag.raf);
+      document.body.classList.remove('scene-linking');
+      clearSceneLinkMarks();
+
+      if (drag.linking) {
+        const to = drag.moved ? sceneCardAt(e.clientX, e.clientY) : null;
+        if (to && to !== drag.id && !drag.blocked.has(to)) {
+          addSceneEdge(drag.id, to);
+        } else {
+          // つながなかったときは、引きかけの線を消して元の見た目に戻す。
+          // 断る理由はドラッグ中に線の上へ出しているので、ここでは黙って戻す。
+          renderSceneView();
+        }
+        return;
+      }
+
+      if (!drag.moved) {
+        selectSceneNode(drag.id);
+        return;
+      }
+      renderSceneView();
+      scheduleSceneSave();
+    }
+
+    // 線だけ描き直す。ドラッグ中に全体を作り直すと、
+    // つかんでいるカードの要素ごと消えてポインタの追跡が切れる。
+    function redrawSceneEdges() {
+      const svg = document.querySelector('.scene-edges');
+      if (!svg || !sceneLayout) return;
+      currentScenes.nodes.forEach(n => {
+        if (n.x === null || n.y === null) return;
+        sceneLayout.pos[n.id] = { x: n.x, y: n.y };
+        // 動かした先ではもう経由点が意味を持たないので、手動配置として印を付ける。
+        // ここを忘れると、動かしている最中だけ線が古い経路を通る。
+        if (sceneLayout.manual) sceneLayout.manual.add(n.id);
+      });
+      svg.innerHTML = buildSceneEdgesSVG(currentScenes.edges, sceneLayout);
+    }
+
+    function realignSceneNodes() {
+      if (!currentScenes.nodes.some(n => n.x !== null || n.y !== null)) return;
+      if (!confirm('手で動かした位置を捨てて、自動配置に戻しますか？')) return;
+      currentScenes.nodes.forEach(n => { n.x = null; n.y = null; });
+      renderSceneView();
+      scheduleSceneSave();
+    }
+
+    function setSceneScale(value) {
+      const view = document.getElementById('scene-viewport');
+      if (value === 'fit') {
+        if (!view || !sceneLayout || !sceneLayout.width) {
+          sceneScale = 1;
+        } else {
+          sceneScale = Math.min(1,
+            (view.clientWidth - 24) / sceneLayout.width,
+            (view.clientHeight - 24) / sceneLayout.height);
+        }
+      } else {
+        sceneScale = parseFloat(value) || 1;
+      }
+      applySceneScale();
+    }
+
+    function applySceneScale() {
+      const canvas = document.getElementById('scene-canvas');
+      const wrap = document.getElementById('scene-canvas-wrap');
+      if (!canvas || !wrap) return;
+      canvas.style.transform = 'scale(' + sceneScale + ')';
+      // transform は要素の占める場所を変えないので、
+      // 縮めた見た目に合わせて入れ物のほうの大きさを指定し直す。
+      if (sceneLayout && sceneLayout.width) {
+        wrap.style.width = (sceneLayout.width * sceneScale) + 'px';
+        wrap.style.height = (sceneLayout.height * sceneScale) + 'px';
+      } else {
+        wrap.style.width = '';
+        wrap.style.height = '';
+      }
+    }
+
+    // --- 本文への行き来 ---
+
+    // textarea の中の「この文字位置」が、上から何pxのところにあるかを測る。
+    //
+    // 「何行目 × 行の高さ」では合わない。本文は幅の狭い欄に流し込まれるので
+    // ほとんどの段落が折り返され、論理的な行数と見た目の行数が一致しないためである。
+    // 同じ字送りで組んだ隠し要素に本文の先頭部分を流し込み、実測する。
+    function textareaOffsetTop(el, pos) {
+      const mirror = document.getElementById('editor-mirror');
+      // 幅が0のまま測ると1文字ごとに折り返され、桁違いの値になる。
+      // 呼ぶ側が先に執筆モードへ戻していること。
+      if (!mirror || !el || !el.clientWidth) return 0;
+
+      const cs = getComputedStyle(el);
+      ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing', 'lineHeight',
+       'textTransform', 'wordSpacing', 'textIndent', 'paddingTop', 'paddingLeft', 'paddingRight',
+       'borderTopWidth', 'borderLeftWidth', 'borderRightWidth', 'boxSizing', 'tabSize'
+      ].forEach(k => { mirror.style[k] = cs[k]; });
+      mirror.style.width = el.clientWidth + 'px';
+
+      mirror.textContent = el.value.slice(0, pos);
+      const marker = document.createElement('span');
+      marker.textContent = '​';
+      mirror.appendChild(marker);
+      const top = marker.offsetTop;
+      mirror.textContent = '';
+      return top;
+    }
+
+    function jumpToScene(id) {
+      const node = sceneNodeById(id || selectedSceneId);
+      if (!node || !editor) return;
+      if (!node.title) { alert('この場面にはまだ見出しの名前がありません。'); return; }
+
+      const hit = extractSceneHeadings(editor.value).headings.filter(h => h.title === node.title);
+      if (!hit.length) {
+        if (confirm('本文に「' + node.title + '」の見出しがありません。\n\n本文の末尾に作りますか？')) {
+          createHeadingForScene(node.id);
+        }
+        return;
+      }
+
+      setAppMode('write'); // 測る前に表示しておく（幅が0だと位置を計算できない）
+      editor.focus();
+      editor.setSelectionRange(hit[0].start, hit[0].end);
+      editor.scrollTop = Math.max(0, textareaOffsetTop(editor, hit[0].start) - editor.clientHeight * 0.25);
+    }
+
+    function createHeadingForScene(id) {
+      const node = sceneNodeById(id || selectedSceneId);
+      if (!node || !editor) return;
+      if (!node.title) { alert('先に見出しの名前を入力してください。'); return; }
+
+      setAppMode('write');
+      const text = editor.value;
+      editor.value = text + (text && !/\n\n$/.test(text) ? '\n\n' : '') + '# ' + node.title + '\n\n';
+      editor.focus();
+      editor.setSelectionRange(editor.value.length, editor.value.length);
+      handleInput();
+      syncSceneHeadings(false);
+    }
+
+    // --- [場面図] の出力 ---
+
+    // 図に出すノードだけを取り出す。rootTitle があれば、その場面から先だけに絞る。
+    function sceneMapSubgraph(rootTitle) {
+      const all = currentScenes.nodes;
+      const edges = currentScenes.edges;
+
+      const out = new Map();
+      all.forEach(n => out.set(n.id, []));
+      edges.forEach(e => { if (out.has(e.from)) out.get(e.from).push(e.to); });
+
+      let inScopeNodes = all;
+      if (rootTitle) {
+        const root = all.find(n => n.title === rootTitle);
+        if (!root) {
+          return { error: '場面「' + rootTitle + '」が見つかりません。', nodes: [], edges: [] };
+        }
+        const reach = new Set([root.id]);
+        const stack = [root.id];
+        while (stack.length) {
+          out.get(stack.pop()).forEach(next => {
+            if (!reach.has(next)) { reach.add(next); stack.push(next); }
+          });
+        }
+        inScopeNodes = all.filter(n => reach.has(n.id));
+      }
+      const inScope = new Set(inScopeNodes.map(n => n.id));
+
+      // 「図解に出さない」場面は描かないが、その前後は繋ぎ直す。
+      // ここで枝を切ると、細かい場面を畳んだだけなのに
+      // 「最終決戦にたどり着かないルート」が図の上に生まれてしまう。
+      const visible = inScopeNodes.filter(n => n.inDiagram !== false);
+      const visibleIds = new Set(visible.map(n => n.id));
+
+      const built = [];
+      const seenPair = new Set();
+      visible.forEach(n => {
+        const stack = out.get(n.id).slice();
+        const seen = new Set();
+        while (stack.length) {
+          const to = stack.pop();
+          if (seen.has(to) || !inScope.has(to)) continue;
+          seen.add(to);
+          if (!visibleIds.has(to)) {
+            out.get(to).forEach(next => stack.push(next)); // 隠した場面は通り抜ける
+            continue;
+          }
+          const pair = n.id + '>' + to;
+          if (seenPair.has(pair)) continue;
+          seenPair.add(pair);
+          const orig = edges.find(e => e.from === n.id && e.to === to);
+          built.push({
+            id: orig ? orig.id : pair,
+            from: n.id,
+            to: to,
+            label: orig ? orig.label : '',
+            indirect: !orig
+          });
+        }
+      });
+
+      return { error: null, nodes: visible, edges: built };
+    }
+
+    // SVGには自動の折り返しが無いので、文字幅を積んで tspan で折る。
+    // 日本語はどこでも改行できるため、単語の区切りを見る必要はない。
+    function wrapSvgText(str, o) {
+      const chars = Array.from(String(str));
+      const maxUnits = Math.max(1, o.width / o.fontSize);
+      const lines = [];
+      let cur = '';
+      let units = 0;
+      let i = 0;
+      for (; i < chars.length; i++) {
+        const w = (chars[i].charCodeAt(0) > 0xff) ? 1 : 0.55;
+        if (units + w > maxUnits && cur) {
+          lines.push(cur);
+          if (lines.length >= o.maxLines) break;
+          cur = '';
+          units = 0;
+        }
+        cur += chars[i];
+        units += w;
+      }
+      if (lines.length < o.maxLines && cur) { lines.push(cur); i = chars.length; }
+      if (i < chars.length && lines.length) {
+        const last = lines[lines.length - 1];
+        lines[lines.length - 1] = last.slice(0, Math.max(0, last.length - 1)) + '…';
+      }
+
+      let out = '<text x="' + svgNum(o.x) + '" y="' + svgNum(o.y) + '"'
+        + ' font-size="' + o.fontSize + '" fill="' + o.fill + '"'
+        + (o.weight ? ' font-weight="' + o.weight + '"' : '') + '>';
+      lines.forEach((line, idx) => {
+        out += '<tspan x="' + svgNum(o.x) + '"' + (idx ? ' dy="1.3em"' : '') + '>'
+          + escapeHTML(line) + '</tspan>';
+      });
+      return out + '</text>';
+    }
+
+    // 紙とプレビューに載せる場面図。
+    //
+    // 画面側の樹形図はHTMLのカードで組んでいるが、こちらは1枚のSVGにする。
+    // プレビューは innerHTML をまるごと入れ替えるので、HTMLで組むと位置合わせの
+    // 計測が毎回必要になるうえ、そのままでは紙に載せにくい。
+    //
+    // 文字は escapeHTML だけを通す。decorate() は <span> と <br> を作るが、
+    // どちらもSVGの中では効かない（色は fill 属性、改行は tspan である）。
+    // 「エスケープ→装飾→改行」の順序ルールに対する例外で、docs/04 に理由がある。
+    function buildSceneMapSVG(graph, layout, opts) {
+      const o = opts || {};
+      const cardFill = o.cardFill || '#ffffff';
+      const cardStroke = o.cardStroke || '#cbd5e1';
+      const textColor = o.textColor || '#2d3748';
+      const subColor = o.subColor || '#64748b';
+      const edgeColor = o.edgeColor || '#94a3b8';
+
+      let cards = '';
+      graph.nodes.forEach(n => {
+        const p = layout.pos[n.id];
+        if (!p) return;
+        const kind = SCENE_KINDS[n.kind] || SCENE_KINDS[DEFAULT_SCENE_KIND];
+        cards += '<rect x="' + svgNum(p.x) + '" y="' + svgNum(p.y) + '"'
+          + ' width="' + SCENE_CARD_W + '" height="' + SCENE_CARD_H + '" rx="6"'
+          + ' fill="' + cardFill + '" stroke="' + cardStroke + '" stroke-width="1"/>'
+          + '<rect x="' + svgNum(p.x) + '" y="' + svgNum(p.y) + '" width="4"'
+          + ' height="' + SCENE_CARD_H + '" fill="' + kind.print + '"/>'
+          + wrapSvgText(n.title || '無題の場面', {
+              x: p.x + 12, y: p.y + 24, width: SCENE_CARD_W - 24,
+              fontSize: 12, fill: textColor, weight: '700', maxLines: 2
+            })
+          + '<text x="' + svgNum(p.x + 12) + '" y="' + svgNum(p.y + SCENE_CARD_H - 12) + '"'
+          + ' font-size="9" fill="' + subColor + '">' + escapeHTML(kind.label) + '</text>';
+      });
+
+      const lines = buildSceneEdgesSVG(graph.edges, layout, {
+        stroke: edgeColor, labelColor: textColor, labelBg: '#ffffff', fontSize: 10
+      });
+
+      // 実寸を width / height に入れておき、CSS 側は max-width だけで抑える。
+      // width:100% にすると、小さい図まで紙幅いっぱいに引き伸ばされて文字が不格好に太る。
+      return '<svg viewBox="0 0 ' + svgNum(layout.width) + ' ' + svgNum(layout.height) + '"'
+        + ' width="' + svgNum(layout.width) + '" height="' + svgNum(layout.height) + '"'
+        + ' preserveAspectRatio="xMidYMid meet" role="img" aria-label="場面のつながりを示した図">'
+        + lines + cards + '</svg>';
+    }
+
+    function buildSceneMapBlockHTML(rootTitle) {
+      try {
+        const graph = sceneMapSubgraph(rootTitle);
+        if (graph.error) {
+          return '<div class="scene-map-error">⚠️ ' + escapeHTML(graph.error) + '</div>';
+        }
+        if (!graph.nodes.length) {
+          return '<div class="scene-map-error">この図に出せる場面がありません。'
+            + '場面図タブで場面を作るか、「[場面図] に出す」を確認してください。</div>';
+        }
+        const layout = layoutSceneGraph(graph.nodes, graph.edges);
+        let html = '<div class="scene-map-block">' + buildSceneMapSVG(graph, layout) + '</div>';
+        // 縮めすぎて読めなくなる規模では、分けて描く方法を案内する
+        if (layout.width > 1400 && layout.height > 1500) {
+          html += '<p class="scene-map-note">※ 場面が多いため縮小されています。'
+            + '<code>[場面図:場面名]</code> で分けると読みやすくなります。</p>';
+        }
+        return html;
+      } catch (err) {
+        // updatePreview() は innerHTML への1回の代入なので、ここで例外が外へ出ると
+        // プレビュー全体が空白になる。図が出ないことより、そちらのほうが困る。
+        console.error('場面図を描けませんでした:', err);
+        return '<div class="scene-map-error">場面図を描けませんでした。</div>';
+      }
+    }
+
     // === カスタムMarkdownパーサ ===
     function parseMarkdown(text) {
       if (!text.trim()) return '<p style="color: #94a3b8; font-style: italic;">テキストを入力するとここにプレビューが表示されます。</p>';
@@ -4544,7 +6357,23 @@ ${derivedHTML}
           continue;
         }
 
-        // 2. 段落 (メインカラム・サイドカラムに分解)
+        // 2. 場面図 [場面図] / [場面図:場面名]
+        //
+        // parseElement() ではなく、ここ（段組みに入る前）で処理している。
+        // parseElement を通すと図が本文カラム（幅72%）に収まってしまい、
+        // 紙に出したときの有効幅が130mm程度まで狭くなるため。
+        // 見出しと同じく、段組みの外に出す全幅のブロックとして扱う。
+        //
+        // ここでのブロックは未エスケープの生文字列である（parseElement は
+        // 先頭で1回エスケープしたあとの文字列を扱う）。場面名の照合をどちらの
+        // 入口でもできるようにすると、& を含む名前で結果が食い違う。
+        const sceneMapMatch = block.match(/^\[場面図(?:\s*[:：]\s*([^\]\n]+))?\]$/);
+        if (sceneMapMatch) {
+          html += buildSceneMapBlockHTML(sceneMapMatch[1] ? sceneMapMatch[1].trim() : null);
+          continue;
+        }
+
+        // 3. 段落 (メインカラム・サイドカラムに分解)
         let mainText = '';
         let sideText = '';
 
@@ -4576,6 +6405,18 @@ ${derivedHTML}
     function parseElement(text, type) {
       if (!text) return '';
       let html = escapeHTML(text);
+
+      // 場面図は段組みの外に出す必要があるため parseMarkdown() が処理している。
+      // ここへ来たということは、前後に空行が無くて段落の一部になっているということ。
+      // 記法をそのまま紙に出さないよう、書き方だけを伝えて終わる。
+      //
+      // ここで場面名を読んで図を描くことはしない。この関数が受け取る文字列は
+      // エスケープ済みで、parseMarkdown 側は生のままなので、同じ照合をすると
+      // 「&」を含む場面名で入口ごとに結果が変わってしまう。
+      if (html.startsWith('[場面図')) {
+        return '<div class="scene-map-note">🗺 場面図は、前後に空行を入れて、'
+          + 'その行だけの段落として書いてください。</div>';
+      }
 
       if (type === 'main') {
         // 情景描写・セリフ (行頭 '>')
@@ -4897,6 +6738,10 @@ ${parseRollResultLines(lines, 1)}            </div>
         case 'tips':
           template = ' >> [TIPS] ';
           break;
+        // 段組みの外に出る全幅のブロックなので、前後を必ず空行で挟む
+        case 'scene-map':
+          template = '\n\n[場面図]\n\n';
+          break;
       }
 
       insertAtCursor(template);
@@ -5054,6 +6899,7 @@ ${parseRollResultLines(lines, 1)}            </div>
         'san': { id: 'btn-shortcut-san', baseText: '🧠 SANチェック' },
         'tips': { id: 'btn-shortcut-tips', baseText: '💡 TIPS/補足' },
         'color': { id: 'btn-shortcut-color', baseText: '🎨 文字色' },
+        'scene-map-insert': { id: 'btn-shortcut-scene-map-insert', baseText: '🗺 場面図を挿入' },
         'npc': { id: 'btn-shortcut-npc', baseText: '👥 NPC管理' }
       };
 
@@ -5076,6 +6922,23 @@ ${parseRollResultLines(lines, 1)}            </div>
     // fetch では読めない（file:// で開くと必ず失敗する）ので、ここへ転記して持つ。
     // 文面を直すときは両方を揃えること。
     const RELEASE_NOTES = [
+      {
+        version: '1.8.0', date: '2026-09-08',
+        sections: [
+          { title: '新機能', items: [
+            '画面上部に「場面図」タブを追加しました。場面をカードにして、分岐や合流を樹形図で並べられます。物語の骨格を目で追いながら書けます。',
+            '本文に書いた # の見出しを場面図へ取り込めます。カードをクリックすると、本文のその見出しへ飛びます。まだ書いていない場面をカードだけ先に置くこともでき、その場合は「未執筆」の印が付きます。',
+            '場面どうしをつないで、分岐と合流を表せます。カードを Ctrl を押しながら相手へドラッグするだけでつながります。引いている間に、つながるかどうかと、つながらない場合はその理由が出ます。つなぎ目には「【目星】成功」のような条件を書けます。話が輪になってしまう接続は作れないようにしてあります。',
+            '線がつながる辺は、カードの位置関係に合わせて変わります。上下に並べれば下と上、横に並べれば右と左で結ばれるので、カードを並べ替えても線が回り込みません。',
+            'カードには概要メモ・種別（導入／調査／戦闘など）・登場NPCを持たせられます。種別はカードの色に出ます。',
+            'カードは自由に動かせます。動かした位置は保存され、「整列」で自動配置に戻せます。',
+            '本文に [場面図] と書くと、場面のつながりがプレビューとPDFに図として出ます。[場面図:書斎] のように書くと、その場面から先だけを切り出せます。カードごとに図へ出すかどうかも選べます。'
+          ] },
+          { title: '改善', items: [
+            '# で書いたのに、前に空行が無いせいで見出しになっていない行を、場面図タブで知らせるようにしました。これまではプレビューに出ないだけで、気づく手がかりがありませんでした。'
+          ] }
+        ]
+      },
       {
         version: '1.7.0', date: '2026-09-02',
         sections: [
@@ -5204,6 +7067,11 @@ ${parseRollResultLines(lines, 1)}            </div>
       // 3. モーダルが開いている場合（NPC管理、判定モーダル、シナリオ一覧など）は、
       // 基本的な誤爆を防ぐため、保存（Ctrl+S）以外のショートカット挿入はブロックする
       const isAnyModalOpen = document.querySelector('.modal.active') !== null;
+
+      // 場面図モードでは本文の入力欄が隠れている。ここで挿入系のショートカットを通すと、
+      // 見えない本文に記法が書き込まれ、プレビューも隠れているので著者は気づけない。
+      // 保存と画面切り替えだけは通す（保存できないほうが驚かれる）。
+      const isSceneMode = document.body.dataset.mode === 'scene';
       
       // 3. ショートカットの照合
       for (const actionId in shortcuts) {
@@ -5218,6 +7086,9 @@ ${parseRollResultLines(lines, 1)}            </div>
         if (keyMatched && ctrlMatched && altMatched && shiftMatched) {
           // モーダルが開いている時は、保存アクションのみ実行可能にする
           if (isAnyModalOpen && actionId !== 'cloud-save') {
+            continue;
+          }
+          if (isSceneMode && actionId !== 'cloud-save' && actionId !== 'scene-map') {
             continue;
           }
           
@@ -5264,6 +7135,12 @@ ${parseRollResultLines(lines, 1)}            </div>
           break;
         case 'color':
           openColorModal();
+          break;
+        case 'scene-map':
+          setAppMode(document.body.dataset.mode === 'scene' ? 'write' : 'scene');
+          break;
+        case 'scene-map-insert':
+          insertTemplate('scene-map');
           break;
         case 'cloud-save':
           saveScenarioToStore();
@@ -5473,5 +7350,8 @@ ${parseRollResultLines(lines, 1)}            </div>
       renderShortcutList();
     }
   </script>
+
+  <!-- 本文エディタと同じ字送りで文字位置を測るための隠し要素（場面図から本文へ飛ぶときに使う） -->
+  <div id="editor-mirror" class="no-print" aria-hidden="true"></div>
 </body>
 </html>

@@ -233,6 +233,25 @@
            安全側に倒したつもりで、表示が壊れる。</p>
       </div>
     </div>
+
+    <h3>4.2 SVGの中だけは <code>decorate()</code> を通さない（2026-09-08 追加）</h3>
+    <p>
+      <code>[場面図]</code> のように、出力がSVGになる記法では
+      <strong><code>escapeHTML()</code> だけを通し、<code>decorate()</code> は通さない</strong>。
+      能力値のレーダーチャートも同じ扱いである。
+    </p>
+    <div class="callout warn">
+      <code>decorate()</code> が作る <code>&lt;span&gt;</code> と <code>&lt;br&gt;</code> は、
+      <strong>どちらもSVGの中では効かない</strong>。SVGでは色は <code>fill</code> 属性、
+      改行は <code>&lt;tspan&gt;</code> で表す。通しても描画されないか、要素ごと無視される。
+      <br><br>
+      <strong>これは順序ルールの例外である。</strong>ここに書き残しておかないと、
+      「順序ルールに従っていない」と見えて後から <code>decorate()</code> を足され、図が壊れる。
+    </div>
+    <p>
+      結果として、<strong>SVGで描く部分では文字色の記法が効かない</strong>。
+      詳細は <a href="06_場面ツリー設計書.html">06 場面ツリー設計書</a> §9.3 にある。
+    </p>
   </section>
 
   <section>
@@ -336,13 +355,29 @@
 
     <h3>7.1 ブロック記法を足す場合</h3>
     <ul class="checklist">
-      <li><code>parseElement()</code> — 記法をHTMLに変換する</li>
+      <li><strong>変換をどちらに置くか決める</strong> — 本文カラムに収まる記法は <code>parseElement()</code>、
+          紙の幅いっぱいを使う記法は <code>parseMarkdown()</code>（下の注意を参照）</li>
       <li><code>insertTemplate()</code> または専用モーダル — 下部パネルから挿入する</li>
       <li><code>DEFAULT_SHORTCUTS</code> — ショートカットの割当と設定画面のラベル</li>
       <li><code>updateAssistantPanelShortcutLabels()</code> / <code>executeShortcutAction()</code> — パネルとキー操作の配線</li>
       <li>システム固有なら <code>GAME_SYSTEMS</code> のフラグと <code>applySystemToUI()</code> の出し分け</li>
       <li><a href="01_要件定義書.html">要件定義書 §4</a> の記法一覧</li>
     </ul>
+
+    <div class="callout warn">
+      <strong>全幅で使いたい記法を <code>parseElement()</code> に足さないこと（2026-09-08 追記）。</strong>
+      <code>parseElement()</code> が返したものは本文カラム（幅72%）の中に入る。
+      図や表のように横幅を必要とするものは、紙に出したときの有効幅が130mm程度まで狭くなる。
+      見出しや <code>[場面図]</code> と同じく、<code>parseMarkdown()</code> のブロック処理に足して
+      段組みの外へ出すこと。
+      <br><br>
+      <strong>そのとき、扱う文字列のエスケープ状態が変わる点に注意する。</strong>
+      <code>parseElement()</code> は先頭で1回エスケープした文字列を扱うが、
+      <code>parseMarkdown()</code> のブロックは生の文字列である。
+      両方の入口で同じ引数（場面名など）を解釈すると、
+      <code>&amp;</code> を含む値のときだけ結果が食い違う。
+      片方の入口では<strong>引数を読まない</strong>ようにするのが安全である。
+    </div>
 
     <h3>7.2 インライン装飾を足す場合</h3>
     <p>
@@ -368,7 +403,8 @@
   </nav>
 
   <footer class="pagefoot">
-    最終更新: 2026-09-01（新規作成。文字色・判定結果の複数行・SANチェックの追加に伴い、記法の設計判断を集約。あわせて §3.5「装飾はブロックのレイアウトを壊しうる」を追加）
+    最終更新: 2026-09-08（<code>[場面図]</code> の追加に伴い、§4.2「SVGの中だけは decorate() を通さない」を追加し、§7.1 に全幅ブロックの置き場所とエスケープ状態の注意を追記）<br>
+    2026-09-01（新規作成。文字色・判定結果の複数行・SANチェックの追加に伴い、記法の設計判断を集約。あわせて §3.5「装飾はブロックのレイアウトを壊しうる」を追加）
   </footer>
 
 </div>

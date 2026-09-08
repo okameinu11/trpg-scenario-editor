@@ -122,9 +122,14 @@
       <thead><tr><th>データ</th><th>置き場所</th><th>理由</th></tr></thead>
       <tbody>
         <tr>
-          <td><strong>シナリオ保存庫</strong><br>本文・タイトル・システム・NPC</td>
+          <td><strong>シナリオ保存庫</strong><br>本文・タイトル・システム・NPC・場面ツリー</td>
           <td>IndexedDB <code>scenarios</code></td>
           <td>容量の主因。一覧・読込・削除の対象</td>
+        </tr>
+        <tr>
+          <td><strong>場面ツリー</strong></td>
+          <td>上のレコードの中（<code>scenes</code>）</td>
+          <td>数KBしかなく、分けると孤児の回収が要る。理由は <a href="06_場面ツリー設計書.html">06</a> §3.1</td>
         </tr>
         <tr>
           <td><strong>立ち絵画像</strong></td>
@@ -153,10 +158,18 @@
 
     <h3>3.2 オブジェクトストア</h3>
     <p>DB名 <code>trpg_scenario_editor</code>、バージョン1。</p>
+    <div class="callout warn">
+      <strong>ストアを追加してバージョンを上げるときは、先に <code>idbOpen()</code> に
+      <code>onblocked</code> を足すこと。</strong>
+      現在は未実装で、この状態で版を上げると、アプリを別のタブでも開いている利用者は
+      更新処理に進めず、成功も失敗も返らないまま起動処理が止まる（画面は「読み込み中」のまま）。
+      既存ストアのレコードにフィールドを足すだけなら版を上げる必要は無い
+      （<a href="06_場面ツリー設計書.html">06</a> §3.2 に <code>scenes</code> での判断がある）。
+    </div>
     <table>
       <thead><tr><th>ストア</th><th>キー</th><th>値</th></tr></thead>
       <tbody>
-        <tr><td><code>scenarios</code></td><td><code>id</code></td><td><code>{ id, title, content, system, npcs, updated_at }</code></td></tr>
+        <tr><td><code>scenarios</code></td><td><code>id</code></td><td><code>{ id, title, content, system, npcs, scenes, updated_at }</code></td></tr>
         <tr><td><code>avatars</code></td><td><code>id</code></td><td><code>{ id, blob }</code></td></tr>
         <tr><td><code>workspace</code></td><td><code>key</code></td><td><code>{ key, value }</code>（キーは <code>current</code> の1件だけ）</td></tr>
       </tbody>
