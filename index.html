@@ -399,6 +399,98 @@
     font-size: 0.72rem;
     line-height: 1.5;
   }
+  /* プレイヤーへ渡す情報 [情報:題名]。チャットに貼る文面そのものなので、
+     卓上の「配布資料」に見えるよう白地に細い枠で囲み、見出し行に題名・公開対象・コピーを並べる。
+     見出し行の flex に載せるのは題名（装飾の入らない文字）とボタンだけ（記法設計書 §3.5） */
+  #preview-area .info-block {
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 6px;
+    background-color: #ffffff !important;
+    overflow: hidden;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  #preview-area .info-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    background-color: #f1f5f9 !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+  }
+  #preview-area .info-title {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #1e293b !important;
+  }
+  #preview-area .info-body {
+    padding: 8px 12px;
+    font-family: 'Noto Serif JP', "BIZ UDMincho", "Hiragino Mincho ProN", "Yu Mincho", YuMincho, serif;
+    font-size: 0.92rem;
+    line-height: 1.75;
+    color: var(--preview-text) !important;
+  }
+  #preview-area .info-empty {
+    color: #94a3b8 !important;
+    font-size: 0.8rem;
+  }
+  #preview-area .info-action {
+    flex-shrink: 0;
+    padding: 2px 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    background-color: #ffffff;
+    color: #334155;
+    font-family: inherit;
+    font-size: 0.74rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  #preview-area .info-action:hover {
+    border-color: #3b82f6;
+    color: #1d4ed8;
+  }
+  #preview-area .info-action.copied {
+    border-color: #86efac;
+    color: #166534;
+  }
+  #preview-area .info-missing {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-color: #fed7aa !important;
+    background-color: #fff7ed !important;
+    color: #7c2d12 !important;
+    font-size: 0.85rem;
+  }
+  #preview-area .info-missing-text {
+    flex: 1;
+    min-width: 0;
+  }
+  /* 情報一覧から移動したとき、どのブロックかを一瞬だけ示す */
+  #preview-area .info-block.flash {
+    animation: info-flash 1.2s ease-out;
+  }
+  @keyframes info-flash {
+    0% { box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.6); }
+    100% { box-shadow: 0 0 0 4px rgba(59, 130, 246, 0); }
+  }
+  /* 公開対象のバッジ。「全員」は緑、誰かに限った情報は琥珀色、未設定は赤で目立たせる
+     （秘匿のつもりの情報を全員に送る事故を防ぐため） */
+  .info-target {
+    flex-shrink: 0;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .info-target-all { background-color: #dcfce7 !important; color: #166534 !important; }
+  .info-target-some { background-color: #fef3c7 !important; color: #92400e !important; }
+  .info-target-unset { background-color: #fee2e2 !important; color: #b91c1c !important; }
   #preview-area .npc-speech-missing {
     margin-left: 8px;
     padding: 1px 6px;
@@ -705,7 +797,7 @@
      ボタンは ACTIONS から renderAssistantPanel() が組み立てる。
      アイコンの下に名前を置く縦組みにして、1個あたりの幅を詰めている。
      ショートカットは名前に含めず、マウスを乗せたときの吹き出し（#panel-tip）に出す。
-     幅が足りなければ data-density を full → short → tight と詰め、
+     幅が足りなければ data-density を full → nocaption（分類名を消す）→ short → tight と詰め、
      それでも収まらない狭い画面だけ横スクロールに任せる（fitAssistantPanel()）。 */
   .assistant-panel {
     background-color: var(--bg-card);
@@ -797,9 +889,12 @@
   .assistant-panel[data-density="tight"] .btn-panel-short {
     display: inline;
   }
+  /* nocaption は分類名だけを消して正式名を保つ段（正式名を削るより先に、分類名を譲る） */
   .assistant-panel[data-density="short"] .btn-panel-palette-keys,
   .assistant-panel[data-density="tight"] .btn-panel-palette-keys,
   .assistant-panel[data-density="tight"] .btn-panel-palette-label,
+  .assistant-panel[data-density="nocaption"] .panel-group-label,
+  .assistant-panel[data-density="short"] .panel-group-label,
   .assistant-panel[data-density="tight"] .panel-group-label {
     display: none;
   }
@@ -932,6 +1027,186 @@
     font-size: 0.72rem;
     color: var(--text-secondary);
   }
+  /* === 情報一覧パネル ===
+     セッション中は右の台本（プレビュー）を読みながら使うので、エディタ側（左）に重ねて開く。
+     .workspace の中に絶対配置で置き、場面図モードでは .workspace ごと隠れる。 */
+  .info-drawer {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: min(460px, 50%);
+    box-sizing: border-box;
+    z-index: 15;
+    flex-direction: column;
+    background-color: var(--bg-card);
+    border-right: 1px solid var(--border-color);
+    box-shadow: 8px 0 24px rgba(0, 0, 0, 0.35);
+  }
+  .info-drawer.open {
+    display: flex;
+  }
+  /* 縦画面ではエディタとプレビューが上下に並ぶので、左半分に重ねると両方を中途半端に隠す。全幅で開く */
+  @media (max-width: 768px) {
+    .info-drawer {
+      width: 100%;
+    }
+  }
+  .info-drawer-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .info-drawer-head strong {
+    flex: 1;
+  }
+  .info-drawer-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 8px 12px 16px;
+  }
+  .info-drawer-empty {
+    padding: 24px 8px;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    line-height: 1.8;
+  }
+  .info-group-heading {
+    margin: 12px 2px 6px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+  }
+  .info-item {
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: var(--bg-input);
+  }
+  .info-item.editing {
+    border-color: var(--accent-color);
+  }
+  .info-item-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  /* 題名を押すと本文のその情報へ移動する */
+  .info-item-title {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .info-item-title:hover {
+    color: var(--accent-color);
+  }
+  .info-item-preview {
+    margin: 4px 0 6px;
+    font-size: 0.76rem;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .info-item-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+  .info-item-actions .btn-small.copied {
+    border-color: #22c55e;
+    color: #86efac;
+  }
+  .info-item-usage {
+    margin-left: auto;
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+  }
+  .info-item-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+  }
+  .info-item-editor .form-label {
+    font-size: 0.74rem;
+  }
+  /* 本文は書いた量に合わせて伸ばす（field-sizing の対応ブラウザのみ。未対応では手で伸ばせる） */
+  .info-body-input {
+    min-height: 7em;
+    line-height: 1.6;
+    resize: vertical;
+    field-sizing: content;
+  }
+  .info-item-editor-foot {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  /* 情報一覧の開閉ボタン。プレビューの上端に細い帯として置き、スクロールしても残す。
+     ボタンだけを浮かせると、スクロールしたときに台本の文字に重なるため、帯で場所を取っている。
+     左寄せなのは、情報一覧が開く側（左）に合わせるため。印刷には出さない（.no-print） */
+  .preview-tools {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    background-color: rgba(255, 255, 255, 0.95);
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .info-drawer-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 0 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 16px;
+    background-color: rgba(255, 255, 255, 0.92);
+    color: #334155;
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+    cursor: pointer;
+  }
+  .info-drawer-toggle:hover,
+  .info-drawer-toggle.active {
+    border-color: var(--accent-color);
+    color: #1d4ed8;
+  }
+  .info-drawer-count {
+    min-width: 1.4em;
+    padding: 0 6px;
+    border-radius: 10px;
+    background-color: #e2e8f0;
+    font-size: 0.7rem;
+    text-align: center;
+  }
+
   /* NPCのセリフを選ぶ画面の備考欄 */
   .speech-note-row {
     display: flex;
@@ -2474,8 +2749,26 @@
       <textarea id="editor" class="editor-textarea" placeholder="ここにシナリオを記述します... (Markdown記法が使えます)"></textarea>
     </section>
 
+    <!-- 情報一覧（プレイヤーへ渡す情報の追加・編集・コピー）。
+         セッション中は右の台本を読みながら使うので、エディタ側（左）に重ねて開く -->
+    <aside id="info-drawer" class="info-drawer no-print" aria-label="情報一覧">
+      <div class="info-drawer-head">
+        <strong>📑 情報一覧</strong>
+        <button type="button" class="btn btn-small btn-primary" onclick="addInfoFromDrawer()">＋ 情報を追加</button>
+        <button type="button" class="btn-close" onclick="toggleInfoDrawer(false)" aria-label="閉じる">&times;</button>
+      </div>
+      <div id="info-drawer-list" class="info-drawer-list"></div>
+    </aside>
+    <!-- 公開対象の候補（「全員」と、このシナリオで使った対象）。renderInfoDrawer() が作り直す -->
+    <datalist id="info-target-options"></datalist>
+
     <!-- 右側：プレビュー -->
     <section class="preview-section">
+      <!-- 情報一覧の開閉。スクロールしても左上に残るよう、高さ0の sticky に載せる -->
+      <div class="preview-tools no-print">
+        <button type="button" id="info-drawer-toggle" class="info-drawer-toggle" onclick="toggleInfoDrawer()"
+                title="情報一覧（Alt+L）">📑 情報一覧 <span id="info-drawer-count" class="info-drawer-count">0</span></button>
+      </div>
       <div class="preview-paper">
         <div id="preview-area"></div>
       </div>
@@ -2777,6 +3070,24 @@
       <div class="modal-footer" style="padding: 15px; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; background-color: var(--bg-card);">
         <button class="btn" onclick="resetShortcutsToDefault()">デフォルトに戻す</button>
         <button class="btn btn-primary" onclick="closeShortcutModal()">完了</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 📄 情報（登録した情報を選んで [情報:題名] を挿入する。まだ無い題名なら、その場で登録して挿入する） -->
+  <div id="info-modal" class="modal modal-palette">
+    <div class="modal-content palette-content" role="dialog" aria-label="情報を挿入">
+      <div class="palette-search">
+        <span aria-hidden="true">📄</span>
+        <input type="text" id="info-input" class="palette-input" autocomplete="off" spellcheck="false"
+               placeholder="挿入する情報を選ぶ（題名で絞り込み／新しい題名なら登録して挿入）">
+        <button class="btn-close" tabindex="-1" onclick="closeInfoModal()" aria-label="閉じる">&times;</button>
+      </div>
+      <div id="info-list" class="palette-list" role="listbox"></div>
+      <div class="palette-footer">
+        <span><kbd class="kbd-badge">↑</kbd> <kbd class="kbd-badge">↓</kbd> 選ぶ</span>
+        <span><kbd class="kbd-badge">Enter</kbd> 挿入</span>
+        <span><kbd class="kbd-badge">Esc</kbd> 閉じる</span>
       </div>
     </div>
   </div>
@@ -3206,6 +3517,9 @@
     let npcPickerOpen = { skills: false, emotions: false };
     // 場面ツリー。形は normalizeSceneGraph() が保証する（常に閉路の無いDAG）。
     let currentScenes = { nodes: [], edges: [] };
+    // プレイヤーへ渡す情報（2026-10-05）。[{ id, title, target, body }]。形は normalizeInfoList() が保証する。
+    // 本文には [情報:題名] で参照だけを書き、中身はここに持つ（NPCと同じ考え方。docs/04_記法設計書.html §9）
+    let currentInfos = [];
     let selectedSceneId = null; // 選択中の場面カード ID
     let isSaving = false;
     let debounceTimer;
@@ -3266,6 +3580,11 @@
       { id: 'npc-speech', group: 'text', icon: '🗣', name: 'NPCのセリフ', short: 'セリフ',
         desc: 'NPCを選んで [セリフ:NPC名] を挿入', keywords: 'せりふ はつげん だいし かいわ npc quote',
         key: withAlt('q'), run: () => openSpeechModal() },
+      // 情報も、どの情報かを選ぶ画面を開く（新しい題名ならその場で登録できる）
+      { id: 'info', group: 'text', icon: '📄', name: '情報', short: '情報',
+        desc: '登録した情報を選んで [情報:題名] を挿入（新しい題名なら登録して挿入）',
+        keywords: 'じょうほう はんどあうと しりょう info handout', key: withAlt('i'),
+        run: () => openInfoModal() },
       // エモクロアでは DL情報 / [DL]、CoCでは KP情報 / [KP]
       { id: 'dl', group: 'text', icon: '📋', name: () => gmInfoLabel(), short: () => gmInfoTag(),
         desc: () => '行頭に [' + gmInfoTag() + '] を挿入', keywords: 'でぃーえるじょうほう けーぴーじょうほう kp gm',
@@ -3306,6 +3625,10 @@
         desc: '執筆と場面図を切り替える', keywords: 'ばめんず しっぴつ きりかえ map', key: withAlt('m'),
         inSceneMode: true,
         run: () => setAppMode(document.body.dataset.mode === 'scene' ? 'write' : 'scene') },
+      // 本文は書き換えないが、開く先がエディタの上なので場面図の表示中は受け付けない
+      { id: 'info-list', group: 'app', icon: '📑', name: '情報一覧', panel: false,
+        desc: '情報の一覧を開く・閉じる（追加・編集・コピー）', keywords: 'じょうほういちらん こぴー はんどあうと',
+        key: withAlt('l'), run: () => toggleInfoDrawer() },
       { id: 'list', group: 'app', icon: '📂', name: 'シナリオ一覧', panel: false,
         desc: '保存したシナリオの一覧を開く', keywords: 'しなりおいちらん', key: null,
         inSceneMode: true, run: () => openListModal() },
@@ -3364,6 +3687,7 @@
     let releaseModal, releaseList, versionTag;
     let paletteModal, paletteInput, paletteList;
     let speechModal, speechInput, speechList, speechNote;
+    let infoModal, infoInput, infoList, infoDrawer, infoDrawerList;
 
     // === データ永続化層 ===
     //
@@ -3737,6 +4061,20 @@
         .filter(m => (m.title || '').trim() || (m.body || '').trim());
     }
 
+    // 情報の正規化。保存・読込・書き出し・読み込み・移行のすべての入口をここに通す。
+    // この機能より前のシナリオには infos が無いので、空の一覧に均す。
+    function normalizeInfoList(list) {
+      if (!Array.isArray(list)) return [];
+      return list
+        .filter(x => x && typeof x === 'object')
+        .map(x => ({
+          id: typeof x.id === 'string' && x.id ? x.id : generateUUID(),
+          title: typeof x.title === 'string' ? x.title : '',
+          target: typeof x.target === 'string' ? x.target : '',
+          body: typeof x.body === 'string' ? x.body : ''
+        }));
+    }
+
     // システムIDの正規化。
     // system を持たない既存シナリオ（この機能より前に保存されたもの）と、
     // 未知の値が入ってきた場合は、すべてエモクロアとして扱う。
@@ -3894,12 +4232,14 @@
             npcs: npcs,
             // この機能より前に保存されたシナリオには scenes が無い。
             // normalizeSceneGraph() が undefined を空のグラフに均すので分岐は要らない。
-            scenes: normalizeSceneGraph(sc.scenes)
+            scenes: normalizeSceneGraph(sc.scenes),
+            // infos も同じ（2026-10-05 より前のシナリオには無い）
+            infos: normalizeInfoList(sc.infos)
           }));
         });
       },
 
-      saveScenario(id, title, content, npcsData = [], systemId, scenesData) {
+      saveScenario(id, title, content, npcsData = [], systemId, scenesData, infosData) {
         const now = new Date().toISOString();
         return idbPut(STORE_SCENARIOS, {
           id: id,
@@ -3908,6 +4248,7 @@
           system: normalizeSystemId(systemId),
           npcs: normalizeNpcList(npcsData).map(stripAvatarUrl),
           scenes: normalizeSceneGraph(scenesData),
+          infos: normalizeInfoList(infosData),
           updated_at: now
         }).then(() => ({ success: true, updated_at: now }));
       },
@@ -3952,6 +4293,7 @@
               npcs: await npcsWithDataUrls(normalizeNpcList(s.npcs)),
               // 場面ツリーはBlobを含まないので、画像のような変換は要らない
               scenes: normalizeSceneGraph(s.scenes),
+              infos: normalizeInfoList(s.infos),
               updated_at: s.updated_at
             });
           }
@@ -3988,6 +4330,7 @@
             system: normalizeSystemId(s && s.system),
             npcs: await storeAvatarsFromDataUrls(normalizeNpcList(s && s.npcs), avatarCache),
             scenes: normalizeSceneGraph(s && s.scenes),
+            infos: normalizeInfoList(s && s.infos),
             updated_at: (s && s.updated_at) ? s.updated_at : new Date().toISOString()
           });
         }
@@ -4054,6 +4397,7 @@
           // 旧localStorage時代のデータに場面ツリーは無いが、分岐を書くより
           // 同じ式を通すほうが「ここだけ漏れる」事故を防げる。
           scenes: normalizeSceneGraph(s && s.scenes),
+          infos: normalizeInfoList(s && s.infos),
           updated_at: (s && s.updated_at) || new Date().toISOString()
         });
       }
@@ -4122,6 +4466,11 @@
         speechInput = document.getElementById('speech-input');
         speechList = document.getElementById('speech-list');
         speechNote = document.getElementById('speech-note');
+        infoModal = document.getElementById('info-modal');
+        infoInput = document.getElementById('info-input');
+        infoList = document.getElementById('info-list');
+        infoDrawer = document.getElementById('info-drawer');
+        infoDrawerList = document.getElementById('info-drawer-list');
 
         // ヘッダーのバージョン表記は RELEASE_NOTES の先頭から描く
         renderVersionTag();
@@ -4151,6 +4500,7 @@
             if (scenarioTitle && typeof ws.title === 'string') scenarioTitle.value = ws.title;
             currentNpcs = normalizeNpcList(ws.npcs);
             currentScenes = normalizeSceneGraph(ws.scenes);
+            currentInfos = normalizeInfoList(ws.infos);
             await attachAvatarUrls(currentNpcs);
           }
           // 読み込み中の表示を残さない。失敗したときだけ catch 側の文言を出す
@@ -4237,6 +4587,7 @@
         initAssistantPanel();
         initCommandPalette();
         initSpeechModal();
+        initInfoFeature();
         renderAssistantPanel();
         window.addEventListener('keydown', handleGlobalKeydown);
       } catch (e) {
@@ -4269,7 +4620,8 @@
         title: scenarioTitle.value,
         content: editor.value,
         npcs: currentNpcs.map(stripAvatarUrl),
-        scenes: currentScenes
+        scenes: currentScenes,
+        infos: currentInfos
       };
 
       // 自動保存も容量上限に当たりうる。入力のたびに走る処理なので
@@ -4289,6 +4641,8 @@
       if (!previewArea || !editor) return;
       const markdownText = editor.value;
       previewArea.innerHTML = parseMarkdown(markdownText);
+      // 情報一覧は本文の参照（どの場面で使っているか）から組み立てるので、本文が変わったら追従させる
+      refreshInfoDrawer();
     }
 
     // 印刷（PDF出力）
@@ -4327,7 +4681,7 @@
       const title = scenarioTitle.value || '無題のシナリオ';
       const content = editor.value;
 
-      API.saveScenario(currentScenarioId, title, content, currentNpcs, currentSystemId, currentScenes)
+      API.saveScenario(currentScenarioId, title, content, currentNpcs, currentSystemId, currentScenes, currentInfos)
         .then(res => {
           const now = new Date(res.updated_at);
           const timeStr = now.toTimeString().split(' ')[0].substring(0, 5);
@@ -4485,7 +4839,8 @@
       'shortcut-modal': () => closeShortcutModal(),
       'release-modal': () => closeReleaseModal(),
       'palette-modal': () => closeCommandPalette(),
-      'speech-modal': () => closeSpeechModal()
+      'speech-modal': () => closeSpeechModal(),
+      'info-modal': () => closeInfoModal()
     };
 
     function closeModalElement(el) {
@@ -4619,6 +4974,8 @@
       // 紛れ込み、そのまま保存されてしまう。
       currentScenes = { nodes: [], edges: [] };
       selectedSceneId = null;
+      // 情報も同じ理由で必ず捨てる
+      currentInfos = [];
 
       applySystemToUI();
       saveToLocal();
@@ -4831,6 +5188,7 @@
           selectedNpcId = null;
           currentScenes = res.scenes || { nodes: [], edges: [] };
           selectedSceneId = null;
+          currentInfos = res.infos || [];
 
           // 読み込んだシナリオのシステムに画面を合わせる
           applySystemToUI();
@@ -4863,6 +5221,7 @@
             selectedNpcId = null;
             currentScenes = { nodes: [], edges: [] };
             selectedSceneId = null;
+            currentInfos = [];
             saveToLocal();
             updatePreview();
           }
@@ -7639,6 +7998,15 @@ ${derivedHTML}
           </div>`;
         }
 
+        // プレイヤーへ渡す情報 [情報:題名]（2026-10-05）。中身は情報一覧（currentInfos）にあり、
+        // 本文には参照だけを書く。題名・公開対象・本文とコピーボタンを出す（docs/04_記法設計書.html §9）。
+        const infoMatch = html.match(INFO_TAG_RE);
+        if (infoMatch) {
+          const rest = html.substring(infoMatch[0].length).trim();
+          // タグの後ろに書いた文は捨てずに、情報の下へ普通の段落として出す
+          return buildInfoBlockHTML(infoMatch[1].trim()) + (rest ? `<p>${decorate(rest)}</p>` : '');
+        }
+
         // NPCのセリフ [セリフ:NPC名] 発言（2026-10-05）。
         // アイコンと名前を添え、発言はそのNPCの色で出す。サイドビューのNPCカードとは別物
         // （設計は docs/04_記法設計書.html §8）。
@@ -7785,6 +8153,55 @@ ${parseRollResultLines(lines, 1)}            </div>
         html += `            <div class="result-item"><span class="result-label ${badgeInfo.class}">${badgeInfo.label}</span><span class="result-text">${decorate(item.val)}</span></div>\n`;
       });
       return html;
+    }
+
+    // === 情報 [情報:題名] ===
+    //
+    // プレイヤーへ渡す情報（日記・手紙・調べて分かったことなど）。中身（題名・公開対象・本文）は
+    // 情報一覧 currentInfos に持ち、本文には参照だけを書く。セッション中にチャットへ貼れるよう、
+    // プレビューと情報一覧の両方にコピーボタンを付ける。
+    const INFO_TAG_RE = /^\[情報[:：]\s*([^\]\n]+)\]/;
+
+    // 題名で情報を探す。escapedTitle は parseElement() が切り出したエスケープ済みの文字列なので、
+    // 情報側もエスケープしてから比べる（docs/04_記法設計書.html §8.3 と同じ理由）
+    function findInfoByEscapedTitle(escapedTitle) {
+      return currentInfos.find(x => escapeHTML(x.title.trim()) === escapedTitle) || null;
+    }
+
+    // 公開対象のバッジ。「全員」・未設定・それ以外（誰かに限った情報）の3通りで色を分ける
+    function infoTargetBadgeHTML(target, extraClass) {
+      const t = (target || '').trim();
+      const kind = !t ? 'unset' : (t === '全員' ? 'all' : 'some');
+      const label = t || '公開対象 未設定';
+      return `<span class="info-target info-target-${kind}${extraClass ? ' ' + extraClass : ''}">${escapeHTML(label)}</span>`;
+    }
+
+    // コピーされる文面。チャットに貼ったときに何の情報かが分かるよう、題名を【】で先頭に付ける。
+    // 文字色などの記法は取り除く（チャットでは装飾にならず、記号として残ってしまうため）
+    function infoCopyText(info) {
+      const title = (info.title || '').trim();
+      const body = stripColorNotation(info.body || '').trim();
+      return title ? `【${title}】\n${body}` : body;
+    }
+
+    function buildInfoBlockHTML(escapedTitle) {
+      const info = findInfoByEscapedTitle(escapedTitle);
+      if (!info) {
+        // 未登録でも書き手が気づけるようにし、その場で登録できる入口を付ける
+        // 文は内側の要素で1段包む。flex の箱に直接載せると、<strong> の前後で文が割れて並ぶ（記法設計書 §3.5）
+        return `<div class="info-block info-missing">`
+          + `<span class="info-missing-text">📄 情報「<strong>${escapedTitle}</strong>」は情報一覧に登録されていません。</span>`
+          + `<button type="button" class="info-action no-print" data-create-info="${escapedTitle}">＋ 登録する</button></div>`;
+      }
+      const body = (info.body || '').trim();
+      return `<div class="info-block" data-info-id="${escapeHTML(info.id)}">`
+        + `<div class="info-head">`
+        + `<span class="info-title">📄 ${escapeHTML(info.title.trim())}</span>`
+        + infoTargetBadgeHTML(info.target)
+        + `<button type="button" class="info-action no-print" data-copy-info="${escapeHTML(info.id)}" title="【題名】＋本文をコピー">📋 コピー</button>`
+        + `</div>`
+        + `<div class="info-body">${body ? renderInline(body) : '<span class="info-empty">（本文が未入力です）</span>'}</div>`
+        + `</div>`;
     }
 
     // NPCのセリフのタグ。[セリフ:NPC名] / [セリフ:NPC名/備考]（備考は読み上げ方などのト書き）。
@@ -8202,10 +8619,10 @@ ${parseRollResultLines(lines, 1)}            </div>
       fitAssistantPanel();
     }
 
-    // 幅が足りないときは、名前を短くし、さらに分類名を消して詰める。
+    // 幅が足りないときは、分類名を消し、名前を短くし、さらに余白を詰める。
     // 何段目で収まるかはシステム（ボタンの数）と画面幅で変わるため、
     // 決め打ちのブレークポイントではなく、実際にはみ出しているかを測って決める。
-    const PANEL_DENSITIES = ['full', 'short', 'tight'];
+    const PANEL_DENSITIES = ['full', 'nocaption', 'short', 'tight'];
     function fitAssistantPanel() {
       const panel = document.getElementById('assistant-panel');
       // 場面図の表示中は display:none で幅が 0 になり測れない。戻ったときに ResizeObserver が呼ぶ
@@ -8533,6 +8950,454 @@ ${parseRollResultLines(lines, 1)}            </div>
         render: renderSpeechList,
         extraInputs: speechNote ? [speechNote] : []
       });
+    }
+
+    // === 📄 情報（一覧パネル・選ぶ画面・コピー） ===
+    //
+    // 情報の中身は currentInfos に持ち、本文には [情報:題名] で参照だけを書く。
+    // 題名が参照のキーなので、一覧で題名を変えたら本文の参照も書き換える（commitInfoTitle）。
+    // 設計は docs/04_記法設計書.html §9。
+
+    let infoEditingId = null;   // 情報一覧で開いて編集している情報
+    let infoMatches = [];       // 選ぶ画面に出している候補（{ info } か { create: 題名 }）
+    let infoIndex = 0;
+
+    function findInfoById(id) {
+      return currentInfos.find(x => x.id === id) || null;
+    }
+
+    // 本文の参照の書き方は1通りに揃える（[情報:題名]）
+    function infoReference(title) {
+      return `[情報:${title}]`;
+    }
+
+    // 新しい情報の題名。参照のキーなので、既存と重ならないようにする
+    function uniqueInfoTitle(base) {
+      const taken = new Set(currentInfos.map(x => x.title.trim()));
+      if (!taken.has(base)) return base;
+      for (let i = 2; ; i++) {
+        if (!taken.has(`${base}${i}`)) return `${base}${i}`;
+      }
+    }
+
+    // 公開対象は空（未設定）で作る。「全員」を既定にすると、秘匿のつもりの情報を
+    // 全員に送ってしまう事故が起こりうる。未設定は赤いバッジで目立たせ、決めてもらう。
+    function createInfo(title) {
+      const info = { id: generateUUID(), title: uniqueInfoTitle((title || '').trim() || '新しい情報'), target: '', body: '' };
+      currentInfos.push(info);
+      return info;
+    }
+
+    // 本文を場面（# 見出し）ごとに見て、どの情報をどこで参照しているかを調べる。
+    // parseMarkdown() と同じ規則（空行で段落を区切り、>> より前が本文の段）で読むこと。
+    function scanInfoUsage(text) {
+      const usage = new Map();  // 題名 -> { scene, order, count }
+      let scene = '';
+      let order = 0;
+      String(text || '').replace(/\r\n/g, '\n').split(/\n{2,}/).forEach(raw => {
+        const block = raw.trim();
+        if (!block) return;
+        if (block.startsWith('#') && !block.startsWith('##')) {
+          scene = block.replace(/^#\s*/, '').split('\n')[0].trim();
+          return;
+        }
+        const main = block.split('>>')[0].trim();
+        const m = main.match(INFO_TAG_RE);
+        if (!m) return;
+        const title = m[1].trim();
+        const u = usage.get(title);
+        if (u) u.count++;
+        else usage.set(title, { scene, order: order++, count: 1 });
+      });
+      return usage;
+    }
+
+    // クリップボードへ書く。http の非安全な文脈など Clipboard API が使えない環境では、
+    // 一時的な textarea を選択してコピーする古い方法に落とす
+    function copyTextToClipboard(text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text).then(() => true, () => legacyCopy(text));
+      }
+      return Promise.resolve(legacyCopy(text));
+    }
+    function legacyCopy(text) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      let ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      return ok;
+    }
+
+    function copyInfo(id, button) {
+      const info = findInfoById(id);
+      if (!info) return;
+      copyTextToClipboard(infoCopyText(info)).then(ok => {
+        if (!button) return;
+        const original = button.dataset.label || button.textContent;
+        button.dataset.label = original;
+        button.textContent = ok ? '✓ コピーしました' : '⚠ コピーできませんでした';
+        button.classList.toggle('copied', ok);
+        clearTimeout(button._copyTimer);
+        button._copyTimer = setTimeout(() => {
+          button.textContent = original;
+          button.classList.remove('copied');
+        }, 1500);
+      });
+    }
+
+    // [情報:題名] を本文のカーソル位置に入れる（段落として独立させる）
+    function insertInfoReference(title) {
+      if (!editor) return;
+      insertAtCursor(`\n\n${infoReference(title)}\n`);
+      handleInput();
+    }
+
+    // --- 情報一覧パネル ---
+
+    function isInfoDrawerOpen() {
+      return !!(infoDrawer && infoDrawer.classList.contains('open'));
+    }
+
+    // restoreFocus: 閉じたときに本文へカーソルを戻すか。外側のクリックで閉じたときは戻さない
+    // （シナリオ名の欄などをクリックした場合に、そちらの入力を奪ってしまうため）
+    function toggleInfoDrawer(force, restoreFocus = true) {
+      if (!infoDrawer) return;
+      const open = typeof force === 'boolean' ? force : !isInfoDrawerOpen();
+      infoDrawer.classList.toggle('open', open);
+      const toggle = document.getElementById('info-drawer-toggle');
+      if (toggle) toggle.classList.toggle('active', open);
+      hidePanelTip();
+      if (open) renderInfoDrawer();
+      else if (restoreFocus && editor && document.body.dataset.mode === 'write') editor.focus();
+    }
+
+    // 本文の変更に追従させる。ただしパネルの中で入力している最中は作り直さない
+    // （作り直すとフォーカスと入力途中の文字が失われる）。件数の表示だけは常に更新する。
+    function refreshInfoDrawer() {
+      const count = document.getElementById('info-drawer-count');
+      if (count) count.textContent = currentInfos.length;
+      if (!isInfoDrawerOpen()) return;
+      if (infoDrawer.contains(document.activeElement)
+          && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+      renderInfoDrawer();
+    }
+
+    function renderInfoDrawer() {
+      if (!infoDrawerList) return;
+      const count = document.getElementById('info-drawer-count');
+      if (count) count.textContent = currentInfos.length;
+
+      // 公開対象の候補：「全員」と、このシナリオで使っている対象
+      const datalist = document.getElementById('info-target-options');
+      if (datalist) {
+        const targets = new Set(['全員']);
+        currentInfos.forEach(x => { if (x.target.trim()) targets.add(x.target.trim()); });
+        datalist.innerHTML = [...targets].map(t => `<option value="${escapeHTML(t)}"></option>`).join('');
+      }
+
+      if (currentInfos.length === 0) {
+        infoDrawerList.innerHTML = `<div class="info-drawer-empty">
+            まだ情報がありません。<br>
+            「＋ 情報を追加」で登録し、本文には「📄 情報」（Alt+I）で選んで入れます。
+          </div>`;
+        return;
+      }
+
+      // 本文で最初に参照している場面ごとにまとめる。参照していない情報は最後にまとめる
+      const usage = scanInfoUsage(editor ? editor.value : '');
+      const used = currentInfos.filter(x => usage.has(x.title.trim()))
+        .sort((a, b) => usage.get(a.title.trim()).order - usage.get(b.title.trim()).order);
+      const unused = currentInfos.filter(x => !usage.has(x.title.trim()));
+
+      let html = '';
+      let lastScene = null;
+      used.forEach(info => {
+        const u = usage.get(info.title.trim());
+        if (u.scene !== lastScene) {
+          html += `<div class="info-group-heading">${u.scene ? '🎬 ' + escapeHTML(u.scene) : '（最初の場面見出しより前）'}</div>`;
+          lastScene = u.scene;
+        }
+        html += infoDrawerItemHTML(info, u);
+      });
+      if (unused.length) {
+        html += `<div class="info-group-heading">本文でまだ使っていない情報</div>`;
+        unused.forEach(info => { html += infoDrawerItemHTML(info, null); });
+      }
+      infoDrawerList.innerHTML = html;
+    }
+
+    function infoDrawerItemHTML(info, usage) {
+      const id = escapeHTML(info.id);
+      const title = info.title.trim() || '（題名なし）';
+      const preview = stripColorNotation(info.body || '').replace(/\s+/g, ' ').trim();
+      const editing = infoEditingId === info.id;
+      let html = `<div class="info-item${editing ? ' editing' : ''}" data-info-id="${id}">`
+        + `<div class="info-item-head">`
+        + `<button type="button" class="info-item-title" data-jump-info="${id}" title="${usage ? '本文のこの情報へ移動' : '本文ではまだ使っていません'}">📄 ${escapeHTML(title)}</button>`
+        + infoTargetBadgeHTML(info.target)
+        + `</div>`
+        + `<div class="info-item-preview">${preview ? escapeHTML(preview) : '（本文が未入力です）'}</div>`
+        + `<div class="info-item-actions">`
+        + `<button type="button" class="btn btn-small" data-copy-info="${id}">📋 コピー</button>`
+        + `<button type="button" class="btn btn-small" data-insert-info="${id}" title="本文のカーソル位置に [情報:題名] を入れる">↵ 本文に挿入</button>`
+        + `<button type="button" class="btn btn-small" data-edit-info="${id}">${editing ? '▲ 閉じる' : '✎ 編集'}</button>`
+        + (usage ? `<span class="info-item-usage">本文で${usage.count}か所</span>` : '')
+        + `</div>`;
+      if (editing) {
+        // 題名は参照のキーなので、入力中ではなく確定したとき（change）にだけ反映し、本文の参照も書き換える。
+        // 入力のたびに反映すると、打っている途中のプレビューで参照が「未登録」にちらつく。
+        html += `<div class="info-item-editor">
+            <label class="form-label">題名（本文の [情報:題名] と対応。変えると本文の参照も書き換わる）</label>
+            <input type="text" class="form-input" value="${escapeHTML(info.title)}" data-orig="${escapeHTML(info.title)}"
+                   onchange="commitInfoTitle('${id}', this)">
+            <label class="form-label">公開対象</label>
+            <input type="text" class="form-input" value="${escapeHTML(info.target)}" list="info-target-options"
+                   placeholder="例: 全員 / HO1 / 目星成功者" oninput="updateInfoField('${id}', 'target', this.value)">
+            <label class="form-label">本文（コピーされる内容）</label>
+            <textarea class="form-input info-body-input" placeholder="プレイヤーに渡す文面"
+                      oninput="updateInfoField('${id}', 'body', this.value)">${escapeHTML(info.body)}</textarea>
+            <div class="info-item-editor-foot">
+              <button type="button" class="btn btn-small btn-danger-small" data-delete-info="${id}">🗑 この情報を削除</button>
+            </div>
+          </div>`;
+      }
+      return html + `</div>`;
+    }
+
+    // 入力のたびに呼ばれる。パネルは作り直さず（フォーカスが外れるため）、
+    // データ・プレビューと、そのカードの見出し行（公開対象のバッジ・本文の冒頭）だけを更新する
+    function updateInfoField(id, field, value) {
+      const info = findInfoById(id);
+      if (!info) return;
+      info[field] = value;
+      const item = infoDrawerList && infoDrawerList.querySelector(`.info-item[data-info-id="${id}"]`);
+      if (item) {
+        const badge = item.querySelector('.info-item-head .info-target');
+        if (badge) badge.outerHTML = infoTargetBadgeHTML(info.target);
+        const preview = item.querySelector('.info-item-preview');
+        if (preview) {
+          const text = stripColorNotation(info.body || '').replace(/\s+/g, ' ').trim();
+          preview.textContent = text || '（本文が未入力です）';
+        }
+      }
+      handleInput();
+    }
+
+    // 題名の確定。題名は本文の [情報:題名] のキーなので、本文の参照もまとめて書き換える。
+    // 空の題名と、ほかの情報と同じ題名は参照を解決できなくなるので受け付けない。
+    function commitInfoTitle(id, input) {
+      const info = findInfoById(id);
+      if (!info) return;
+      const before = (input.dataset.orig || '').trim();
+      const after = input.value.trim();
+      if (!after || currentInfos.some(x => x.id !== id && x.title.trim() === after)) {
+        alert(!after
+          ? '題名は空にできません。本文の [情報:題名] はこの題名で情報を探しています。'
+          : `「${after}」という題名の情報がすでにあります。題名は情報ごとに変えてください。`);
+        info.title = before;
+        input.value = before;
+        handleInput();
+        return;
+      }
+      info.title = after;
+      input.dataset.orig = after;
+      if (before && before !== after && editor) {
+        const re = new RegExp('\\[情報[:：]\\s*' + before.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\]', 'g');
+        editor.value = editor.value.replace(re, infoReference(after));
+      }
+      handleInput();
+    }
+
+    function addInfoFromDrawer() {
+      const info = createInfo('');
+      infoEditingId = info.id;
+      if (!isInfoDrawerOpen()) toggleInfoDrawer(true);
+      renderInfoDrawer();
+      handleInput();
+      // 題名から打ち始められるようにする
+      const input = infoDrawerList.querySelector(`.info-item[data-info-id="${info.id}"] .info-item-editor input`);
+      if (input) {
+        input.scrollIntoView({ block: 'nearest' });
+        input.focus();
+        input.select();
+      }
+    }
+
+    function deleteInfo(id) {
+      const info = findInfoById(id);
+      if (!info) return;
+      const usage = scanInfoUsage(editor ? editor.value : '').get(info.title.trim());
+      const note = usage ? `\n\n本文で${usage.count}か所参照しています。参照は「未登録」の表示になります。` : '';
+      if (!confirm(`情報「${info.title.trim() || '題名なし'}」を削除しますか？${note}`)) return;
+      currentInfos = currentInfos.filter(x => x.id !== id);
+      if (infoEditingId === id) infoEditingId = null;
+      renderInfoDrawer();
+      handleInput();
+    }
+
+    // プレビューの情報ブロックへ移動し、どれかが分かるよう一瞬だけ強調する
+    function jumpToInfo(id) {
+      if (!previewArea) return;
+      const block = previewArea.querySelector(`.info-block[data-info-id="${id}"]`);
+      if (!block) return;
+      block.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      block.classList.remove('flash');
+      void block.offsetWidth;  // アニメーションをやり直すため
+      block.classList.add('flash');
+    }
+
+    // --- 選ぶ画面（📄 情報 / Alt+I） ---
+
+    function openInfoModal() {
+      if (!infoModal) return;
+      hidePanelTip();
+      infoInput.value = '';
+      infoIndex = 0;
+      renderInfoChooser();
+      infoModal.classList.add('active');
+      infoInput.focus();
+    }
+
+    function closeInfoModal() {
+      if (!infoModal || !infoModal.classList.contains('active')) return;
+      infoModal.classList.remove('active');
+      if (document.body.dataset.mode === 'write' && editor) editor.focus();
+    }
+
+    function renderInfoChooser() {
+      if (!infoList) return;
+      const typed = infoInput.value.trim();
+      const tokens = normalizeForSearch(typed).split(/[\s　]+/).filter(Boolean);
+      const hits = currentInfos.filter(info => {
+        const hay = normalizeForSearch([info.title, info.target, info.body].join(' '));
+        return tokens.every(t => hay.includes(t));
+      });
+      infoMatches = hits.map(info => ({ info }));
+      // 打った題名の情報がまだ無ければ、その場で登録して入れる候補を出す。
+      // 一致した情報より後ろに置く（先頭だと、公開対象や本文の言葉で探して Enter を押したときに、
+      // 探していた情報ではなく、その言葉を題名にした情報が作られてしまう）
+      if (typed && !currentInfos.some(x => x.title.trim() === typed)) {
+        infoMatches.push({ create: typed });
+      }
+
+      if (infoMatches.length === 0) {
+        infoList.innerHTML = '<div class="palette-empty">まだ情報がありません。題名を打って Enter で、新しい情報として登録して挿入します。</div>';
+        return;
+      }
+      infoList.innerHTML = infoMatches.map((m, i) => {
+        if (m.create) {
+          return `<div class="palette-item" role="option" data-index="${i}">`
+            + `<span class="palette-item-icon">＋</span>`
+            + `<span class="palette-item-text"><span class="palette-item-name">「${escapeHTML(m.create)}」を新しい情報として登録して挿入</span>`
+            + `<span class="palette-item-desc">本文と公開対象は、あとで情報一覧で入力します</span></span></div>`;
+        }
+        const preview = stripColorNotation(m.info.body || '').replace(/\s+/g, ' ').trim();
+        return `<div class="palette-item" role="option" data-index="${i}">`
+          + `<span class="palette-item-icon">📄</span>`
+          + `<span class="palette-item-text"><span class="palette-item-name">${escapeHTML(m.info.title.trim() || '（題名なし）')}</span>`
+          + `<span class="palette-item-desc">${escapeHTML(preview || '（本文が未入力です）')}</span></span>`
+          + `<span class="palette-item-keys">${infoTargetBadgeHTML(m.info.target, 'on-dark')}</span>`
+          + `</div>`;
+      }).join('');
+      setInfoIndex(Math.min(infoIndex, infoMatches.length - 1));
+    }
+
+    function setInfoIndex(i) {
+      infoIndex = i;
+      highlightListOption(infoList, i);
+    }
+
+    function chooseInfo(i) {
+      const m = infoMatches[i];
+      if (!m) return;
+      closeInfoModal();
+      if (m.create) {
+        // 登録して入れ、続けて中身を書けるよう情報一覧で開く
+        const info = createInfo(m.create);
+        insertInfoReference(info.title);
+        infoEditingId = info.id;
+        toggleInfoDrawer(true);
+        return;
+      }
+      insertInfoReference(m.info.title.trim());
+    }
+
+    function initInfoFeature() {
+      if (infoInput && infoList) {
+        bindChooserList(infoInput, infoList, {
+          count: () => infoMatches.length,
+          index: () => infoIndex,
+          setIndex: setInfoIndex,
+          choose: chooseInfo,
+          render: renderInfoChooser
+        });
+      }
+
+      // 情報一覧パネルのボタンは作り直されるので、パネルにまとめて委譲する
+      if (infoDrawerList) {
+        infoDrawerList.addEventListener('click', e => {
+          const btn = e.target.closest('button');
+          if (!btn) return;
+          const d = btn.dataset;
+          if (d.copyInfo) copyInfo(d.copyInfo, btn);
+          else if (d.insertInfo) {
+            const info = findInfoById(d.insertInfo);
+            if (info) insertInfoReference(info.title.trim());
+          }
+          else if (d.editInfo) {
+            infoEditingId = infoEditingId === d.editInfo ? null : d.editInfo;
+            renderInfoDrawer();
+          }
+          else if (d.deleteInfo) deleteInfo(d.deleteInfo);
+          else if (d.jumpInfo) jumpToInfo(d.jumpInfo);
+        });
+      }
+
+      // パネルの中で Esc を押したら閉じる（モーダルではないので共通の Esc 処理の対象外）
+      if (infoDrawer) {
+        infoDrawer.addEventListener('keydown', e => {
+          if (e.key === 'Escape' && !e.isComposing) {
+            e.stopPropagation();
+            toggleInfoDrawer(false);
+          }
+        });
+      }
+
+      // パネルの外をクリックしたら閉じる。
+      // 捕捉段階（第3引数 true）で見るのは、パネル内の「編集」などがパネルを作り直すため。
+      // ボタン側の処理が先に走ると、押した要素がもう画面に無く、外側のクリックと誤判定してしまう。
+      // 開閉ボタン（自分で開閉する）と、モーダルの中（選ぶ画面などがパネルの上に重なって開く）は除く。
+      document.addEventListener('click', e => {
+        if (!isInfoDrawerOpen()) return;
+        const path = e.composedPath ? e.composedPath() : [];
+        if (path.includes(infoDrawer)) return;
+        const t = e.target;
+        if (t && t.closest && (t.closest('#info-drawer-toggle') || t.closest('.modal'))) return;
+        toggleInfoDrawer(false, false);
+      }, true);
+
+      // プレビューの情報ブロックのボタン（コピー・未登録の情報の登録）
+      if (previewArea) {
+        previewArea.addEventListener('click', e => {
+          const btn = e.target.closest('button');
+          if (!btn) return;
+          if (btn.dataset.copyInfo) {
+            copyInfo(btn.dataset.copyInfo, btn);
+          } else if (btn.dataset.createInfo !== undefined) {
+            const info = createInfo(btn.dataset.createInfo);
+            infoEditingId = info.id;
+            toggleInfoDrawer(true);
+            handleInput();
+          }
+        });
+      }
+      refreshInfoDrawer();
     }
 
     // === リリースノート ===
