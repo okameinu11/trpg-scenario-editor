@@ -386,6 +386,11 @@
   }
   /* サイドビューの小さなNPCカードは、段落の行の高さを決めてしまう。
      下余白（要素に直接書かれた 12px）が残ると、セリフより背が高くなって会話の途中に隙間が空くので外す */
+  /* 右の段に複数のもの（小さなNPCカードとTIPS、TIPSが2つなど）が積まれたときの間隔。
+     空行のあとに書いた右の段だけの段落は、直前の段落の右へ積まれる（parseMarkdown()） */
+  #preview-area .side-content > * + * {
+    margin-top: 10px;
+  }
   #preview-area .side-content > .npc-card.mini {
     margin-bottom: 0 !important;
   }
@@ -9332,18 +9337,39 @@ ${derivedHTML}
       // 見出しの id は拾った順の番号で、下の描画でも同じ順に使う（同じ blocks を同じ条件で見るので一致する）
       const headings = collectTocHeadings(blocks);
       let headingIndex = 0;
-      let html = '';
       // いまの場面（# 見出しから次の # 見出しまで）で、サイドビューにカードを出したNPCの id
       let sideCardShown = new Set();
+
+      // 描いたものを順に積み、最後にまとめてHTMLにする。要素は文字列（見出し・全幅のブロック）か、
+      // 段組みの行 { main, sides }。行を後から組み立てるのは、右の段だけの段落（空行のあとに >> だけを
+      // 書いたもの）を、隣の本文の段落の右へ寄せるため（docs/04_記法設計書.html §11）。
+      // TIPSは必ず本文に添える補足であり、右の段だけの行が単独で並ぶことに意味は無い。
+      const out = [];
+      // 寄せる先は「同じ章（見出しから次の見出しまで）の中で、いちばん近い前の本文の段落」。
+      // 前に無ければ次の本文の段落。見出しはまたがない（別の章の本文の横に並ぶと意味が変わる）。
+      // 場面図・目次は全幅で右の段を持たないので、またいで寄せる（図の補足を図の上か下の段落の横に置く）
+      let sectionRow = null;   // いまの章で最後に描いた本文の段落の行
+      let pendingSides = [];   // 前に寄せる段落が無かった右の段。次の行の右へ寄せる
+      // 並べる相手が無いまま章が変わる・本文が終わるときだけ、今までどおり単独の行にする
+      const flushPending = () => {
+        if (pendingSides.length) out.push({ main: '', sides: pendingSides });
+        pendingSides = [];
+      };
+      const pushHeading = html => {
+        flushPending();
+        sectionRow = null;
+        out.push(html);
+      };
+      const pushFullWidth = html => out.push(html);
 
       for (const block of blocks) {
         // 1. シーン見出し (レベル1: #) ＆ 個別探索用小見出し (レベル2: ##)
         if (block.startsWith('#')) {
           const h = headings[headingIndex++];
           if (h.level === 2) {
-            html += `<h3 class="search-subtitle" id="${h.id}">${renderInline(h.raw)}</h3>\n`;
+            pushHeading(`<h3 class="search-subtitle" id="${h.id}">${renderInline(h.raw)}</h3>\n`);
           } else {
-            html += `<h2 class="scene-title" id="${h.id}">${renderInline(h.raw)}</h2>\n`;
+            pushHeading(`<h2 class="scene-title" id="${h.id}">${renderInline(h.raw)}</h2>\n`);
             // 場面が変わったら、サイドビューのNPCカードをまた出せるようにする
             sideCardShown = new Set();
           }
@@ -9352,7 +9378,7 @@ ${derivedHTML}
 
         // 目次 [目次]。場面図と同じく、段組みの外に出す全幅のブロック（docs/04_記法設計書.html §10）
         if (TOC_TAG_RE.test(block)) {
-          html += buildTocHTML(headings.concat(appendixToc || []));
+          pushFullWidth(buildTocHTML(headings.concat(appendixToc || [])));
           continue;
         }
 
@@ -9368,7 +9394,7 @@ ${derivedHTML}
         // 入口でもできるようにすると、& を含む名前で結果が食い違う。
         const sceneMapMatch = block.match(/^\[場面図(?:\s*[:：]\s*([^\]\n]+))?\]$/);
         if (sceneMapMatch) {
-          html += buildSceneMapBlockHTML(sceneMapMatch[1] ? sceneMapMatch[1].trim() : null);
+          pushFullWidth(buildSceneMapBlockHTML(sceneMapMatch[1] ? sceneMapMatch[1].trim() : null));
           continue;
         }
 
@@ -9389,17 +9415,30 @@ ${derivedHTML}
         const sideCard = resolveSideNpcCard(mainText, sideText, sideCardShown);
         const sideHTML = sideCard !== null ? sideCard : parseElement(sideText, 'side');
 
-        html += `
+        if (!mainText) {
+          // 右の段だけの段落。同じ章の前の本文の段落があればその右に積み、
+          // 無ければ（章の頭など）次の本文の段落の右へ寄せる
+          if (!sideHTML) continue;
+          if (sectionRow) sectionRow.sides.push(sideHTML);
+          else pendingSides.push(sideHTML);
+          continue;
+        }
+        // 先に書かれた右の段（pendingSides）が上、この段落自身の右の段が下
+        sectionRow = { main: mainHTML, sides: pendingSides.concat(sideHTML ? [sideHTML] : []) };
+        out.push(sectionRow);
+        pendingSides = [];
+      }
+      flushPending();
+
+      return out.map(item => typeof item === 'string' ? item : `
 <div class="row">
   <div class="main-content">
-    ${mainHTML}
+    ${item.main}
   </div>
   <div class="side-content">
-    ${sideHTML}
+    ${item.sides.join('\n    ')}
   </div>
-</div>\n`;
-      }
-      return html;
+</div>\n`).join('');
     }
 
     // 各要素のパース (絵文字判定を廃止し、[DL] や [TIPS] の英数字に統一)
