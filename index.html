@@ -863,6 +863,11 @@
     background-color: var(--border-color);
     border-color: var(--text-secondary);
   }
+  /* 開いているパネルを開閉するボタン（情報一覧）。開いている間は押された状態に見せる */
+  .btn-panel.active {
+    border-color: var(--accent-color);
+    background-color: rgba(59, 130, 246, 0.18);
+  }
   .btn-panel-icon {
     font-size: 1.1rem;
     line-height: 1;
@@ -898,13 +903,30 @@
   .assistant-panel[data-density="tight"] .panel-group-label {
     display: none;
   }
-  .assistant-panel[data-density="tight"] {
+  /* nocaption では余白も少しだけ削る（1280px で正式名のまま収めるため） */
+  .assistant-panel[data-density="nocaption"] {
     gap: 6px;
-    padding: 6px 10px;
+  }
+  .assistant-panel[data-density="nocaption"] .panel-group {
+    padding-right: 6px;
+  }
+  .assistant-panel[data-density="nocaption"] .btn-panel {
+    padding: 4px 6px;
+  }
+  /* tight は縦画面（768px、タブレット縦）で全ボタンを収めるための段。
+     ボタンの最小幅はタップ領域の下限（44px、要件定義書 §5）ちょうどまで詰め、余白と間隔も削る。
+     ボタンを足して収まらなくなったら、まずここを確かめる（docs/07_操作の入口設計書.html §3.2） */
+  .assistant-panel[data-density="tight"] {
+    gap: 4px;
+    padding: 6px 6px;
   }
   .assistant-panel[data-density="tight"] .panel-group {
-    gap: 3px;
-    padding-right: 6px;
+    gap: 2px;
+    padding-right: 4px;
+  }
+  .assistant-panel[data-density="tight"] .btn-panel {
+    min-width: 44px;
+    padding: 4px 4px;
   }
 
   /* パネルのボタンの吹き出し。パネルは overflow で横スクロールするため、
@@ -1161,50 +1183,6 @@
   .info-item-editor-foot {
     display: flex;
     justify-content: flex-end;
-  }
-
-  /* 情報一覧の開閉ボタン。プレビューの上端に細い帯として置き、スクロールしても残す。
-     ボタンだけを浮かせると、スクロールしたときに台本の文字に重なるため、帯で場所を取っている。
-     左寄せなのは、情報一覧が開く側（左）に合わせるため。印刷には出さない（.no-print） */
-  .preview-tools {
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 10px;
-    background-color: rgba(255, 255, 255, 0.95);
-    border-bottom: 1px solid #e2e8f0;
-  }
-  .info-drawer-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    min-height: 32px;
-    padding: 0 12px;
-    border: 1px solid #cbd5e1;
-    border-radius: 16px;
-    background-color: rgba(255, 255, 255, 0.92);
-    color: #334155;
-    font-family: inherit;
-    font-size: 0.78rem;
-    font-weight: 700;
-    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
-    cursor: pointer;
-  }
-  .info-drawer-toggle:hover,
-  .info-drawer-toggle.active {
-    border-color: var(--accent-color);
-    color: #1d4ed8;
-  }
-  .info-drawer-count {
-    min-width: 1.4em;
-    padding: 0 6px;
-    border-radius: 10px;
-    background-color: #e2e8f0;
-    font-size: 0.7rem;
-    text-align: center;
   }
 
   /* NPCのセリフを選ぶ画面の備考欄 */
@@ -2762,13 +2740,8 @@
     <!-- 公開対象の候補（「全員」と、このシナリオで使った対象）。renderInfoDrawer() が作り直す -->
     <datalist id="info-target-options"></datalist>
 
-    <!-- 右側：プレビュー -->
+    <!-- 右側：プレビュー（台本の紙面だけを置く。操作のボタンは下部パネルに置く） -->
     <section class="preview-section">
-      <!-- 情報一覧の開閉。スクロールしても左上に残るよう、高さ0の sticky に載せる -->
-      <div class="preview-tools no-print">
-        <button type="button" id="info-drawer-toggle" class="info-drawer-toggle" onclick="toggleInfoDrawer()"
-                title="情報一覧（Alt+L）">📑 情報一覧 <span id="info-drawer-count" class="info-drawer-count">0</span></button>
-      </div>
       <div class="preview-paper">
         <div id="preview-area"></div>
       </div>
@@ -3609,6 +3582,11 @@
       { id: 'npc', group: 'data', icon: '👥', name: 'NPC管理', short: 'NPC',
         desc: 'NPC管理モーダルを開く', keywords: 'えぬぴーしーかんり', key: withAlt('9'),
         run: () => openNpcModal() },
+      // NPC管理と同じく「シナリオの資料を管理する」入口なので、同じ分類に並べる。
+      // 本文は書き換えないが、開く先がエディタの上なので場面図の表示中は受け付けない
+      { id: 'info-list', group: 'data', icon: '📑', name: '情報一覧', short: '情報一覧',
+        desc: '情報の一覧を開く・閉じる（追加・編集・コピー）', keywords: 'じょうほういちらん こぴー はんどあうと',
+        key: withAlt('l'), run: () => toggleInfoDrawer() },
 
       // ここから下はパネルに出さない（ヘッダーにボタンがある、または画面の操作）
       { id: 'palette', group: 'app', icon: '🔎', name: 'すべての操作', panel: false,
@@ -3625,10 +3603,6 @@
         desc: '執筆と場面図を切り替える', keywords: 'ばめんず しっぴつ きりかえ map', key: withAlt('m'),
         inSceneMode: true,
         run: () => setAppMode(document.body.dataset.mode === 'scene' ? 'write' : 'scene') },
-      // 本文は書き換えないが、開く先がエディタの上なので場面図の表示中は受け付けない
-      { id: 'info-list', group: 'app', icon: '📑', name: '情報一覧', panel: false,
-        desc: '情報の一覧を開く・閉じる（追加・編集・コピー）', keywords: 'じょうほういちらん こぴー はんどあうと',
-        key: withAlt('l'), run: () => toggleInfoDrawer() },
       { id: 'list', group: 'app', icon: '📂', name: 'シナリオ一覧', panel: false,
         desc: '保存したシナリオの一覧を開く', keywords: 'しなりおいちらん', key: null,
         inSceneMode: true, run: () => openListModal() },
@@ -8600,7 +8574,9 @@ ${parseRollResultLines(lines, 1)}            </div>
         if (items.length === 0) continue;
         html += `<div class="panel-group"><span class="panel-group-label">${escapeHTML(g.label)}</span>`;
         for (const a of items) {
-          html += `<button type="button" class="btn-panel" data-action="${a.id}" aria-label="${escapeHTML(actionName(a))}">`
+          // 情報一覧を開いたままパネルを作り直しても（システムの切り替えなど）、押された状態を保つ
+          const active = a.id === 'info-list' && isInfoDrawerOpen() ? ' active' : '';
+          html += `<button type="button" class="btn-panel${active}" data-action="${a.id}" aria-label="${escapeHTML(actionName(a))}">`
             + `<span class="btn-panel-icon">${a.icon}</span>`
             + `<span class="btn-panel-full">${escapeHTML(actionName(a))}</span>`
             + `<span class="btn-panel-short">${escapeHTML(actionShort(a))}</span>`
@@ -9070,7 +9046,8 @@ ${parseRollResultLines(lines, 1)}            </div>
       if (!infoDrawer) return;
       const open = typeof force === 'boolean' ? force : !isInfoDrawerOpen();
       infoDrawer.classList.toggle('open', open);
-      const toggle = document.getElementById('info-drawer-toggle');
+      // 下部パネルの「情報一覧」ボタンを、開いている間は押された状態に見せる
+      const toggle = document.querySelector('#assistant-panel [data-action="info-list"]');
       if (toggle) toggle.classList.toggle('active', open);
       hidePanelTip();
       if (open) renderInfoDrawer();
@@ -9078,10 +9055,8 @@ ${parseRollResultLines(lines, 1)}            </div>
     }
 
     // 本文の変更に追従させる。ただしパネルの中で入力している最中は作り直さない
-    // （作り直すとフォーカスと入力途中の文字が失われる）。件数の表示だけは常に更新する。
+    // （作り直すとフォーカスと入力途中の文字が失われる）。
     function refreshInfoDrawer() {
-      const count = document.getElementById('info-drawer-count');
-      if (count) count.textContent = currentInfos.length;
       if (!isInfoDrawerOpen()) return;
       if (infoDrawer.contains(document.activeElement)
           && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
@@ -9090,8 +9065,6 @@ ${parseRollResultLines(lines, 1)}            </div>
 
     function renderInfoDrawer() {
       if (!infoDrawerList) return;
-      const count = document.getElementById('info-drawer-count');
-      if (count) count.textContent = currentInfos.length;
 
       // 公開対象の候補：「全員」と、このシナリオで使っている対象
       const datalist = document.getElementById('info-target-options');
@@ -9372,13 +9345,15 @@ ${parseRollResultLines(lines, 1)}            </div>
       // パネルの外をクリックしたら閉じる。
       // 捕捉段階（第3引数 true）で見るのは、パネル内の「編集」などがパネルを作り直すため。
       // ボタン側の処理が先に走ると、押した要素がもう画面に無く、外側のクリックと誤判定してしまう。
-      // 開閉ボタン（自分で開閉する）と、モーダルの中（選ぶ画面などがパネルの上に重なって開く）は除く。
+      // 下部パネルの「情報一覧」ボタン（自分で開閉する）と、モーダルの中（選ぶ画面などがパネルの上に
+      // 重なって開く）は除く。パネルのボタンは mousedown で実行されるので、除かないと
+      // 開いた直後の click を外側のクリックとして受け取り、すぐ閉じてしまう。
       document.addEventListener('click', e => {
         if (!isInfoDrawerOpen()) return;
         const path = e.composedPath ? e.composedPath() : [];
         if (path.includes(infoDrawer)) return;
         const t = e.target;
-        if (t && t.closest && (t.closest('#info-drawer-toggle') || t.closest('.modal'))) return;
+        if (t && t.closest && (t.closest('[data-action="info-list"]') || t.closest('.modal'))) return;
         toggleInfoDrawer(false, false);
       }, true);
 
