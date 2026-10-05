@@ -573,26 +573,32 @@
     line-height: 1.8;
     color: var(--preview-text) !important;
   }
-  #preview-area .cover-text + .cover-levels,
-  #preview-area .cover-levels + .cover-text {
+  #preview-area .cover-text + .cover-fields,
+  #preview-area .cover-fields + .cover-text {
     margin-top: 6px;
   }
-  /* 並んだレベルは表にして、項目名の幅を揃える（記号の頭が縦に揃う）。
-     中身は文字（装飾の入らない項目名）と記号だけなので、grid に直接載せてよい（記法設計書 §3.5） */
-  #preview-area .cover-levels {
+  /* 「項目名｜値」の表（小見出しとレベル）。項目名の幅を揃え、値の頭を縦に揃える。
+     項目名の列は長くても14字ぶんで折り返す（長い項目名に値の列を押し出されないように）。
+     値の列は折り返せるよう minmax(0, 1fr) にする（小見出しの内容は長くなりうる） */
+  #preview-area .cover-fields {
     display: grid;
-    grid-template-columns: max-content max-content;
-    justify-content: start;
-    align-items: center;
+    grid-template-columns: fit-content(14em) minmax(0, 1fr);
+    align-items: baseline;
     column-gap: 18px;
-    row-gap: 2px;
+    row-gap: 4px;
     break-inside: avoid;
     page-break-inside: avoid;
   }
-  #preview-area .cover-level-label {
+  #preview-area .cover-field-label {
     font-size: 0.88rem;
     font-weight: 600;
+    line-height: 1.7;
     color: #334155 !important;
+  }
+  #preview-area .cover-field-value {
+    font-size: 0.92rem;
+    line-height: 1.7;
+    color: var(--preview-text) !important;
   }
   /* 記号は和文フォントで描く。欧文フォント（Inter・Segoe UI）を先に当てると、
      ● は欧文・○ は和文のように記号ごとに別のフォントで描かれ、大きさが揃わない */
@@ -2568,6 +2574,73 @@
     align-items: center;
     gap: 8px;
   }
+  /* テンプレート。項目の見出しの右端にボタン、押すと下に欄が開く */
+  .bi-templates-toggle {
+    margin-left: auto;
+  }
+  .bi-templates-toggle.active {
+    border-color: var(--accent-color);
+    background-color: rgba(59,130,246,0.18);
+  }
+  .bi-templates {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: rgba(0,0,0,0.15);
+  }
+  .bi-templates[hidden] {
+    display: none;
+  }
+  .bi-template-save {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .bi-template-save .form-input {
+    flex: 1 1 220px;
+    min-width: 0;
+  }
+  .bi-template-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  .bi-template-msg {
+    min-height: 1em;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+  }
+  .bi-template-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .bi-template-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border-color);
+  }
+  .bi-template-rename {
+    flex: 1 1 180px;
+    min-width: 0;
+    font-weight: 600;
+  }
+  .bi-template-summary {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
   .bi-items {
     display: flex;
     flex-direction: column;
@@ -2627,6 +2700,26 @@
   }
   .bi-block-level {
     align-items: center;
+  }
+  /* 小見出しと内容。台本の表と同じく「項目名｜値」を横に並べる（狭い画面では折り返す） */
+  .bi-block-sub {
+    flex-wrap: wrap;
+  }
+  .bi-block-sub .bi-kind {
+    margin-top: 10px;
+  }
+  .bi-sub-heading {
+    flex: 0 1 180px;
+    min-width: 120px;
+    font-weight: 600;
+  }
+  .bi-sub-body {
+    flex: 1 1 200px;
+    min-width: 0;
+    min-height: 2.6em;
+    line-height: 1.6;
+    resize: vertical;
+    field-sizing: content;
   }
   /* 内容に合わせて欄を伸ばす（NPCのメモと同じ。未対応のブラウザでは手で伸ばせる） */
   .bi-text {
@@ -3766,12 +3859,28 @@
               <div class="npc-add-hint">ヘッダーのタイトル欄と同じものです（シナリオ一覧にもこの名前で出ます）。</div>
             </div>
             <!-- 和文の途中で改行すると空白が入るので、1行で書く -->
-            <p class="bi-lead">ここに書いた内容は、プレビューとPDFの<strong>先頭に表紙として</strong>出ます。項目は「見出しと本文」と「レベル（星の数などで表す）」を好きな順に並べられ、見出しの中に本文とレベルを混ぜて置くこともできます。</p>
+            <p class="bi-lead">ここに書いた内容は、プレビューとPDFの<strong>先頭に表紙として</strong>出ます。項目は「見出しと本文」と「レベル（星の数などで表す）」を好きな順に並べられます。見出し（概要・あらすじなど）の中には、本文・小見出し（プレイ人数・想定時間など）・レベルを混ぜて置けます。</p>
           </div>
         </div>
 
         <div class="bi-items-head">
           <span class="form-label">項目</span>
+          <!-- 項目の構成に名前を付けて保存し、別のシナリオで呼び出す（この端末の設定。renderBasicInfoTemplates()） -->
+          <button type="button" class="btn btn-small bi-templates-toggle" id="bi-templates-toggle"
+                  aria-expanded="false" aria-controls="bi-templates" onclick="toggleBasicInfoTemplates()">📋 テンプレート</button>
+        </div>
+        <div id="bi-templates" class="bi-templates" hidden>
+          <div class="bi-template-save">
+            <input type="text" id="bi-template-name" class="form-input" maxlength="40"
+                   placeholder="テンプレートの名前（例: いつもの基本情報）" aria-label="テンプレートの名前">
+            <label class="bi-template-option">
+              <input type="checkbox" id="bi-template-content"> 本文や値も含める
+            </label>
+            <button type="button" class="btn btn-primary btn-small" onclick="saveBasicInfoTemplate()">今の構成を保存</button>
+          </div>
+          <div class="npc-add-hint">見出し・小見出し・レベルの並びと名前を保存します。本文や値（プレイ人数の「2〜3人」、レベルの段階など）は、チェックを入れたときだけ保存します。タイトルとサムネイルは含みません。</div>
+          <div id="bi-template-msg" class="bi-template-msg" role="status"></div>
+          <div id="bi-template-list" class="bi-template-list"></div>
         </div>
         <div id="bi-items" class="bi-items"></div>
         <div class="bi-add-row">
@@ -5014,21 +5123,25 @@
       };
     }
 
+    // 見出しの中身（blocks）は3種類。
+    //   text       … 本文
+    //   subheading … 小見出しと内容の組（2026-10-05 追加）。「プレイ人数｜2〜3人」のような項目名と値
+    //   level      … レベル表示
     function normalizeBasicSection(x) {
       const blocks = Array.isArray(x.blocks) ? x.blocks : [];
+      const str = v => typeof v === 'string' ? v : '';
+      const blockId = b => typeof b.id === 'string' && b.id ? b.id : generateUUID();
       return {
         id: typeof x.id === 'string' && x.id ? x.id : generateUUID(),
         kind: 'section',
-        heading: typeof x.heading === 'string' ? x.heading : '',
+        heading: str(x.heading),
         blocks: blocks
           .filter(b => b && typeof b === 'object')
-          .map(b => b.kind === 'level'
-            ? normalizeBasicLevel(b)
-            : {
-                id: typeof b.id === 'string' && b.id ? b.id : generateUUID(),
-                kind: 'text',
-                body: typeof b.body === 'string' ? b.body : ''
-              })
+          .map(b => {
+            if (b.kind === 'level') return normalizeBasicLevel(b);
+            if (b.kind === 'subheading') return { id: blockId(b), kind: 'subheading', heading: str(b.heading), body: str(b.body) };
+            return { id: blockId(b), kind: 'text', body: str(b.body) };
+          })
       };
     }
 
@@ -9779,16 +9892,21 @@ ${parseRollResultLines(lines, 1)}            </div>
         + `</header>\n`;
     }
 
-    // 並んだレベルは1つの表にまとめ、項目名の幅を揃える（記号の位置が縦に揃って比べやすい）
+    // 「項目名｜値」の形のもの（小見出しとレベル）は、並んでいれば1つの表にまとめ、項目名の幅を揃える
+    // （値の頭が縦に揃って読みやすい。「プレイ人数｜2〜3人」「難易度｜★★★☆☆」が同じ表に並ぶ）
+    function isCoverField(b) {
+      return b.kind === 'level' || b.kind === 'subheading';
+    }
+
     function basicInfoItemsHTML(items) {
       let html = '';
-      let levels = [];
+      let fields = [];
       const flush = () => {
-        if (levels.length) html += coverLevelsHTML(levels);
-        levels = [];
+        if (fields.length) html += coverFieldsHTML(fields);
+        fields = [];
       };
       for (const it of items) {
-        if (it.kind === 'level') { levels.push(it); continue; }
+        if (it.kind === 'level') { fields.push(it); continue; }
         flush();
         html += coverSectionHTML(it);
       }
@@ -9799,13 +9917,18 @@ ${parseRollResultLines(lines, 1)}            </div>
     function coverSectionHTML(sec) {
       const heading = sec.heading.trim();
       let body = '';
-      let levels = [];
+      let fields = [];
       const flush = () => {
-        if (levels.length) body += coverLevelsHTML(levels);
-        levels = [];
+        if (fields.length) body += coverFieldsHTML(fields);
+        fields = [];
       };
       for (const b of sec.blocks) {
-        if (b.kind === 'level') { levels.push(b); continue; }
+        if (isCoverField(b)) {
+          // 小見出しも内容も空のものは出さない（足しただけで書いていない欄）
+          if (b.kind === 'subheading' && !b.heading.trim() && !b.body.trim()) continue;
+          fields.push(b);
+          continue;
+        }
         flush();
         // 本文は文字色の記法と改行を活かす（エスケープ → 装飾 → 改行は renderInline() が守る）
         const text = b.body.trim();
@@ -9819,10 +9942,18 @@ ${parseRollResultLines(lines, 1)}            </div>
         + `</section>`;
     }
 
-    function coverLevelsHTML(levels) {
-      return `<div class="cover-levels">`
-        + levels.map(lv => `<div class="cover-level-label">${escapeHTML(lv.label.trim())}</div>`
-            + `<div class="cover-level-value">${levelSymbolsHTML(lv)}</div>`).join('')
+    // 表の値の欄は、小見出しなら内容（文字色の記法と改行を活かす）、レベルなら記号。
+    // 値は内側の要素に載せているので、表（grid）が文字色の <span> で割れることはない（記法設計書 §3.5）
+    function coverFieldsHTML(fields) {
+      return `<div class="cover-fields">`
+        + fields.map(f => {
+            const label = (f.kind === 'level' ? f.label : f.heading).trim();
+            const value = f.kind === 'level'
+              ? levelSymbolsHTML(f)
+              : renderInline(f.body.trim());
+            return `<div class="cover-field-label">${escapeHTML(label)}</div>`
+              + `<div class="cover-field-value cover-field-${f.kind}">${value}</div>`;
+          }).join('')
         + `</div>`;
     }
 
@@ -9847,6 +9978,8 @@ ${parseRollResultLines(lines, 1)}            </div>
       if (titleInput && scenarioTitle) titleInput.value = scenarioTitle.value;
       renderBasicInfoThumb();
       renderBasicInfoItems();
+      // テンプレートの欄は前に開いた状態のまま出す（結果の文言だけ消す）
+      toggleBasicInfoTemplates(biTemplatesOpen);
       basicInfoModal.classList.add('active');
     }
 
@@ -9928,6 +10061,7 @@ ${parseRollResultLines(lines, 1)}            </div>
     function basicEntryFilled(node) {
       if (node.kind === 'text') return !!node.body.trim();
       if (node.kind === 'level') return !!node.label.trim();
+      if (node.kind === 'subheading') return !!node.heading.trim() || !!node.body.trim();
       return !!node.heading.trim() || node.blocks.some(basicEntryFilled);
     }
 
@@ -9945,12 +10079,13 @@ ${parseRollResultLines(lines, 1)}            </div>
     function addBasicInfoBlock(sectionId, kind) {
       const found = findBasicInfoEntry(sectionId);
       if (!found || found.node.kind !== 'section') return;
-      const block = kind === 'level'
-        ? newBasicLevel()
+      const block = kind === 'level' ? newBasicLevel()
+        : kind === 'subheading' ? { id: generateUUID(), kind: 'subheading', heading: '', body: '' }
         : { id: generateUUID(), kind: 'text', body: '' };
       found.node.blocks.push(block);
       renderBasicInfoItems();
-      focusBasicInfoField(block.id, kind === 'level' ? 'label' : 'body');
+      // 打ち始める欄：レベルと小見出しは項目名から、本文は本文から
+      focusBasicInfoField(block.id, kind === 'level' ? 'label' : kind === 'subheading' ? 'heading' : 'body');
       handleInput();
     }
 
@@ -9978,6 +10113,7 @@ ${parseRollResultLines(lines, 1)}            </div>
       if (basicEntryFilled(node)) {
         const name = node.kind === 'section' ? (node.heading.trim() || '見出しなし')
           : node.kind === 'level' ? node.label.trim()
+          : node.kind === 'subheading' ? (node.heading.trim() || node.body.trim().split('\n')[0].substring(0, 20))
           : node.body.trim().split('\n')[0].substring(0, 20);
         if (!confirm(`「${name}」を削除しますか？`)) return;
       }
@@ -10017,6 +10153,17 @@ ${parseRollResultLines(lines, 1)}            </div>
     }
 
     function initBasicInfoModal() {
+      loadBasicInfoTemplates();
+      // テンプレートの名前の欄は Enter でも保存する（日本語入力の変換確定の Enter は拾わない）
+      const nameInput = document.getElementById('bi-template-name');
+      if (nameInput) {
+        nameInput.addEventListener('keydown', e => {
+          if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+          e.preventDefault();
+          saveBasicInfoTemplate();
+        });
+      }
+
       const box = basicInfoItemsBox;
       if (!box) return;
 
@@ -10029,6 +10176,7 @@ ${parseRollResultLines(lines, 1)}            </div>
           case 'down': moveBasicInfoEntry(id, 1); break;
           case 'remove': removeBasicInfoEntry(id); break;
           case 'add-text': addBasicInfoBlock(id, 'text'); break;
+          case 'add-sub': addBasicInfoBlock(id, 'subheading'); break;
           case 'add-level': addBasicInfoBlock(id, 'level'); break;
           case 'star': setBasicLevelValue(id, parseInt(btn.dataset.biN, 10)); break;
         }
@@ -10068,7 +10216,8 @@ ${parseRollResultLines(lines, 1)}            </div>
       const items = currentBasicInfo.items;
       if (!items.length) {
         box.innerHTML = '<div class="npc-entry-empty">まだ項目がありません。'
-          + '「＋ 見出しと本文」で概要・プレイ人数・推奨技能などを、「＋ レベル」で難易度などを記号の数で表せます。</div>';
+          + '「＋ 見出しと本文」で概要・あらすじなどを書き、その中に「＋ 小見出し」でプレイ人数・想定時間などを足せます。'
+          + '「＋ レベル」では難易度などを記号の数で表せます。保存したテンプレートがあれば「📋 テンプレート」から呼び出せます。</div>';
         return;
       }
       box.innerHTML = items.map((it, i) => it.kind === 'level'
@@ -10089,23 +10238,40 @@ ${parseRollResultLines(lines, 1)}            </div>
 
     function basicSectionEditorHTML(sec, index, length) {
       const eid = escapeHTML(sec.id);
-      const blocks = sec.blocks.map((b, j) => b.kind === 'level'
-        ? `<div class="bi-block bi-block-level">${basicLevelEditorHTML(b, j, sec.blocks.length, '×')}</div>`
-        : `<div class="bi-block">`
-          + `<textarea class="form-input bi-text" data-bi-field="body" data-bi-id="${escapeHTML(b.id)}"`
+      const count = sec.blocks.length;
+      const blocks = sec.blocks.map((b, j) => {
+        const bid = escapeHTML(b.id);
+        if (b.kind === 'level') {
+          return `<div class="bi-block bi-block-level">${basicLevelEditorHTML(b, j, count, '×')}</div>`;
+        }
+        if (b.kind === 'subheading') {
+          // 小見出しと内容。台本では「小見出し｜内容」の表の1行になる
+          return `<div class="bi-block bi-block-sub">`
+            + `<span class="bi-kind">小見出し</span>`
+            + `<input type="text" class="form-input bi-sub-heading" data-bi-field="heading" data-bi-id="${bid}"`
+            + ` value="${escapeHTML(b.heading)}" placeholder="小見出し（例: プレイ人数）" aria-label="小見出し">`
+            + `<textarea class="form-input bi-sub-body" data-bi-field="body" data-bi-id="${bid}" rows="1"`
+            + ` placeholder="内容（例: 2〜3人）" aria-label="小見出しの内容">${escapeHTML(b.body)}</textarea>`
+            + entryToolsHTML('bi', b.id, j, count, '×')
+            + `</div>`;
+        }
+        return `<div class="bi-block">`
+          + `<textarea class="form-input bi-text" data-bi-field="body" data-bi-id="${bid}"`
           + ` placeholder="本文" aria-label="本文">${escapeHTML(b.body)}</textarea>`
-          + entryToolsHTML('bi', b.id, j, sec.blocks.length, '×')
-          + `</div>`).join('');
+          + entryToolsHTML('bi', b.id, j, count, '×')
+          + `</div>`;
+      }).join('');
       return `<div class="bi-card">`
         + `<div class="bi-card-head">`
         + `<span class="bi-kind">見出し</span>`
         + `<input type="text" class="form-input bi-heading" data-bi-field="heading" data-bi-id="${eid}"`
-        + ` value="${escapeHTML(sec.heading)}" placeholder="見出し（例: 概要・プレイ人数・推奨技能）" aria-label="見出し">`
+        + ` value="${escapeHTML(sec.heading)}" placeholder="見出し（例: 概要・あらすじ）" aria-label="見出し">`
         + entryToolsHTML('bi', sec.id, index, length, '🗑')
         + `</div>`
         + (blocks ? `<div class="bi-blocks">${blocks}</div>` : '')
         + `<div class="bi-card-add">`
         + `<button type="button" class="btn btn-small" data-bi-act="add-text" data-bi-id="${eid}">＋ 本文</button>`
+        + `<button type="button" class="btn btn-small" data-bi-act="add-sub" data-bi-id="${eid}">＋ 小見出し</button>`
         + `<button type="button" class="btn btn-small" data-bi-act="add-level" data-bi-id="${eid}">＋ レベル</button>`
         + `</div>`
         + `</div>`;
@@ -10141,6 +10307,211 @@ ${parseRollResultLines(lines, 1)}            </div>
           + ` style="--level-color: ${sym.color};" aria-label="${n}にする" aria-pressed="${on}">${on ? sym.on : sym.off}</button>`;
       }
       return html + `<span class="bi-star-count">${lv.value} / ${lv.max}</span>`;
+    }
+
+    // === シナリオの基本情報：テンプレート ===
+    //
+    // 基本情報の構成（見出し・小見出し・レベルの並びと名前）に名前を付けて保存し、別のシナリオで呼び出す。
+    // 書き手ごとの「いつもの形」なので、シナリオではなくこの端末の設定として localStorage に置く
+    // （マイパレット・ショートカットと同じ。docs/08_シナリオ基本情報設計書.html §7）。
+    // 保存するのは項目の形だけで、id は持たない（呼び出すたびに振り直す。同じテンプレートを2回足しても id が重ならないように）。
+    const BI_TEMPLATES_KEY = 'trpg_basic_info_templates';
+    const BI_TEMPLATES_MAX = 30;
+    let biTemplates = [];   // [{ id, name, items }]
+    let biTemplatesOpen = false;
+
+    // 項目から id を除いた写しを作る。keepContent が偽なら、本文・小見出しの内容・レベルの段階を空にする
+    // （構成だけを保存する。見出しや小見出しの名前、レベルの項目名・段階の数・記号は残す）
+    function basicInfoStructure(items, keepContent) {
+      const level = lv => ({ kind: 'level', label: lv.label, value: keepContent ? lv.value : 0, max: lv.max, symbol: lv.symbol });
+      return items.map(it => {
+        if (it.kind === 'level') return level(it);
+        return {
+          kind: 'section',
+          heading: it.heading,
+          blocks: it.blocks.map(b => {
+            if (b.kind === 'level') return level(b);
+            if (b.kind === 'subheading') return { kind: 'subheading', heading: b.heading, body: keepContent ? b.body : '' };
+            return { kind: 'text', body: keepContent ? b.body : '' };
+          })
+        };
+      });
+    }
+
+    function loadBasicInfoTemplates() {
+      biTemplates = [];
+      try {
+        const parsed = JSON.parse(localStorage.getItem(BI_TEMPLATES_KEY) || '[]');
+        if (!Array.isArray(parsed)) return;
+        // 壊れた値が混ざっていても画面ごと落とさない。項目の形は基本情報と同じ正規化を通す
+        parsed.forEach(t => {
+          if (!t || typeof t !== 'object') return;
+          const name = typeof t.name === 'string' ? t.name.trim() : '';
+          if (!name || biTemplates.some(x => x.name === name) || biTemplates.length >= BI_TEMPLATES_MAX) return;
+          biTemplates.push({
+            id: typeof t.id === 'string' && t.id ? t.id : generateUUID(),
+            name: name,
+            items: basicInfoStructure(normalizeBasicInfo({ items: t.items }).items, true)
+          });
+        });
+      } catch (e) {
+        console.error('基本情報のテンプレートの読み込みに失敗しました:', e);
+      }
+    }
+
+    // 保存に失敗したら呼び出し側で元に戻す（例外をそのまま投げる）
+    function writeBasicInfoTemplates() {
+      writeSetting(BI_TEMPLATES_KEY, JSON.stringify(biTemplates));
+    }
+
+    function setTemplateMessage(text) {
+      const el = document.getElementById('bi-template-msg');
+      if (el) el.textContent = text || '';
+    }
+
+    function toggleBasicInfoTemplates(force) {
+      biTemplatesOpen = typeof force === 'boolean' ? force : !biTemplatesOpen;
+      const panel = document.getElementById('bi-templates');
+      const btn = document.getElementById('bi-templates-toggle');
+      if (panel) panel.hidden = !biTemplatesOpen;
+      if (btn) {
+        btn.classList.toggle('active', biTemplatesOpen);
+        btn.setAttribute('aria-expanded', biTemplatesOpen ? 'true' : 'false');
+      }
+      if (biTemplatesOpen) {
+        setTemplateMessage('');
+        renderBasicInfoTemplates();
+      }
+    }
+
+    // 「見出し 2・小見出し 3・レベル 1」のような中身の要約
+    function templateSummary(items) {
+      let sections = 0, subs = 0, levels = 0;
+      items.forEach(it => {
+        if (it.kind === 'level') { levels++; return; }
+        sections++;
+        it.blocks.forEach(b => {
+          if (b.kind === 'subheading') subs++;
+          else if (b.kind === 'level') levels++;
+        });
+      });
+      const parts = [];
+      if (sections) parts.push('見出し ' + sections);
+      if (subs) parts.push('小見出し ' + subs);
+      if (levels) parts.push('レベル ' + levels);
+      return parts.join('・') || '項目なし';
+    }
+
+    function renderBasicInfoTemplates() {
+      const box = document.getElementById('bi-template-list');
+      if (!box) return;
+      if (!biTemplates.length) {
+        box.innerHTML = '<div class="npc-entry-empty">まだありません。今の構成に名前を付けて保存すると、別のシナリオでも同じ構成から書き始められます。</div>';
+        return;
+      }
+      // 名前は入力欄にして、その場で変えられるようにする（確定したときに保存する）
+      box.innerHTML = biTemplates.map(t => {
+        const eid = escapeHTML(t.id);
+        return `<div class="bi-template-row">`
+          + `<input type="text" class="form-input bi-template-rename" maxlength="40" value="${escapeHTML(t.name)}"`
+          + ` data-template-id="${eid}" aria-label="テンプレートの名前" onchange="renameBasicInfoTemplate(this)">`
+          + `<span class="bi-template-summary">${escapeHTML(templateSummary(t.items))}</span>`
+          + `<button type="button" class="btn btn-small" data-template-id="${eid}" onclick="applyBasicInfoTemplate(this.dataset.templateId, 'replace')"`
+          + ` title="今の項目を、このテンプレートの構成で置き換える">置き換える</button>`
+          + `<button type="button" class="btn btn-small" data-template-id="${eid}" onclick="applyBasicInfoTemplate(this.dataset.templateId, 'append')"`
+          + ` title="今の項目の後ろに、このテンプレートの構成を足す">後ろに足す</button>`
+          + `<button type="button" class="entry-tool entry-tool-remove" data-template-id="${eid}" onclick="deleteBasicInfoTemplate(this.dataset.templateId)"`
+          + ` title="このテンプレートを削除" aria-label="このテンプレートを削除">🗑</button>`
+          + `</div>`;
+      }).join('');
+    }
+
+    function saveBasicInfoTemplate() {
+      const nameInput = document.getElementById('bi-template-name');
+      const name = nameInput ? nameInput.value.trim() : '';
+      if (!name) { setTemplateMessage('テンプレートの名前を入れてください。'); if (nameInput) nameInput.focus(); return; }
+      if (!currentBasicInfo.items.length) { setTemplateMessage('保存する項目がありません。先に見出しや小見出しを足してください。'); return; }
+
+      const keep = !!(document.getElementById('bi-template-content') || {}).checked;
+      const items = basicInfoStructure(currentBasicInfo.items, keep);
+      const before = biTemplates.map(t => Object.assign({}, t));
+      const same = biTemplates.find(t => t.name === name);
+      if (same) {
+        if (!confirm(`テンプレート「${name}」はもうあります。今の構成で上書きしますか？`)) return;
+        same.items = items;
+      } else {
+        if (biTemplates.length >= BI_TEMPLATES_MAX) {
+          setTemplateMessage(`テンプレートは${BI_TEMPLATES_MAX}件までです。使わないものを削除してから保存してください。`);
+          return;
+        }
+        biTemplates.push({ id: generateUUID(), name: name, items: items });
+      }
+      try {
+        writeBasicInfoTemplates();
+      } catch (e) {
+        biTemplates = before; // 保存できなかったら一覧にも足さない
+        setTemplateMessage(e.message);
+        return;
+      }
+      if (nameInput) nameInput.value = '';
+      renderBasicInfoTemplates();
+      setTemplateMessage(`「${name}」を${same ? '上書き' : '保存'}しました。`);
+    }
+
+    function applyBasicInfoTemplate(id, mode) {
+      const t = biTemplates.find(x => x.id === id);
+      if (!t) return;
+      // id を振り直した写しを作る（テンプレートの中身そのものは渡さない）
+      const items = normalizeBasicInfo({ items: basicInfoStructure(t.items, true) }).items;
+      if (mode === 'replace') {
+        if (currentBasicInfo.items.some(basicEntryFilled)
+            && !confirm(`今の項目を、テンプレート「${t.name}」の構成で置き換えますか？\n今書いてある項目は消えます。`)) return;
+        currentBasicInfo.items = items;
+      } else {
+        currentBasicInfo.items = currentBasicInfo.items.concat(items);
+      }
+      renderBasicInfoItems();
+      handleInput();
+      setTemplateMessage(`「${t.name}」の構成を${mode === 'replace' ? '呼び出しました' : '後ろに足しました'}。`);
+    }
+
+    function renameBasicInfoTemplate(input) {
+      const t = biTemplates.find(x => x.id === input.dataset.templateId);
+      if (!t) return;
+      const name = input.value.trim();
+      // 空の名前・ほかと同じ名前は受け付けず元に戻す（名前で上書きを判定しているため、重なると区別できない）
+      if (!name || biTemplates.some(x => x !== t && x.name === name)) {
+        setTemplateMessage(name ? `「${name}」というテンプレートはもうあります。` : '名前を空にはできません。');
+        input.value = t.name;
+        return;
+      }
+      const old = t.name;
+      t.name = name;
+      try {
+        writeBasicInfoTemplates();
+      } catch (e) {
+        t.name = old;
+        input.value = old;
+        setTemplateMessage(e.message);
+        return;
+      }
+      setTemplateMessage('名前を変えました。');
+    }
+
+    function deleteBasicInfoTemplate(id) {
+      const t = biTemplates.find(x => x.id === id);
+      if (!t || !confirm(`テンプレート「${t.name}」を削除しますか？`)) return;
+      const before = biTemplates.slice();
+      biTemplates = biTemplates.filter(x => x !== t);
+      try {
+        writeBasicInfoTemplates();
+      } catch (e) {
+        biTemplates = before;
+        setTemplateMessage(e.message);
+        return;
+      }
+      renderBasicInfoTemplates();
+      setTemplateMessage(`「${t.name}」を削除しました。`);
     }
 
     // === 巻末（FAQ・あとがきなど・権利表記） ===
