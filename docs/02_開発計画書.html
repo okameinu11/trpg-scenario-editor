@@ -233,8 +233,9 @@
     <div class="callout">
       <strong>プレビューのGM情報見出しはCSSの <code>::before</code> で描いているため、JSから文字列を直接差し替えられない。</strong>
       <code>applySystemToUI()</code> がCSS変数 <code>--gm-info-label</code> を書き換えることで追従させている。
-      同様に、ショートカット設定画面のラベルは <code>SYSTEM_DEPENDENT_SHORTCUT_TEXT</code> が表示時にだけ差し替える
-      （<code>DEFAULT_SHORTCUTS</code> の値はそのまま localStorage へ書き出されるため、静的な文字列でなければならない）。
+      同様に、下部パネル・コマンドパレット・ショートカット設定画面の操作名は、
+      操作の表 <code>ACTIONS</code> の <code>name</code> / <code>desc</code> を関数にしておき、表示する時点で解決する
+      （<a href="07_操作の入口設計書.html">07 操作の入口設計書</a> §2）。
     </div>
 
     <div class="do-dont">
@@ -422,7 +423,8 @@
   </nav>
 
   <footer class="pagefoot">
-    最終更新: 2026-08-31（フェーズ6の完了に伴い、§1・§2・§3.1・§4 を更新）
+    最終更新: 2026-10-05（操作の表 <code>ACTIONS</code> の導入に伴い、§3 のシステム依存の表示名の注記を更新）<br>
+    2026-08-31（フェーズ6の完了に伴い、§1・§2・§3.1・§4 を更新）
   </footer>
 
 </div>

@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>操作の入口設計書 | TRPGシナリオ執筆エディタ</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="page">
+
+  <header class="hero">
+    <div class="eyebrow">TRPG SCENARIO EDITOR / 設計</div>
+    <h1>操作の入口設計書</h1>
+    <p class="lead">
+      記法の挿入や画面の操作を呼び出す<strong>入口</strong>（下部パネル・コマンドパレット・ショートカットキー）を、
+      <strong>なぜその形にしたか</strong>を残す。操作を足すとき・パネルの見た目を変えるときに読むこと。
+    </p>
+  </header>
+
+  <section>
+    <h2>1. 守備範囲</h2>
+    <p>
+      このアプリの操作には、同じものを呼び出す入口が3つある。
+      <strong>下部パネルのボタン</strong>（タッチ・マウス向け）、<strong>コマンドパレット</strong>（名前で探す）、
+      <strong>ショートカットキー</strong>（覚えた人向け）である。
+      このドキュメントは、この3つをどう作り分け、どう揃えているかを扱う。
+    </p>
+    <p>
+      想定している利用者は3通りいる。キーボードの無いタブレットで書く人、
+      キーボードはあるがショートカットを覚えていない人、すべて覚えている人である。
+      <strong>どの人も、ほかの人のための入口に邪魔されないこと</strong>が、以降の判断の軸になっている。
+    </p>
+
+    <table>
+      <thead><tr><th>知りたいこと</th><th>読む場所</th></tr></thead>
+      <tbody>
+        <tr><td>パネルに何のボタンがあるか（機能要件）</td><td><a href="01_要件定義書.html">01 要件定義書</a> §2.3</td></tr>
+        <tr><td>記法そのものの形・変換の順序</td><td><a href="04_記法設計書.html">04 記法設計書</a></td></tr>
+        <tr><td>システム固有の記法の入口とパーサの扱い</td><td><a href="04_記法設計書.html">04 記法設計書</a> §6</td></tr>
+        <tr><td>場面図を見ている間にキー操作を止める理由</td><td><a href="06_場面ツリー設計書.html">06 場面ツリー設計書</a> §6.1</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>2. 操作を1つの表にまとめた理由（<code>ACTIONS</code>）</h2>
+    <p>
+      2026-10-05 の改修まで、1つの操作の情報は<strong>5箇所に散らばっていた</strong>。
+      パネルのボタン（HTMLに直書き）、ボタン名の表（<code>updateAssistantPanelShortcutLabels()</code>）、
+      キー操作の振り分け（<code>executeShortcutAction()</code> の switch）、
+      既定のキーと設定画面の名前（<code>DEFAULT_SHORTCUTS</code>）、
+      システムによる出し分け（<code>applySystemToUI()</code> と <code>SYSTEM_DEPENDENT_SHORTCUT_TEXT</code>）である。
+    </p>
+    <p>実際に、この散らばりが原因で次のずれが起きていた。</p>
+    <ul>
+      <li>SANチェックはキー操作の側でシステムを確かめていたが、共鳴判定は確かめていなかった。
+          そのため<strong>CoCのシナリオでも Alt+7 で共鳴判定の画面が開き、CoCには無い記法を挿入できた</strong>。</li>
+      <li>入口を1つ増やすたびに5箇所を直す必要があった。コマンドパレットを足すと、これが6箇所になる。</li>
+    </ul>
+    <p>
+      そこで、<code>index.html</code> の <code>ACTIONS</code> に<strong>1操作1行</strong>で持つ形にした。
+      パネルのボタン・パレットの候補・設定画面の行・キー操作の受け付けは、すべてこの表から作る。
+    </p>
+
+    <table>
+      <thead><tr><th>項目</th><th>役割</th><th>区分</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>ショートカット設定（<code>trpg_shortcuts</code>）の保存キー。<strong>変えると利用者の割り当てが失われる</strong></td><td><span class="badge required">必須</span></td></tr>
+        <tr><td><code>group</code></td><td><code>ACTION_GROUPS</code> のどれに属するか。パネルとパレットの並び順・見出しになる</td><td><span class="badge required">必須</span></td></tr>
+        <tr><td><code>icon</code> / <code>name</code> / <code>desc</code></td><td>表示名と、何が起きるかの説明。関数でもよい（DL情報／KP情報のようにシステムで変わるもの）</td><td><span class="badge required">必須</span></td></tr>
+        <tr><td><code>run</code></td><td>実行する処理</td><td><span class="badge required">必須</span></td></tr>
+        <tr><td><code>short</code></td><td>幅の足りないパネルで使う短い名前</td><td><span class="badge recommended">推奨</span></td></tr>
+        <tr><td><code>keywords</code></td><td>パレットの絞り込み用の読み（ひらがな）と別名</td><td><span class="badge recommended">推奨</span></td></tr>
+        <tr><td><code>key</code></td><td>既定のショートカット。<code>null</code> なら未割り当て</td><td><span class="badge optional">任意</span></td></tr>
+        <tr><td><code>available</code></td><td>そのシステムで使えるか。<code>false</code> を返すと3つの入口のすべてから消える</td><td><span class="badge optional">任意</span></td></tr>
+        <tr><td><code>panel</code></td><td><code>false</code> ならパネルに出さない（ヘッダーに既にボタンがある保存・PDF出力など）</td><td><span class="badge optional">任意</span></td></tr>
+        <tr><td><code>inModal</code> / <code>inSceneMode</code></td><td>モーダル表示中・場面図表示中にも受け付けるか（§5）</td><td><span class="badge optional">任意</span></td></tr>
+      </tbody>
+    </table>
+
+    <h3>2.1 ショートカット設定にはキーだけを保存する</h3>
+    <p>
+      以前は <code>trpg_shortcuts</code> に表示名（<code>label</code> / <code>desc</code>）も一緒に書き出しており、
+      読み込むたびに最新の名前で上書きしていた。表示名は利用者の設定ではないので、
+      <strong>キーの組み合わせだけを保存し、名前は毎回 <code>ACTIONS</code> から引く</strong>形に改めた。
+      旧版が保存した表示名は、読み込み時に <code>pickShortcut()</code> が捨てる。
+    </p>
+    <p>
+      後の版で操作を足したとき、保存済みの設定にはその操作が無い。
+      <code>loadShortcuts()</code> は既定のキーを補うが、<strong>そのキーを利用者が別の操作に割り当て済みなら、利用者の割り当てを優先して未割り当てにする</strong>。
+      コマンドパレットの Ctrl+K を足したときに、既に Ctrl+K を使っていた人の操作を奪わないため。
+    </p>
+  </section>
+
+  <section>
+    <h2>3. 下部パネル</h2>
+    <p>
+      ボタンが12個まで増え、各ボタン名の後ろに <code>(Alt + 1)</code> のようなキー表記が付いていたため、
+      1個あたりの幅が約2倍になっていた。横スクロールしないと右端の「NPC管理」などが見えず、
+      ショートカットを覚えていない人ほど不便な状態だった。
+    </p>
+
+    <h3>3.1 現在の形</h3>
+    <ul>
+      <li><strong>分類ごとにまとめる</strong>（構成・本文・判定・資料）。分類名は縦書きにして、ボタン1個分の幅も取らないようにした。</li>
+      <li><strong>アイコンの下に名前を置く</strong>縦組みにして、1個あたりの幅を詰めた。</li>
+      <li><strong>キー表記はボタン名から外し</strong>、マウスを乗せたときの吹き出しに出す。吹き出しには何が起きるかの説明も出す。</li>
+      <li>末尾に「🔎 すべての操作」を置き、<strong>そのボタンにだけはキー（Ctrl+K）を常に表示する</strong>。存在を知らなければ使われないため。</li>
+    </ul>
+
+    <h3>3.2 幅が足りないときの詰め方</h3>
+    <p>
+      パネルは <code>data-density</code> を <code>full</code>（正式名）→ <code>short</code>（短い名前）→
+      <code>tight</code>（分類名とパレットの文字も消す）の順に詰める。
+      どの段で収まるかは<strong>実際にはみ出しているかを測って決める</strong>（<code>fitAssistantPanel()</code>）。
+      ボタンの数はシステムで変わり（共鳴判定とSANチェックは片方しか出ない）、名前の長さも変わるため、
+      決め打ちの画面幅では合わない。2026-10-05 時点で、正式名は約1200px以上、<code>tight</code> は768px幅（タブレット縦）で収まる。
+      それより狭い画面だけ、最後の手段として横スクロールに任せる。
+    </p>
+    <div class="callout warn">
+      <strong>パネルの高さを固定してはいけない。</strong>
+      横スクロールバーが出ると、その分だけボタンが潰れる。固定していたときは41pxまで縮み、
+      タップ領域の下限44px（<a href="01_要件定義書.html">01 要件定義書</a> §5）を割っていた。
+      ボタン側に <code>min-height: 44px</code> を持たせ、パネルは中身に合わせて伸びるようにしてある。
+      同じ理由で、ボタンとグループは <code>flex-shrink: 0</code> にしてある（縮むと名前がボタンの外へはみ出して重なる）。
+    </div>
+
+    <h3>3.3 吹き出しをパネルの外に置く理由</h3>
+    <p>
+      パネルは横スクロールのために <code>overflow</code> を指定している。
+      その中に吹き出しを置くと、パネルより上へ出る部分が切り取られる。
+      そのため <code>body</code> 直下に <code>#panel-tip</code> を1つだけ置き、ボタンの位置を測って重ねている。
+      吹き出しはマウスのときだけ出す。タッチで出すと、指を離した後も残って邪魔になる。
+    </p>
+
+    <h3>3.4 ボタンは mousedown で実行する</h3>
+    <p>
+      クリックで実行すると、押した瞬間にボタンへフォーカスが移り、本文の選択範囲が外れる。
+      文字色のように「選んだ文字を囲む」操作が成り立たなくなるので、
+      <code>mousedown</code> で既定動作を止めてから実行している。
+      Tabキーで移ってきて Enter / Space を押した場合は <code>mousedown</code> が起きないので、
+      <code>click</code> のうちキーボード由来のもの（<code>detail === 0</code>）だけを別に拾う。
+    </p>
+
+    <h3>3.5 却下した案</h3>
+    <table>
+      <thead><tr><th>案</th><th>却下した理由</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>ボタンを2段に折り返す</td>
+          <td>本文の高さが削られる。タブレットで画面キーボードを出したときに特に厳しい。</td>
+        </tr>
+        <tr>
+          <td>分類ごとのドロップダウンにまとめる</td>
+          <td>最も頻繁に使う挿入が、毎回1タップ増える。</td>
+        </tr>
+        <tr>
+          <td>エディタ横のアイコンだけの縦帯</td>
+          <td>絵文字だけでは意味が伝わりにくい（🗺 が「場面図を挿入」と「場面図への切り替え」で重複している）。本文の横幅も削る。</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>4. コマンドパレット</h2>
+    <p>
+      Ctrl+K（既定）または パネル末尾の「🔎 すべての操作」で開く。
+      操作を名前で絞り込み、Enter で実行する。パネルに無い操作（保存・PDF出力・シナリオ一覧・ショートカット設定など）も含む。
+    </p>
+    <p>
+      狙いは、<strong>ショートカットを覚えていない人と、覚えた人の間をつなぐ</strong>ことである。
+      キーボードから手を離さずに済み、候補の横にその操作のキーが出るので、使ううちにキーを覚えられる。
+      記法がいくつ増えても、パネルのように幅で破綻しない。
+    </p>
+
+    <h3>4.1 絞り込みの規則</h3>
+    <ul>
+      <li>検索語と候補の両方を、<strong>カタカナ→ひらがな、全角英数→半角、大文字→小文字</strong>に揃えてから比べる（<code>normalizeForSearch()</code>）。</li>
+      <li><code>keywords</code> に読みをひらがなで持つ。日本語入力は変換前の文字でも入力欄の値が変わるので、
+          「はんてい」と打った時点で「技能判定」「共鳴判定」が残る。</li>
+      <li>空白で区切ると、すべての語を含むものに絞る。名前・読みの頭から一致するものを先に並べる。</li>
+      <li>未入力のときは分類ごとに見出しを付けて全件を出す。何ができるかを一覧する画面を兼ねる。</li>
+    </ul>
+    <div class="callout">
+      <strong>日本語入力の変換中の Enter・矢印キーは拾わない</strong>（<code>isComposing</code> を見る）。
+      拾うと、変換を確定したつもりの Enter で候補が実行されてしまう。
+      NPCの技能欄など、ほかの入力欄と同じ扱いである。
+    </div>
+
+    <h3>4.2 モーダルの仕組みに載せた理由</h3>
+    <p>
+      パレットは <code>.modal</code> として作っている。
+      × ボタン・背景クリック・Esc で閉じる処理（<a href="01_要件定義書.html">01 要件定義書</a> §2.6）と、
+      開いている間ほかのショートカットを止める処理を、既存のモーダルとそのまま共用できるため。
+      候補を実行するときは<strong>先にパレットを閉じてから</strong>実行する。
+      開いたままだと、実行した操作が開くモーダル（技能判定など）と重なる。
+    </p>
+
+    <h3>4.3 却下した案</h3>
+    <table>
+      <thead><tr><th>案</th><th>却下した理由</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>行頭で <code>/</code> を打つと候補が出る（スラッシュメニュー）</td>
+          <td>
+            日本語入力がオンのとき、<code>/</code> キーは「・」になる。
+            「・」で反応させると、行頭に箇条書きの「・」を打つたびにメニューが開く。
+            「/」だけに反応させると、日本語で書いている大半の時間は使えない。
+          </td>
+        </tr>
+        <tr>
+          <td>パレットの候補を「最近使った順」に並べる</td>
+          <td>並びが毎回変わると、矢印キーの回数で覚えた操作が使えなくなる。まずは固定の並びで出した（§7）。</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>5. いつ受け付けるか</h2>
+    <p>
+      キー操作とパレットは、<strong>同じ判定</strong>（<code>canRunAction()</code>）で受け付けるかを決める。
+      片方だけ緩いと、「キーでは止まるがパレットからは本文が書き換わる」ずれが生まれるため。
+    </p>
+    <table>
+      <thead><tr><th>状況</th><th>受け付けるもの</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>そのシステムに無い操作</td>
+          <td>なし（<code>available</code>）</td>
+          <td>入口を出さないのと同じ扱いにする。記法そのものは常にパースする（<a href="04_記法設計書.html">04 記法設計書</a> §6）</td>
+        </tr>
+        <tr>
+          <td>モーダル表示中</td>
+          <td>保存だけ（<code>inModal</code>）</td>
+          <td>誤爆を防ぐ。保存が効かないほうが驚かれる</td>
+        </tr>
+        <tr>
+          <td>場面図の表示中</td>
+          <td>保存・画面の切り替え・パレット・シナリオ一覧・PDF出力・ショートカット設定（<code>inSceneMode</code>）</td>
+          <td>本文を書き換える操作を止める。隠れた本文に記法が入っても気づけない（<a href="06_場面ツリー設計書.html">06 場面ツリー設計書</a> §6.1）</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      同じキーに複数の操作が割り当たっている場合（旧版のデータなど）は、受け付けない操作を飛ばして、受け付ける操作に譲る。
+    </p>
+  </section>
+
+  <section>
+    <h2>6. 操作を足すときに触る場所</h2>
+    <ul class="checklist">
+      <li><code>ACTIONS</code> に1行足す（パネル・パレット・設定画面・キー操作はここから自動で作られる）</li>
+      <li>既定のキーを付けるなら、既存の割り当てと重ならないか確かめる（§2.1 の補い方は、既存利用者の重複しか避けない）</li>
+      <li>システム固有なら <code>available</code> を書く（<code>GAME_SYSTEMS</code> のフラグを見る）</li>
+      <li>本文を書き換えない操作なら <code>inSceneMode: true</code> を付ける</li>
+      <li>パネルの幅が増えるなら、768px幅で <code>tight</code> に収まるかを確かめる（収まらなければ横スクロールになる）</li>
+      <li>記法を挿入する操作なら、記法側の変換も要る（<a href="04_記法設計書.html">04 記法設計書</a> §7）</li>
+    </ul>
+    <div class="callout warn">
+      <strong>既存の操作の <code>id</code> を変えないこと。</strong>
+      <code>id</code> はショートカット設定の保存キーなので、変えると利用者が割り当てたキーが黙って失われる。
+      保存の操作が今も <code>cloud-save</code> という名前なのはこのためである（クラウド保存は2026-08-31に撤去済み）。
+    </div>
+  </section>
+
+  <section>
+    <h2>7. 将来拡張の入り口</h2>
+    <table>
+      <thead><tr><th>やりたいこと</th><th>変える場所</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>パネルに出すボタンを利用者が選べるようにする</td>
+          <td><code>renderAssistantPanel()</code> の絞り込みに、設定（<code>trpg_shortcuts</code> と同じく localStorage）を1条件足す</td>
+        </tr>
+        <tr>
+          <td>パレットでよく使う操作を上に出す</td>
+          <td><code>renderPalette()</code> の並べ替え。§4.3 の理由から、未入力時の並びは固定のまま、検索結果の並びだけで使うこと</td>
+        </tr>
+        <tr>
+          <td>パレットから引数付きで実行する（「判定 目星」で技能を選んだ状態で開く など）</td>
+          <td><code>run</code> に検索語の残りを渡す。今は引数を取らない</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <nav class="pagenav">
+    <a href="00_INDEX.html">← 目次</a>
+    <a href="04_記法設計書.html">記法設計書 §7（記法を足すときに触る場所） →</a>
+  </nav>
+
+  <footer class="pagefoot">
+    最終更新: 2026-10-05（新規作成。操作の表・下部パネル・コマンドパレット・受け付ける条件の判断を記述）
+  </footer>
+
+</div>
+</body>
+</html>

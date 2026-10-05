@@ -613,38 +613,247 @@
     margin-top: 6px;
   }
 
-  /* === アシスタントパネル (タッチ入力支援) === */
+  /* === アシスタントパネル (タッチ入力支援) ===
+     ボタンは ACTIONS から renderAssistantPanel() が組み立てる。
+     アイコンの下に名前を置く縦組みにして、1個あたりの幅を詰めている。
+     ショートカットは名前に含めず、マウスを乗せたときの吹き出し（#panel-tip）に出す。
+     幅が足りなければ data-density を full → short → tight と詰め、
+     それでも収まらない狭い画面だけ横スクロールに任せる（fitAssistantPanel()）。 */
   .assistant-panel {
     background-color: var(--bg-card);
     border-top: 1px solid var(--border-color);
-    padding: 10px 20px;
+    padding: 6px 16px;
     display: flex;
-    gap: 12px;
+    align-items: stretch;
+    gap: 10px;
     overflow-x: auto;
+    overflow-y: hidden;
     white-space: nowrap;
-    align-items: center;
-    height: 60px;
+    flex-shrink: 0;
+    /* 高さは固定しない。横スクロールバーが出たときに、その分ボタンが潰れて
+       タップ領域の下限（44px、要件定義書 §5）を割らないようにする */
+    min-height: 64px;
     box-sizing: border-box;
+    scrollbar-width: thin;
   }
-  .panel-label {
-    color: var(--text-secondary);
-    font-size: 0.8rem;
+  /* 幅が足りないときに縮ませない。縮むと名前がボタンの外へはみ出して重なる */
+  .panel-group,
+  .btn-panel {
+    flex-shrink: 0;
+  }
+  .panel-group {
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
+    padding-right: 10px;
+    border-right: 1px solid var(--border-color);
+  }
+  /* 分類名は縦書きにして、ボタン1個分の幅を取らないようにする */
+  .panel-group-label {
+    writing-mode: vertical-rl;
+    align-self: center;
+    font-size: 0.66rem;
     font-weight: 600;
-    margin-right: 8px;
+    letter-spacing: 0.2em;
+    color: var(--text-secondary);
+    margin-right: 2px;
+    user-select: none;
   }
   .btn-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-width: 52px;
+    min-height: 44px;
+    padding: 4px 8px;
     background-color: var(--bg-input);
     border: 1px solid var(--border-color);
-    color: var(--text-primary);
-    padding: 6px 12px;
     border-radius: 6px;
-    font-size: 0.85rem;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.72rem;
+    line-height: 1.2;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.15s;
   }
   .btn-panel:hover {
     background-color: var(--border-color);
     border-color: var(--text-secondary);
+  }
+  .btn-panel-icon {
+    font-size: 1.1rem;
+    line-height: 1;
+  }
+  .btn-panel-short {
+    display: none;
+  }
+  /* 末尾の「すべての操作」。パネルに無い操作（保存・PDF出力など）もここから探せる */
+  .btn-panel-palette {
+    margin-left: auto;
+    flex-direction: row;
+    gap: 8px;
+    padding: 4px 12px;
+    border-color: rgba(59, 130, 246, 0.55);
+  }
+  .btn-panel-palette .kbd-badge {
+    font-size: 0.68rem;
+  }
+  .assistant-panel[data-density="short"] .btn-panel-full,
+  .assistant-panel[data-density="tight"] .btn-panel-full {
+    display: none;
+  }
+  .assistant-panel[data-density="short"] .btn-panel-short,
+  .assistant-panel[data-density="tight"] .btn-panel-short {
+    display: inline;
+  }
+  .assistant-panel[data-density="short"] .btn-panel-palette-keys,
+  .assistant-panel[data-density="tight"] .btn-panel-palette-keys,
+  .assistant-panel[data-density="tight"] .btn-panel-palette-label,
+  .assistant-panel[data-density="tight"] .panel-group-label {
+    display: none;
+  }
+  .assistant-panel[data-density="tight"] {
+    gap: 6px;
+    padding: 6px 10px;
+  }
+  .assistant-panel[data-density="tight"] .panel-group {
+    gap: 3px;
+    padding-right: 6px;
+  }
+
+  /* パネルのボタンの吹き出し。パネルは overflow で横スクロールするため、
+     中に置くと上へはみ出す部分が切り取られる。body 直下に1つだけ置いて位置を合わせる。 */
+  #panel-tip {
+    display: none;
+    position: fixed;
+    z-index: 900; /* モーダル(1000)より下 */
+    max-width: 300px;
+    padding: 8px 10px;
+    background-color: var(--bg-app);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.45);
+    color: var(--text-primary);
+    font-size: 0.78rem;
+    line-height: 1.5;
+    pointer-events: none;
+  }
+  #panel-tip.show {
+    display: block;
+  }
+  .panel-tip-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    font-weight: 700;
+  }
+  .panel-tip-desc {
+    margin-top: 2px;
+    color: var(--text-secondary);
+  }
+
+  /* === コマンドパレット ===
+     .modal の仕組みに載せているのは、Esc・背景クリック・× で閉じる処理と、
+     開いている間ほかのショートカットを止める処理を共用するため。
+     入力欄が画面の中央より上にあるほうが、候補が下へ伸びても視線が動かない。 */
+  .modal-palette {
+    align-items: flex-start;
+    padding-top: 12vh;
+    box-sizing: border-box;
+  }
+  .palette-content {
+    max-width: 560px;
+    max-height: 72vh;
+  }
+  .palette-search {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .palette-input {
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 1rem;
+  }
+  .palette-list {
+    overflow-y: auto;
+    padding: 6px;
+  }
+  .palette-heading {
+    padding: 8px 10px 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--text-secondary);
+  }
+  .palette-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    min-height: 44px;
+    box-sizing: border-box;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .palette-item.active {
+    background-color: rgba(59, 130, 246, 0.15);
+    box-shadow: inset 3px 0 0 var(--accent-color);
+  }
+  .palette-item-icon {
+    width: 1.5em;
+    text-align: center;
+    font-size: 1.05rem;
+    flex-shrink: 0;
+  }
+  .palette-item-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .palette-item-name {
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+  .palette-item-desc {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .palette-item-keys {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+  }
+  .palette-empty {
+    padding: 24px;
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+  }
+  .palette-footer {
+    display: flex;
+    gap: 16px;
+    padding: 8px 16px;
+    border-top: 1px solid var(--border-color);
+    font-size: 0.72rem;
+    color: var(--text-secondary);
   }
 
   /* === 自動保存ステータス === */
@@ -1841,22 +2050,9 @@
     <aside class="scene-inspector" id="scene-inspector"></aside>
   </div>
 
-  <!-- 下部：執筆アシスタントパネル -->
-  <footer class="assistant-panel">
-    <span class="panel-label">クイック挿入:</span>
-    <button id="btn-shortcut-scene" class="btn-panel" onmousedown="event.preventDefault(); insertTemplate('scene')">🎬 シーン見出し</button>
-    <button id="btn-shortcut-search-title" class="btn-panel" onmousedown="event.preventDefault(); insertTemplate('search-title')">📌 探索小見出し</button>
-    <button id="btn-shortcut-search-list" class="btn-panel" onmousedown="event.preventDefault(); insertTemplate('search-list')">🔍 探索一覧</button>
-    <button id="btn-shortcut-read" class="btn-panel" onmousedown="event.preventDefault(); insertTemplate('read')">💬 情景描写</button>
-    <button id="btn-shortcut-dl" class="btn-panel" onmousedown="event.preventDefault(); insertTemplate('dl')">📋 DL情報</button>
-    <button id="btn-shortcut-roll" class="btn-panel" onmousedown="event.preventDefault(); openRollModal()">🎲 技能判定</button>
-    <button id="btn-shortcut-resonance" class="btn-panel" onmousedown="event.preventDefault(); openResonanceModal()">🌀 共鳴判定</button>
-    <button id="btn-shortcut-san" class="btn-panel" onmousedown="event.preventDefault(); openSanModal()">🧠 SANチェック</button>
-    <button id="btn-shortcut-tips" class="btn-panel" onmousedown="event.preventDefault(); insertTemplate('tips')">💡 TIPS/補足</button>
-    <button id="btn-shortcut-color" class="btn-panel" onmousedown="event.preventDefault(); openColorModal()">🎨 文字色</button>
-    <button id="btn-shortcut-scene-map-insert" class="btn-panel" onmousedown="event.preventDefault(); insertTemplate('scene-map')">🗺 場面図を挿入</button>
-    <button id="btn-shortcut-npc" class="btn-panel" style="background-color: #1e293b; border-color: #3b82f6;" onmousedown="event.preventDefault(); openNpcModal()">👥 NPC管理</button>
-  </footer>
+  <!-- 下部：執筆アシスタントパネル（ボタンは ACTIONS から renderAssistantPanel() が組み立てる） -->
+  <footer class="assistant-panel" id="assistant-panel" aria-label="クイック挿入"></footer>
+  <div id="panel-tip" class="no-print" role="tooltip"></div>
 
   <!-- シナリオ一覧モーダル -->
   <div id="list-modal" class="modal">
@@ -2120,6 +2316,24 @@
       <div class="modal-footer" style="padding: 15px; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; background-color: var(--bg-card);">
         <button class="btn" onclick="resetShortcutsToDefault()">デフォルトに戻す</button>
         <button class="btn btn-primary" onclick="closeShortcutModal()">完了</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🔎 コマンドパレット（すべての操作を名前で探して実行する） -->
+  <div id="palette-modal" class="modal modal-palette">
+    <div class="modal-content palette-content" role="dialog" aria-label="すべての操作">
+      <div class="palette-search">
+        <span aria-hidden="true">🔎</span>
+        <input type="text" id="palette-input" class="palette-input" autocomplete="off" spellcheck="false"
+               placeholder="操作の名前で絞り込む（例: 判定、はんてい、npc）">
+        <button class="btn-close" onclick="closeCommandPalette()" aria-label="閉じる">&times;</button>
+      </div>
+      <div id="palette-list" class="palette-list" role="listbox"></div>
+      <div class="palette-footer">
+        <span><kbd class="kbd-badge">↑</kbd> <kbd class="kbd-badge">↓</kbd> 選ぶ</span>
+        <span><kbd class="kbd-badge">Enter</kbd> 実行</span>
+        <span><kbd class="kbd-badge">Esc</kbd> 閉じる</span>
       </div>
     </div>
   </div>
@@ -2476,29 +2690,138 @@
     // 判定ブロックの自由枠。{ システムID: [枠の名称, ...] }
     let customTiers = {};
 
-    // === ショートカットキー設定 ===
-    const DEFAULT_SHORTCUTS = {
-      'scene': { key: '1', altKey: true, ctrlKey: false, shiftKey: false, label: '🎬 シーン見出し', desc: '行頭に # を挿入' },
-      'search-title': { key: '2', altKey: true, ctrlKey: false, shiftKey: false, label: '📌 探索小見出し', desc: '行頭に ## を挿入' },
-      'search-list': { key: '3', altKey: true, ctrlKey: false, shiftKey: false, label: '🔍 探索一覧', desc: '探索箇所ブロックを挿入' },
-      'read': { key: '4', altKey: true, ctrlKey: false, shiftKey: false, label: '💬 情景描写', desc: '行頭に > を挿入' },
-      // label / desc はエモクロアの呼称。CoCでは KP情報 / [KP] と表示する
-      // （SYSTEM_DEPENDENT_SHORTCUT_TEXT が表示時に差し替える）。
-      'dl': { key: '5', altKey: true, ctrlKey: false, shiftKey: false, label: '📋 DL情報', desc: '行頭に [DL] を挿入' },
-      'roll': { key: '6', altKey: true, ctrlKey: false, shiftKey: false, label: '🎲 技能判定', desc: '技能判定モーダルを開く' },
-      'resonance': { key: '7', altKey: true, ctrlKey: false, shiftKey: false, label: '🌀 共鳴判定', desc: '共鳴判定モーダルを開く' },
-      'tips': { key: '8', altKey: true, ctrlKey: false, shiftKey: false, label: '💡 TIPS/補足', desc: '行末に >> [TIPS] を挿入' },
-      'npc': { key: '9', altKey: true, ctrlKey: false, shiftKey: false, label: '👥 NPC管理', desc: 'NPC管理モーダルを開く' },
-      'san': { key: '0', altKey: true, ctrlKey: false, shiftKey: false, label: '🧠 SANチェック', desc: 'SANチェックモーダルを開く（CoCのみ）' },
-      'color': { key: 'c', altKey: true, ctrlKey: false, shiftKey: false, label: '🎨 文字色', desc: '選択した文字に色を付ける' },
-      // 記法の挿入ではなく画面の切り替えなので、場面図を開いている間も受け付ける
-      'scene-map': { key: 'm', altKey: true, ctrlKey: false, shiftKey: false, label: '🗺 場面図', desc: '執筆と場面図を切り替える' },
-      'scene-map-insert': { key: 'z', altKey: true, ctrlKey: false, shiftKey: false, label: '🗺 場面図を挿入', desc: '本文に [場面図] を挿入する' },
-      // キー名 'cloud-save' は保存済みのユーザー設定(trpg_shortcuts)との互換のため残している。
-      // 保存先はクラウドからローカルへ変わったが、キーを変えると既存の割り当てが失われる。
-      'cloud-save': { key: 's', altKey: false, ctrlKey: true, shiftKey: false, label: '💾 保存', desc: '編集中のシナリオをシナリオ一覧に保存' }
-    };
+    // === 操作の一覧（パネル・コマンドパレット・ショートカットの共通定義） ===
+    //
+    // 下部パネルのボタン、コマンドパレットの候補、ショートカット設定の行は、すべてこの表から作る。
+    // 操作を足すときに触るのはここ1箇所でよい（記法の変換は別。docs/07_操作の入口設計書.html）。
+    //
+    //   id        … ショートカット設定(trpg_shortcuts)の保存キー。変えると利用者の割り当てが失われる
+    //   group     … ACTION_GROUPS のどれか。パネルとパレットの並び順・見出しになる
+    //   icon/name … 表示名。name / short / desc は関数でもよい（システムで呼称が変わるもの）
+    //   short     … 幅の足りないパネルで使う短い名前
+    //   desc      … 何が起きるか。パネルの吹き出し・パレット・設定画面に出る
+    //   keywords  … パレットの絞り込み用の読みと別名（空白区切り）。読みはひらがなで書く。
+    //               日本語入力の変換前（ひらがなのまま）で打っても当たるようにするため
+    //   panel     … false ならパネルに出さない（ヘッダーに既にボタンがあるもの）
+    //   available … そのシステムで使えるか。false ならパネル・パレット・キー操作のすべてから消える
+    //   inModal / inSceneMode … モーダル表示中・場面図表示中にも受け付けるか（既定は受け付けない）
+    //   key       … 既定のショートカット。null なら未割り当て
+    //   run       … 実行する処理
+    const ACTION_GROUPS = [
+      { id: 'structure', label: '構成' },
+      { id: 'text', label: '本文' },
+      { id: 'check', label: '判定' },
+      { id: 'data', label: '資料' },
+      { id: 'app', label: '操作' }
+    ];
 
+    const withAlt = key => ({ key, ctrlKey: false, altKey: true, shiftKey: false });
+    const withCtrl = key => ({ key, ctrlKey: true, altKey: false, shiftKey: false });
+
+    const ACTIONS = [
+      { id: 'scene', group: 'structure', icon: '🎬', name: 'シーン見出し', short: 'シーン',
+        desc: '行頭に # を挿入', keywords: 'しーんみだし', key: withAlt('1'),
+        run: () => insertTemplate('scene') },
+      { id: 'search-title', group: 'structure', icon: '📌', name: '探索小見出し', short: '小見出し',
+        desc: '行頭に ## を挿入', keywords: 'たんさくこみだし', key: withAlt('2'),
+        run: () => insertTemplate('search-title') },
+      { id: 'search-list', group: 'structure', icon: '🔍', name: '探索一覧', short: '探索',
+        desc: '探索箇所ブロックを挿入', keywords: 'たんさくいちらん', key: withAlt('3'),
+        run: () => insertTemplate('search-list') },
+      { id: 'scene-map-insert', group: 'structure', icon: '🗺', name: '場面図を挿入', short: '場面図',
+        desc: '本文に [場面図] を挿入する', keywords: 'ばめんずをそうにゅう map', key: withAlt('z'),
+        run: () => insertTemplate('scene-map') },
+
+      { id: 'read', group: 'text', icon: '💬', name: '情景描写', short: '情景',
+        desc: '行頭に > を挿入', keywords: 'じょうけいびょうしゃ', key: withAlt('4'),
+        run: () => insertTemplate('read') },
+      // エモクロアでは DL情報 / [DL]、CoCでは KP情報 / [KP]
+      { id: 'dl', group: 'text', icon: '📋', name: () => gmInfoLabel(), short: () => gmInfoTag(),
+        desc: () => '行頭に [' + gmInfoTag() + '] を挿入', keywords: 'でぃーえるじょうほう けーぴーじょうほう kp gm',
+        key: withAlt('5'), run: () => insertTemplate('dl') },
+      { id: 'tips', group: 'text', icon: '💡', name: 'TIPS/補足', short: 'TIPS',
+        desc: '行末に >> [TIPS] を挿入', keywords: 'ちっぷす ほそく', key: withAlt('8'),
+        run: () => insertTemplate('tips') },
+      { id: 'color', group: 'text', icon: '🎨', name: '文字色', short: '色',
+        desc: '選択した文字に色を付ける', keywords: 'もじいろ いろ からー color', key: withAlt('c'),
+        run: () => openColorModal() },
+
+      { id: 'roll', group: 'check', icon: '🎲', name: '技能判定', short: '技能',
+        desc: '技能判定モーダルを開く', keywords: 'ぎのうはんてい ろーる roll', key: withAlt('6'),
+        run: () => openRollModal() },
+      { id: 'resonance', group: 'check', icon: '🌀', name: '共鳴判定', short: '共鳴',
+        desc: '共鳴判定モーダルを開く（エモクロアのみ）', keywords: 'きょうめいはんてい', key: withAlt('7'),
+        available: sys => !!sys.hasResonanceRoll, run: () => openResonanceModal() },
+      { id: 'san', group: 'check', icon: '🧠', name: 'SANチェック', short: 'SAN',
+        desc: 'SANチェックモーダルを開く（CoCのみ）', keywords: 'さんちぇっく', key: withAlt('0'),
+        available: sys => !!sys.hasSanCheck, run: () => openSanModal() },
+
+      { id: 'npc', group: 'data', icon: '👥', name: 'NPC管理', short: 'NPC',
+        desc: 'NPC管理モーダルを開く', keywords: 'えぬぴーしーかんり', key: withAlt('9'),
+        run: () => openNpcModal() },
+
+      // ここから下はパネルに出さない（ヘッダーにボタンがある、または画面の操作）
+      { id: 'palette', group: 'app', icon: '🔎', name: 'すべての操作', panel: false,
+        desc: '保存・PDF出力なども含めて、操作を名前で探して実行する', keywords: 'こまんど けんさく そうさ command',
+        key: withCtrl('k'),
+        inSceneMode: true, run: () => openCommandPalette() },
+      // id 'cloud-save' は保存済みのユーザー設定(trpg_shortcuts)との互換のため残している。
+      // 保存先はクラウドからローカルへ変わったが、id を変えると既存の割り当てが失われる。
+      { id: 'cloud-save', group: 'app', icon: '💾', name: '保存', panel: false,
+        desc: '編集中のシナリオをシナリオ一覧に保存', keywords: 'ほぞん せーぶ save', key: withCtrl('s'),
+        inModal: true, inSceneMode: true, run: () => saveScenarioToStore() },
+      // 記法の挿入ではなく画面の切り替えなので、場面図を開いている間も受け付ける
+      { id: 'scene-map', group: 'app', icon: '🗺', name: '執筆／場面図の切り替え', panel: false,
+        desc: '執筆と場面図を切り替える', keywords: 'ばめんず しっぴつ きりかえ map', key: withAlt('m'),
+        inSceneMode: true,
+        run: () => setAppMode(document.body.dataset.mode === 'scene' ? 'write' : 'scene') },
+      { id: 'list', group: 'app', icon: '📂', name: 'シナリオ一覧', panel: false,
+        desc: '保存したシナリオの一覧を開く', keywords: 'しなりおいちらん', key: null,
+        inSceneMode: true, run: () => openListModal() },
+      { id: 'pdf', group: 'app', icon: '🖨', name: 'PDF出力', panel: false,
+        desc: '印刷画面を開いてPDFに書き出す', keywords: 'ぴーでぃーえふ いんさつ print', key: null,
+        inSceneMode: true, run: () => triggerPrint() },
+      { id: 'shortcut-settings', group: 'app', icon: '⌨️', name: 'ショートカット設定', panel: false,
+        desc: 'ショートカットキーの割り当てを変える', keywords: 'しょーとかっと せってい', key: null,
+        inSceneMode: true, run: () => openShortcutModal() }
+    ];
+
+    const ACTION_BY_ID = {};
+    for (const a of ACTIONS) ACTION_BY_ID[a.id] = a;
+
+    // name / short / desc は文字列か関数。表示する時点のシステムで解決する。
+    function actionText(a, field) {
+      const v = a[field];
+      return typeof v === 'function' ? v() : (v || '');
+    }
+    function actionName(a) { return actionText(a, 'name'); }
+    function actionShort(a) { return actionText(a, 'short') || actionName(a); }
+    function actionDesc(a) { return actionText(a, 'desc'); }
+
+    function isActionAvailable(a, sys) {
+      return !a.available || a.available(sys);
+    }
+
+    // その操作を今受け付けてよいか。キー操作とコマンドパレットで同じ判定を使う。
+    // 場面図の表示中は本文が隠れているので、挿入系を通すと見えない本文が書き換わる
+    // （docs/06_場面ツリー設計書.html §6.1）。
+    function canRunAction(a, modalOpen, sceneMode) {
+      if (!isActionAvailable(a, currentSystem())) return false;
+      if (modalOpen && !a.inModal) return false;
+      if (sceneMode && !a.inSceneMode) return false;
+      return true;
+    }
+
+    function runAction(id) {
+      const a = ACTION_BY_ID[id];
+      if (!a || !isActionAvailable(a, currentSystem())) return;
+      a.run();
+    }
+
+    // === ショートカットキー設定 ===
+    //
+    // shortcuts[id] = { key, ctrlKey, altKey, shiftKey }。表示名は ACTIONS から引くので持たない
+    // （以前は label / desc も保存していた。読み込み時にキーだけを拾う）。
     let shortcuts = {};
     let recordingActionId = null; // キーバインド記録中のアクションID
 
@@ -2508,6 +2831,7 @@
     let rollModal, resModal, sanModal, colorModal, npcModal, npcListContainer, npcEditorArea;
     let shortcutModal, shortcutListContainer, shortcutAlert;
     let releaseModal, releaseList, versionTag;
+    let paletteModal, paletteInput, paletteList;
 
     // === データ永続化層 ===
     //
@@ -3226,6 +3550,9 @@
         releaseModal = document.getElementById('release-modal');
         releaseList = document.getElementById('release-list');
         versionTag = document.getElementById('version-tag');
+        paletteModal = document.getElementById('palette-modal');
+        paletteInput = document.getElementById('palette-input');
+        paletteList = document.getElementById('palette-list');
 
         // ヘッダーのバージョン表記は RELEASE_NOTES の先頭から描く
         renderVersionTag();
@@ -3335,9 +3662,11 @@
           });
         }
 
-        // ショートカット設定のロードとラベル初期化、およびリスナー追加
+        // ショートカット設定のロード。パネルの「すべての操作」にキーを出すので、読み込んでから描き直す
         loadShortcuts();
-        updateAssistantPanelShortcutLabels();
+        initAssistantPanel();
+        initCommandPalette();
+        renderAssistantPanel();
         window.addEventListener('keydown', handleGlobalKeydown);
       } catch (e) {
         console.error("アプリケーション初期化エラー:", e);
@@ -3583,7 +3912,8 @@
       'color-modal': () => closeColorModal(),
       'npc-modal': () => closeNpcModal(),
       'shortcut-modal': () => closeShortcutModal(),
-      'release-modal': () => closeReleaseModal()
+      'release-modal': () => closeReleaseModal(),
+      'palette-modal': () => closeCommandPalette()
     };
 
     function closeModalElement(el) {
@@ -3733,21 +4063,16 @@
       const badge = document.getElementById('system-badge');
       if (badge) badge.innerText = sys.short;
 
-      // 共鳴判定はエモクロア固有の仕組み。他システムでは入口ごと隠す
-      const resBtn = document.getElementById('btn-shortcut-resonance');
-      if (resBtn) resBtn.style.display = sys.hasResonanceRoll ? '' : 'none';
-
-      // SANチェックはCoC固有。記法は常にパースするが、入口は出さない
-      const sanBtn = document.getElementById('btn-shortcut-san');
-      if (sanBtn) sanBtn.style.display = sys.hasSanCheck ? '' : 'none';
-
       // 判定する技能名の例示。技能の呼び方がシステムで違うため定義から引く
       const rollSkillInput = document.getElementById('roll-skill-name');
       if (rollSkillInput) rollSkillInput.placeholder = sys.rollSkillPlaceholder || '例: 技能名';
 
       // プレビューのGM情報ブロックは見出しをCSSの ::before で描くため、CSS変数で渡す
       document.documentElement.style.setProperty('--gm-info-label', '"📋 ' + gmInfoLabel() + '"');
-      updateAssistantPanelShortcutLabels();
+      // 共鳴判定（エモクロア固有）・SANチェック（CoC固有）の入口の出し分けと、
+      // GM情報のボタン名は、ACTIONS の available / name を見て組み立て直すことで追従する。
+      // 記法そのものは常にパースする（docs/04_記法設計書.html §6）。
+      renderAssistantPanel();
 
       initRollModalData();
       renderRollTiers();
@@ -6781,78 +7106,78 @@ ${parseRollResultLines(lines, 1)}            </div>
 
     // === ショートカットキーのロード ===
     // ショートカット1件分の「未割り当て」状態を作る。
-    //
-    // label / desc は表示用の定義値なので必ず引き継ぐこと。
-    // 以前はキーを解除するたびに label ごと消えており、
-    // 設定画面の項目名が空になっていた。
-    function blankShortcut(actionId) {
-      const def = DEFAULT_SHORTCUTS[actionId] || {};
-      return {
-        key: null, ctrlKey: false, altKey: false, shiftKey: false,
-        label: def.label || actionId,
-        desc: def.desc || ''
-      };
+    function blankShortcut() {
+      return { key: null, ctrlKey: false, altKey: false, shiftKey: false };
     }
 
-    // 定義に無いアクションIDでも落ちないようにする。
-    // 保存済み設定に古いバージョンのIDが残っていると、
-    // DEFAULT_SHORTCUTS[id].label が undefined 参照になって画面ごと壊れていた。
+    function defaultShortcut(actionId) {
+      const a = ACTION_BY_ID[actionId];
+      return (a && a.key) ? { ...a.key } : blankShortcut();
+    }
+
+    // 保存済みの値からキーの組み合わせだけを取り出す（旧版が一緒に保存した label / desc は捨てる）
+    function pickShortcut(s) {
+      if (!s || typeof s !== 'object' || !s.key) return blankShortcut();
+      return { key: String(s.key), ctrlKey: !!s.ctrlKey, altKey: !!s.altKey, shiftKey: !!s.shiftKey };
+    }
+
+    function sameShortcut(a, b) {
+      return !!(a && b && a.key && b.key
+        && a.key.toLowerCase() === b.key.toLowerCase()
+        && !!a.ctrlKey === !!b.ctrlKey
+        && !!a.altKey === !!b.altKey
+        && !!a.shiftKey === !!b.shiftKey);
+    }
+
+    // 同じキーを割り当て済みの操作を探す（exceptId は除く）
+    function findShortcutOwner(combo, exceptId) {
+      for (const id in shortcuts) {
+        if (id !== exceptId && sameShortcut(shortcuts[id], combo)) return id;
+      }
+      return null;
+    }
+
+    // 通知に出す名前。定義に無いIDでも落ちないようにする
+    // （保存済み設定に古いIDが残っていると、以前は画面ごと壊れていた）。
     function shortcutLabel(actionId) {
-      return shortcutDisplay(actionId).label;
-    }
-
-    // ラベル・説明のうち、ゲームシステムによって呼称が変わるもの。
-    // DEFAULT_SHORTCUTS には静的な文字列しか置けないため（localStorage へ
-    // そのまま書き出されるため）、表示するときだけここで差し替える。
-    const SYSTEM_DEPENDENT_SHORTCUT_TEXT = {
-      'dl': () => ({ label: '📋 ' + gmInfoLabel(), desc: '行頭に [' + gmInfoTag() + '] を挿入' })
-    };
-
-    // 設定画面・通知に出す表示用のラベルと説明を返す。
-    function shortcutDisplay(actionId) {
-      const def = DEFAULT_SHORTCUTS[actionId];
-      if (!def) return { label: actionId, desc: '' };
-      const override = SYSTEM_DEPENDENT_SHORTCUT_TEXT[actionId];
-      return override ? override() : { label: def.label, desc: def.desc };
+      const a = ACTION_BY_ID[actionId];
+      return a ? a.icon + ' ' + actionName(a) : actionId;
     }
 
     function loadShortcuts() {
+      let saved = null;
       try {
         const cached = localStorage.getItem('trpg_shortcuts');
-        if (cached) {
-          shortcuts = JSON.parse(cached);
-          for (const key in DEFAULT_SHORTCUTS) {
-            if (!shortcuts[key]) {
-              // デフォルトにあって保存済みデータに無いアクションを補完する
-              shortcuts[key] = { ...DEFAULT_SHORTCUTS[key] };
-            } else {
-              // ラベルと説明は表示用であってユーザーの設定ではないため、常に最新の定義で上書きする。
-              // これをしないと、保存先をローカルへ変えた後も設定画面に
-              // 「☁ クラウド保存」という古い表示が残り続ける。
-              shortcuts[key].label = DEFAULT_SHORTCUTS[key].label;
-              shortcuts[key].desc = DEFAULT_SHORTCUTS[key].desc;
-            }
-          }
-
-          // 定義から消えた古いアクションIDは捨てる。
-          // 残していると、キーの重複判定でそのIDがヒットしたときに
-          // DEFAULT_SHORTCUTS 側に対応が無く、設定画面ごと壊れる。
-          for (const key in shortcuts) {
-            if (!DEFAULT_SHORTCUTS[key]) delete shortcuts[key];
-          }
-        } else {
-          // キャッシュがなければデフォルトを複製
-          shortcuts = {};
-          for (const key in DEFAULT_SHORTCUTS) {
-            shortcuts[key] = { ...DEFAULT_SHORTCUTS[key] };
-          }
-        }
+        if (cached) saved = JSON.parse(cached);
       } catch (e) {
         console.error("ショートカットのロードに失敗しました:", e);
-        shortcuts = {};
-        for (const key in DEFAULT_SHORTCUTS) {
-          shortcuts[key] = { ...DEFAULT_SHORTCUTS[key] };
-        }
+      }
+      if (!saved || typeof saved !== 'object') saved = {};
+
+      // 保存済みの割り当てを先に取り込む。定義から消えた古いIDはここで捨てる
+      // （残すとキーの重複判定でヒットし、名前を引けずに設定画面ごと壊れる）。
+      shortcuts = {};
+      const added = [];
+      for (const a of ACTIONS) {
+        if (saved[a.id]) shortcuts[a.id] = pickShortcut(saved[a.id]);
+        else added.push(a.id);
+      }
+      // 保存済みデータに無い操作（後の版で足した操作）には既定のキーを入れる。
+      // ただし利用者が同じキーを別の操作に割り当て済みなら、そちらを優先して未割り当てにする。
+      for (const id of added) {
+        const def = defaultShortcut(id);
+        shortcuts[id] = findShortcutOwner(def, id) ? blankShortcut() : def;
+      }
+    }
+
+    // ショートカット設定を書き込む。失敗したら設定画面に出して false を返す。
+    function saveShortcuts() {
+      try {
+        writeSetting('trpg_shortcuts', JSON.stringify(shortcuts));
+        return true;
+      } catch (e) {
+        showAlert(escapeHTML(e.message), true);
+        return false;
       }
     }
 
@@ -6860,13 +7185,11 @@ ${parseRollResultLines(lines, 1)}            </div>
     function resetShortcutsToDefault() {
       if (confirm('すべてのショートカットキー設定をデフォルトに戻しますか？')) {
         shortcuts = {};
-        for (const key in DEFAULT_SHORTCUTS) {
-          shortcuts[key] = { ...DEFAULT_SHORTCUTS[key] };
-        }
-        localStorage.setItem('trpg_shortcuts', JSON.stringify(shortcuts));
-        updateAssistantPanelShortcutLabels();
+        for (const a of ACTIONS) shortcuts[a.id] = defaultShortcut(a.id);
+        const ok = saveShortcuts();
+        renderAssistantPanel();
         renderShortcutList();
-        showAlert('設定をデフォルトにリセットしました。', false);
+        if (ok) showAlert('設定をデフォルトにリセットしました。', false);
       }
     }
 
@@ -6886,31 +7209,261 @@ ${parseRollResultLines(lines, 1)}            </div>
       return parts.join(' + ');
     }
 
-    // === アシスタントパネルのショートカットキー表示更新 ===
-    function updateAssistantPanelShortcutLabels() {
-      const actions = {
-        'scene': { id: 'btn-shortcut-scene', baseText: '🎬 シーン見出し' },
-        'search-title': { id: 'btn-shortcut-search-title', baseText: '📌 探索小見出し' },
-        'search-list': { id: 'btn-shortcut-search-list', baseText: '🔍 探索一覧' },
-        'read': { id: 'btn-shortcut-read', baseText: '💬 情景描写' },
-        'dl': { id: 'btn-shortcut-dl', baseText: '📋 ' + gmInfoLabel() },
-        'roll': { id: 'btn-shortcut-roll', baseText: '🎲 技能判定' },
-        'resonance': { id: 'btn-shortcut-resonance', baseText: '🌀 共鳴判定' },
-        'san': { id: 'btn-shortcut-san', baseText: '🧠 SANチェック' },
-        'tips': { id: 'btn-shortcut-tips', baseText: '💡 TIPS/補足' },
-        'color': { id: 'btn-shortcut-color', baseText: '🎨 文字色' },
-        'scene-map-insert': { id: 'btn-shortcut-scene-map-insert', baseText: '🗺 場面図を挿入' },
-        'npc': { id: 'btn-shortcut-npc', baseText: '👥 NPC管理' }
-      };
+    // ショートカットをキーの並びで返す（<kbd>Alt</kbd> + <kbd>1</kbd>）。未割り当てなら空文字。
+    function shortcutKbdHTML(s) {
+      if (!s || !s.key) return '';
+      return getShortcutString(s).split(' + ')
+        .map(p => `<kbd class="kbd-badge">${escapeHTML(p)}</kbd>`).join(' + ');
+    }
 
-      for (const actionId in actions) {
-        const el = document.getElementById(actions[actionId].id);
-        if (el) {
-          const shortcut = shortcuts[actionId];
-          const shortcutStr = shortcut && shortcut.key ? ` (${getShortcutString(shortcut)})` : '';
-          el.innerText = actions[actionId].baseText + shortcutStr;
+    // === 下部パネル ===
+    //
+    // ボタンは ACTIONS から組み立てる。システムで使えない操作（共鳴判定・SANチェック）は
+    // ここで落とすので、個別に隠す処理は要らない。
+    function renderAssistantPanel() {
+      const panel = document.getElementById('assistant-panel');
+      if (!panel) return;
+      hidePanelTip();
+      const sys = currentSystem();
+      let html = '';
+      for (const g of ACTION_GROUPS) {
+        const items = ACTIONS.filter(a => a.group === g.id && a.panel !== false && isActionAvailable(a, sys));
+        if (items.length === 0) continue;
+        html += `<div class="panel-group"><span class="panel-group-label">${escapeHTML(g.label)}</span>`;
+        for (const a of items) {
+          html += `<button type="button" class="btn-panel" data-action="${a.id}" aria-label="${escapeHTML(actionName(a))}">`
+            + `<span class="btn-panel-icon">${a.icon}</span>`
+            + `<span class="btn-panel-full">${escapeHTML(actionName(a))}</span>`
+            + `<span class="btn-panel-short">${escapeHTML(actionShort(a))}</span>`
+            + `</button>`;
         }
+        html += `</div>`;
       }
+      // 末尾の「すべての操作」だけは、キーを常に見せる。存在を知らなければ使われないため
+      const pal = ACTION_BY_ID['palette'];
+      html += `<button type="button" class="btn-panel btn-panel-palette" data-action="palette" aria-label="${escapeHTML(actionName(pal))}">`
+        + `<span class="btn-panel-icon">${pal.icon}</span>`
+        + `<span class="btn-panel-palette-label">${escapeHTML(actionName(pal))}</span>`
+        + `<span class="btn-panel-palette-keys">${shortcutKbdHTML(shortcuts['palette'])}</span>`
+        + `</button>`;
+      panel.innerHTML = html;
+      fitAssistantPanel();
+    }
+
+    // 幅が足りないときは、名前を短くし、さらに分類名を消して詰める。
+    // 何段目で収まるかはシステム（ボタンの数）と画面幅で変わるため、
+    // 決め打ちのブレークポイントではなく、実際にはみ出しているかを測って決める。
+    const PANEL_DENSITIES = ['full', 'short', 'tight'];
+    function fitAssistantPanel() {
+      const panel = document.getElementById('assistant-panel');
+      // 場面図の表示中は display:none で幅が 0 になり測れない。戻ったときに ResizeObserver が呼ぶ
+      if (!panel || !panel.clientWidth) return;
+      for (const d of PANEL_DENSITIES) {
+        panel.dataset.density = d;
+        if (panel.scrollWidth <= panel.clientWidth) return;
+      }
+    }
+
+    function initAssistantPanel() {
+      const panel = document.getElementById('assistant-panel');
+      if (!panel) return;
+
+      // mousedown で実行し、既定動作を止める。ボタンにフォーカスが移ると
+      // 本文の選択範囲が外れ、挿入位置や文字色の対象が分からなくなるため。
+      panel.addEventListener('mousedown', e => {
+        const btn = e.target.closest('.btn-panel');
+        if (!btn) return;
+        e.preventDefault();
+        hidePanelTip();
+        runAction(btn.dataset.action);
+      });
+      // Tab で移ってきて Enter / Space を押した場合（mousedown が起きない）
+      panel.addEventListener('click', e => {
+        const btn = e.target.closest('.btn-panel');
+        if (btn && e.detail === 0) runAction(btn.dataset.action);
+      });
+
+      // 吹き出しはマウスのときだけ出す。タッチで出すと、指を離した後も残って邪魔になる
+      panel.addEventListener('pointerover', e => {
+        if (e.pointerType !== 'mouse') return;
+        const btn = e.target.closest('.btn-panel');
+        if (btn) showPanelTip(btn);
+        else hidePanelTip();
+      });
+      panel.addEventListener('pointerleave', hidePanelTip);
+      panel.addEventListener('scroll', hidePanelTip);
+
+      if (window.ResizeObserver) {
+        new ResizeObserver(() => fitAssistantPanel()).observe(panel);
+      } else {
+        window.addEventListener('resize', fitAssistantPanel);
+      }
+    }
+
+    // パネルのボタンの吹き出し。名前・何が起きるか・ショートカットを出す。
+    let panelTipTarget = null;
+    function showPanelTip(btn) {
+      const tip = document.getElementById('panel-tip');
+      const a = ACTION_BY_ID[btn.dataset.action];
+      if (!tip || !a || panelTipTarget === btn) return;
+      panelTipTarget = btn;
+      tip.innerHTML = `<div class="panel-tip-head"><span>${a.icon} ${escapeHTML(actionName(a))}</span>`
+        + `<span>${shortcutKbdHTML(shortcuts[a.id])}</span></div>`
+        + `<div class="panel-tip-desc">${escapeHTML(actionDesc(a))}</div>`;
+      tip.classList.add('show');
+      // 中身を入れてから測る。ボタンの真上に出し、画面の端からははみ出させない
+      const r = btn.getBoundingClientRect();
+      const left = Math.min(Math.max(8, r.left + r.width / 2 - tip.offsetWidth / 2),
+        window.innerWidth - tip.offsetWidth - 8);
+      tip.style.left = left + 'px';
+      tip.style.top = (r.top - tip.offsetHeight - 8) + 'px';
+    }
+
+    function hidePanelTip() {
+      panelTipTarget = null;
+      const tip = document.getElementById('panel-tip');
+      if (tip) tip.classList.remove('show');
+    }
+
+    // === コマンドパレット ===
+    //
+    // すべての操作を名前で探して実行する入口。ショートカットを覚えていなくても
+    // キーボードから手を離さずに済み、候補の横にキーが出るので使ううちに覚えられる。
+    // 行頭の「/」で開く方式は採らなかった。日本語入力中の「/」は「・」になり、
+    // 箇条書きの「・」と区別できないため（docs/07_操作の入口設計書.html）。
+    let paletteMatches = [];  // 表示中の候補（並び順は画面と同じ）
+    let paletteIndex = 0;     // 選択中の候補の位置
+
+    function openCommandPalette() {
+      if (!paletteModal) return;
+      hidePanelTip();
+      paletteInput.value = '';
+      paletteIndex = 0;
+      renderPalette();
+      paletteModal.classList.add('active');
+      paletteInput.focus();
+    }
+
+    function closeCommandPalette() {
+      if (!paletteModal || !paletteModal.classList.contains('active')) return;
+      paletteModal.classList.remove('active');
+      // 本文から開いたなら本文へ戻す。選択範囲は textarea が覚えている
+      if (document.body.dataset.mode === 'write' && editor) editor.focus();
+    }
+
+    // 検索語と候補の文字列を同じ形に揃える。
+    // カタカナはひらがなに、全角英数は半角に寄せ、大文字小文字は区別しない。
+    function normalizeForSearch(s) {
+      return String(s)
+        .replace(/[Ａ-Ｚａ-ｚ０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+        .replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60))
+        .toLowerCase();
+    }
+
+    function paletteHaystack(a) {
+      return normalizeForSearch([a.id, actionName(a), actionShort(a), actionDesc(a), a.keywords || ''].join(' '));
+    }
+
+    // 名前か読みが検索語で始まるか
+    function paletteHeadMatch(a, token) {
+      return [actionName(a), actionShort(a)].concat((a.keywords || '').split(' '))
+        .some(s => normalizeForSearch(s).startsWith(token));
+    }
+
+    function renderPalette() {
+      if (!paletteList) return;
+      const tokens = normalizeForSearch(paletteInput.value).split(/[\s　]+/).filter(Boolean);
+      const sceneMode = document.body.dataset.mode === 'scene';
+      // パレット自身は候補に出さない。今受け付けない操作（場面図表示中の挿入など）も出さない
+      const usable = ACTIONS.filter(a => a.id !== 'palette' && canRunAction(a, false, sceneMode));
+
+      let html = '';
+      paletteMatches = [];
+      if (tokens.length === 0) {
+        // 未入力のときは分類ごとに見出しを付けて全件を出す
+        for (const g of ACTION_GROUPS) {
+          const items = usable.filter(a => a.group === g.id);
+          if (items.length === 0) continue;
+          html += `<div class="palette-heading">${escapeHTML(g.label)}</div>`;
+          for (const a of items) {
+            html += paletteItemHTML(a, paletteMatches.length);
+            paletteMatches.push(a);
+          }
+        }
+      } else {
+        const hits = usable.filter(a => {
+          const h = paletteHaystack(a);
+          return tokens.every(t => h.includes(t));
+        });
+        // 名前や読みの頭から一致するものを先に出す
+        paletteMatches = hits.filter(a => paletteHeadMatch(a, tokens[0]))
+          .concat(hits.filter(a => !paletteHeadMatch(a, tokens[0])));
+        paletteMatches.forEach((a, i) => { html += paletteItemHTML(a, i); });
+      }
+      if (paletteMatches.length === 0) {
+        html = '<div class="palette-empty">一致する操作がありません。</div>';
+      }
+      paletteList.innerHTML = html;
+      setPaletteIndex(Math.min(paletteIndex, Math.max(0, paletteMatches.length - 1)));
+    }
+
+    function paletteItemHTML(a, index) {
+      return `<div class="palette-item" role="option" data-index="${index}">`
+        + `<span class="palette-item-icon">${a.icon}</span>`
+        + `<span class="palette-item-text"><span class="palette-item-name">${escapeHTML(actionName(a))}</span>`
+        + `<span class="palette-item-desc">${escapeHTML(actionDesc(a))}</span></span>`
+        + `<span class="palette-item-keys">${shortcutKbdHTML(shortcuts[a.id])}</span>`
+        + `</div>`;
+    }
+
+    function setPaletteIndex(i) {
+      paletteIndex = i;
+      if (!paletteList) return;
+      paletteList.querySelectorAll('.palette-item').forEach(el => {
+        const on = Number(el.dataset.index) === i;
+        el.classList.toggle('active', on);
+        el.setAttribute('aria-selected', on ? 'true' : 'false');
+        if (on) el.scrollIntoView({ block: 'nearest' });
+      });
+    }
+
+    function runPaletteItem(i) {
+      const a = paletteMatches[i];
+      if (!a) return;
+      // 先に閉じる。開いたままだと、実行した操作が開くモーダル（技能判定など）と重なる
+      closeCommandPalette();
+      runAction(a.id);
+    }
+
+    function initCommandPalette() {
+      if (!paletteInput || !paletteList) return;
+      paletteInput.addEventListener('input', () => {
+        paletteIndex = 0;
+        renderPalette();
+      });
+      paletteInput.addEventListener('keydown', e => {
+        // 日本語入力の変換中の矢印・Enter は変換の操作なので拾わない
+        if (e.isComposing || e.keyCode === 229) return;
+        const n = paletteMatches.length;
+        if (e.key === 'ArrowDown' && n) {
+          e.preventDefault();
+          setPaletteIndex((paletteIndex + 1) % n);
+        } else if (e.key === 'ArrowUp' && n) {
+          e.preventDefault();
+          setPaletteIndex((paletteIndex - 1 + n) % n);
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          runPaletteItem(paletteIndex);
+        }
+      });
+      paletteList.addEventListener('mousemove', e => {
+        const item = e.target.closest('.palette-item');
+        if (item && Number(item.dataset.index) !== paletteIndex) setPaletteIndex(Number(item.dataset.index));
+      });
+      paletteList.addEventListener('click', e => {
+        const item = e.target.closest('.palette-item');
+        if (item) runPaletteItem(Number(item.dataset.index));
+      });
     }
 
     // === リリースノート ===
@@ -7065,86 +7618,25 @@ ${parseRollResultLines(lines, 1)}            </div>
       }
 
       // 3. モーダルが開いている場合（NPC管理、判定モーダル、シナリオ一覧など）は、
-      // 基本的な誤爆を防ぐため、保存（Ctrl+S）以外のショートカット挿入はブロックする
+      // 誤爆を防ぐため、inModal の操作（保存）以外は受け付けない。
       const isAnyModalOpen = document.querySelector('.modal.active') !== null;
 
       // 場面図モードでは本文の入力欄が隠れている。ここで挿入系のショートカットを通すと、
       // 見えない本文に記法が書き込まれ、プレビューも隠れているので著者は気づけない。
-      // 保存と画面切り替えだけは通す（保存できないほうが驚かれる）。
+      // 通すのは inSceneMode の操作（保存・画面切り替えなど、本文を書き換えないもの）だけ。
       const isSceneMode = document.body.dataset.mode === 'scene';
-      
-      // 3. ショートカットの照合
-      for (const actionId in shortcuts) {
-        const s = shortcuts[actionId];
-        if (!s || !s.key) continue;
 
-        const keyMatched = e.key.toLowerCase() === s.key.toLowerCase();
-        const ctrlMatched = e.ctrlKey === !!s.ctrlKey;
-        const altMatched = e.altKey === !!s.altKey;
-        const shiftMatched = e.shiftKey === !!s.shiftKey;
-
-        if (keyMatched && ctrlMatched && altMatched && shiftMatched) {
-          // モーダルが開いている時は、保存アクションのみ実行可能にする
-          if (isAnyModalOpen && actionId !== 'cloud-save') {
-            continue;
-          }
-          if (isSceneMode && actionId !== 'cloud-save' && actionId !== 'scene-map') {
-            continue;
-          }
-          
-          e.preventDefault();
-          executeShortcutAction(actionId);
-          break;
+      // 4. ショートカットの照合
+      // 受け付けない操作は飛ばして、同じキーの別の操作に譲る
+      for (const a of ACTIONS) {
+        if (!sameShortcut(shortcuts[a.id], { key: e.key, ctrlKey: e.ctrlKey, altKey: e.altKey, shiftKey: e.shiftKey })) {
+          continue;
         }
-      }
-    }
+        if (!canRunAction(a, isAnyModalOpen, isSceneMode)) continue;
 
-    // === ショートカットアクションの実行 ===
-    function executeShortcutAction(actionId) {
-      switch(actionId) {
-        case 'scene':
-          insertTemplate('scene');
-          break;
-        case 'search-title':
-          insertTemplate('search-title');
-          break;
-        case 'search-list':
-          insertTemplate('search-list');
-          break;
-        case 'read':
-          insertTemplate('read');
-          break;
-        case 'dl':
-          insertTemplate('dl');
-          break;
-        case 'roll':
-          openRollModal();
-          break;
-        case 'resonance':
-          openResonanceModal();
-          break;
-        case 'tips':
-          insertTemplate('tips');
-          break;
-        case 'npc':
-          openNpcModal();
-          break;
-        case 'san':
-          // 記法を持たないシステムでは何もしない（パネルのボタンも隠れている）
-          if (currentSystem().hasSanCheck) openSanModal();
-          break;
-        case 'color':
-          openColorModal();
-          break;
-        case 'scene-map':
-          setAppMode(document.body.dataset.mode === 'scene' ? 'write' : 'scene');
-          break;
-        case 'scene-map-insert':
-          insertTemplate('scene-map');
-          break;
-        case 'cloud-save':
-          saveScenarioToStore();
-          break;
+        e.preventDefault();
+        runAction(a.id);
+        break;
       }
     }
 
@@ -7170,8 +7662,8 @@ ${parseRollResultLines(lines, 1)}            </div>
       if (!shortcutListContainer) return;
       shortcutListContainer.innerHTML = '';
 
-      for (const actionId in DEFAULT_SHORTCUTS) {
-        const defaultInfo = shortcutDisplay(actionId);
+      for (const a of ACTIONS) {
+        const actionId = a.id;
         const s = shortcuts[actionId];
         const isRecording = recordingActionId === actionId;
 
@@ -7187,8 +7679,8 @@ ${parseRollResultLines(lines, 1)}            </div>
         const infoDiv = document.createElement('div');
         infoDiv.className = 'shortcut-info';
         infoDiv.innerHTML = `
-          <span class="shortcut-name">${escapeHTML(defaultInfo.label)}</span>
-          <span class="shortcut-desc">${escapeHTML(defaultInfo.desc)}</span>
+          <span class="shortcut-name">${escapeHTML(shortcutLabel(actionId))}</span>
+          <span class="shortcut-desc">${escapeHTML(actionDesc(a))}</span>
         `;
         row.appendChild(infoDiv);
 
@@ -7199,11 +7691,7 @@ ${parseRollResultLines(lines, 1)}            </div>
         if (isRecording) {
           keysDiv.innerHTML = `<span class="shortcut-recording-text">キーを押してください...</span>`;
         } else if (s && s.key) {
-          const keyStr = getShortcutString(s);
-          const parts = keyStr.split(' + ');
-          let badgeHTML = parts.map(p => `<kbd class="kbd-badge">${escapeHTML(p)}</kbd>`).join(' + ');
-          
-          keysDiv.innerHTML = badgeHTML;
+          keysDiv.innerHTML = shortcutKbdHTML(s);
           
           // クリアボタンの追加
           const clearBtn = document.createElement('button');
@@ -7231,11 +7719,11 @@ ${parseRollResultLines(lines, 1)}            </div>
     // === ショートカット設定のクリア ===
     function clearShortcut(actionId, event) {
       if (event) event.stopPropagation();
-      shortcuts[actionId] = blankShortcut(actionId);
-      localStorage.setItem('trpg_shortcuts', JSON.stringify(shortcuts));
-      updateAssistantPanelShortcutLabels();
+      shortcuts[actionId] = blankShortcut();
+      const ok = saveShortcuts();
+      renderAssistantPanel();
       renderShortcutList();
-      showAlert(`${shortcutLabel(actionId)} のショートカットを解除しました。`, false);
+      if (ok) showAlert(`${shortcutLabel(actionId)} のショートカットを解除しました。`, false);
     }
 
     // === キー記録中のイベント処理（特殊キーの制限・バリデーション） ===
@@ -7280,44 +7768,28 @@ ${parseRollResultLines(lines, 1)}            </div>
       };
 
       // 5. 重複チェック
-      let duplicateActionId = null;
-      for (const actionId in shortcuts) {
-        if (actionId === recordingActionId) continue;
-        const s = shortcuts[actionId];
-        if (s && s.key &&
-            s.key.toLowerCase() === newKey.key.toLowerCase() &&
-            s.ctrlKey === newKey.ctrlKey &&
-            s.altKey === newKey.altKey &&
-            s.shiftKey === newKey.shiftKey) {
-          duplicateActionId = actionId;
-          break;
-        }
-      }
+      const duplicateActionId = findShortcutOwner(newKey, recordingActionId);
 
       let alertMessage = '';
       if (duplicateActionId) {
         // 重複している古い設定をクリア
-        shortcuts[duplicateActionId] = blankShortcut(duplicateActionId);
+        shortcuts[duplicateActionId] = blankShortcut();
         alertMessage = `以前「${shortcutLabel(duplicateActionId)}」に割り当てられていたキーと重複したため、古い割り当てを解除しました。`;
       }
 
-      // 新しい設定を保存
-      const recDef = DEFAULT_SHORTCUTS[recordingActionId] || {};
-      shortcuts[recordingActionId] = {
-        ...newKey,
-        label: recDef.label || recordingActionId,
-        desc: recDef.desc || ''
-      };
+      // 新しい設定を保存。
+      // 名前は記録を止める前に引いておく（止めると recordingActionId が null になり、
+      // 以前は「「null」にショートカットを設定しました」と出ていた）。
+      const actionId = recordingActionId;
+      shortcuts[actionId] = newKey;
 
-      localStorage.setItem('trpg_shortcuts', JSON.stringify(shortcuts));
-      updateAssistantPanelShortcutLabels();
+      const ok = saveShortcuts();
+      renderAssistantPanel();
       stopRecordingShortcut();
 
-      if (alertMessage) {
-        showAlert(alertMessage, false);
-      } else {
-        showAlert(`「${shortcutLabel(recordingActionId)}」にショートカットを設定しました。`, false);
-      }
+      // 書き込めなかったときは saveShortcuts() のエラー表示を残す
+      if (!ok) return;
+      showAlert(alertMessage || `「${shortcutLabel(actionId)}」にショートカットを設定しました。`, false);
     }
 
     // === アラート表示 ===
