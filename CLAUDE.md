@@ -45,7 +45,7 @@ perl scripts/devenv/setup.pl --version           # devenv の版
 | ストア | 役割 |
 |---|---|
 | `scenarios` | シナリオの**保存庫**。一覧・読込・削除の対象 |
-| `avatars` | NPCの立ち絵を **Blob** で持つ。NPCは `avatarId` で参照する |
+| `avatars` | NPCの立ち絵とシナリオのサムネイルを **Blob** で持つ。NPCは `avatarId`、基本情報は `thumbnailId` で参照する |
 | `workspace` | **編集中の作業状態**。ブラウザを閉じても続きから再開するためのもの |
 
 **localStorage**（設定のみ。数百バイトしかないので同期で読めるほうが起動処理が単純）

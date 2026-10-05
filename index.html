@@ -209,6 +209,13 @@
     outline: none;
     border-color: var(--accent-color);
   }
+  /* タイトル欄の隣の小さなボタン（基本情報）。右端の主要な操作より控えめにする */
+  .btn-header-sub {
+    flex-shrink: 0;
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
   .header-actions {
     display: flex;
     gap: 10px;
@@ -518,6 +525,93 @@
   .info-target-all { background-color: #dcfce7 !important; color: #166534 !important; }
   .info-target-some { background-color: #fef3c7 !important; color: #92400e !important; }
   .info-target-unset { background-color: #fee2e2 !important; color: #b91c1c !important; }
+  /* シナリオの基本情報（表紙）。プレビュー＝紙の先頭に1つだけ出る（docs/08_シナリオ基本情報設計書.html §5）。
+     サムネイル → タイトル → 項目の順に縦に積み、本文とは太い線で区切る */
+  #preview-area .scenario-cover {
+    margin-bottom: 32px;
+    padding-bottom: 24px;
+    border-bottom: 2px solid var(--preview-text) !important;
+  }
+  #preview-area .cover-thumb {
+    text-align: center;
+    margin-bottom: 18px;
+  }
+  /* 縦長の画像が紙の大半を占めないよう、高さに上限を付ける */
+  #preview-area .cover-thumb img {
+    max-width: 100%;
+    max-height: 360px;
+    border-radius: 6px;
+    vertical-align: top;
+  }
+  #preview-area h1.cover-title {
+    font-family: 'Noto Serif JP', "BIZ UDMincho", "Hiragino Mincho ProN", "Yu Mincho", YuMincho, serif;
+    font-size: 1.9rem;
+    line-height: 1.45;
+    text-align: center;
+    margin: 0 0 22px;
+    color: var(--preview-text) !important;
+  }
+  #preview-area .cover-info {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  /* 見出しは本文の「## 小見出し」（ティールの左線）と見分けが付くよう、下線の小さな見出しにする */
+  #preview-area .cover-heading {
+    margin: 0 0 6px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid #cbd5e1 !important;
+    font-size: 0.92rem;
+    font-weight: 700;
+    line-height: 1.4;
+    color: #0f766e !important;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+  #preview-area .cover-text {
+    font-size: 0.92rem;
+    line-height: 1.8;
+    color: var(--preview-text) !important;
+  }
+  #preview-area .cover-text + .cover-levels,
+  #preview-area .cover-levels + .cover-text {
+    margin-top: 6px;
+  }
+  /* 並んだレベルは表にして、項目名の幅を揃える（記号の頭が縦に揃う）。
+     中身は文字（装飾の入らない項目名）と記号だけなので、grid に直接載せてよい（記法設計書 §3.5） */
+  #preview-area .cover-levels {
+    display: grid;
+    grid-template-columns: max-content max-content;
+    justify-content: start;
+    align-items: center;
+    column-gap: 18px;
+    row-gap: 2px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  #preview-area .cover-level-label {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #334155 !important;
+  }
+  /* 記号は和文フォントで描く。欧文フォント（Inter・Segoe UI）を先に当てると、
+     ● は欧文・○ は和文のように記号ごとに別のフォントで描かれ、大きさが揃わない */
+  .level-symbols,
+  .bi-star {
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", YuGothic, Meiryo, "Noto Sans JP", sans-serif;
+  }
+  .level-symbols {
+    font-size: 1.05rem;
+    letter-spacing: 0.08em;
+    line-height: 1.6;
+    white-space: nowrap;
+  }
+  #preview-area .level-on {
+    color: var(--level-color) !important;
+  }
+  #preview-area .level-off {
+    color: #cbd5e1 !important;
+  }
   #preview-area .npc-speech-missing {
     margin-left: 8px;
     padding: 1px 6px;
@@ -2200,6 +2294,234 @@
     margin-top: 6px;
   }
 
+  /* === シナリオ基本情報モーダル === */
+  .modal-content-bi {
+    max-width: 880px;
+    height: 90%;
+  }
+  .bi-body {
+    flex: 1;
+    min-height: 0;
+  }
+  /* 上段：左にサムネイル、右にタイトルと説明 */
+  .bi-top {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .bi-thumb-col {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  /* 表紙の画像は横長が多いので 16:9 の枠に収めて見せる（実際の比率のまま縮める） */
+  .bi-thumb-preview {
+    aspect-ratio: 16 / 9;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: var(--bg-input);
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+  .bi-thumb-preview.empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-style: dashed;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+  }
+  .bi-thumb-actions {
+    display: flex;
+    gap: 8px;
+  }
+  .bi-title-col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+  }
+  .bi-title-input {
+    font-size: 1.05rem;
+    font-weight: 600;
+  }
+  .bi-lead {
+    margin: 0;
+    font-size: 0.8rem;
+    line-height: 1.7;
+    color: var(--text-secondary);
+  }
+  .bi-items-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .bi-items {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .bi-card {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: rgba(0,0,0,0.15);
+  }
+  /* 単独のレベルは1行（折り返しあり）に収める */
+  .bi-card-level {
+    flex-direction: row;
+    align-items: center;
+  }
+  .bi-card-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .bi-heading {
+    flex: 1;
+    min-width: 0;
+    font-weight: 600;
+  }
+  /* 項目の種類。見出しの中にレベルと本文が混ざっても、どれが何かを左端で読めるようにする */
+  .bi-kind {
+    flex-shrink: 0;
+    min-width: 3.6em;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-align: center;
+    box-sizing: border-box;
+  }
+  /* 見出しの中身。見出しの子であることが分かるよう、左に線を引いて字下げする */
+  .bi-blocks {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-left: 10px;
+    padding-left: 12px;
+    border-left: 2px solid var(--border-color);
+  }
+  .bi-block {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .bi-block-level {
+    align-items: center;
+  }
+  /* 内容に合わせて欄を伸ばす（NPCのメモと同じ。未対応のブラウザでは手で伸ばせる） */
+  .bi-text {
+    flex: 1;
+    min-width: 0;
+    min-height: 4.5em;
+    line-height: 1.6;
+    resize: vertical;
+    field-sizing: content;
+  }
+  .bi-card-add {
+    display: flex;
+    gap: 8px;
+    margin-left: 24px;
+  }
+  .bi-level {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+  }
+  .bi-level-label {
+    flex: 1 1 160px;
+    min-width: 0;
+  }
+  .bi-stars {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  /* 記号1つがボタン1つ。押した段階になる（同じ段階をもう一度押すと1つ下がる）。
+     指で押すのでタップ領域の下限 44px を保つ（要件定義書 §5） */
+  .bi-star {
+    width: 36px;
+    height: 44px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: none;
+    color: #475569;
+    font-size: 1.3rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .bi-star.on {
+    color: var(--level-color);
+  }
+  .bi-star:hover {
+    background-color: rgba(255,255,255,0.06);
+  }
+  .bi-star-count {
+    margin-left: 6px;
+    min-width: 3.2em;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+  .bi-level-opt {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+  .bi-select {
+    width: auto;
+    padding: 6px 8px;
+    font-size: 0.85rem;
+  }
+  .bi-tools {
+    display: flex;
+    flex-shrink: 0;
+    gap: 2px;
+  }
+  .bi-tool {
+    width: 36px;
+    height: 40px;
+    border: none;
+    border-radius: 6px;
+    background: none;
+    color: var(--text-secondary);
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  .bi-tool:hover:not(:disabled) {
+    color: var(--text-primary);
+    background-color: rgba(255,255,255,0.06);
+  }
+  .bi-tool:disabled {
+    opacity: 0.3;
+    cursor: default;
+  }
+  .bi-tool-remove:hover:not(:disabled) {
+    color: #ef4444;
+    background-color: rgba(239, 68, 68, 0.12);
+  }
+  .bi-add-row {
+    display: flex;
+    gap: 8px;
+  }
+
   /* === モバイル/タブレット向けレスポンシブ (縦画面対応) === */
   @media (max-width: 768px) {
     .workspace {
@@ -2254,6 +2576,13 @@
     }
     .npc-radar-box {
       align-self: center;
+    }
+    /* 基本情報：サムネイルとタイトルを縦に積む */
+    .bi-top {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .bi-thumb-col {
+      max-width: 320px;
     }
   }
 
@@ -2745,6 +3074,10 @@
               onclick="openReleaseModal()" title="リリースノートを表示"></button>
       <span class="version-tag" id="system-badge" title="このシナリオのゲームシステム（作成時に固定）">エモクロア</span>
       <input type="text" id="scenario-title" class="scenario-title-input" value="無題のシナリオ" placeholder="シナリオタイトルを入力">
+      <!-- タイトルの続き（サムネイル・概要など）を書く入口なので、タイトル欄の隣に置く。
+           下部パネルは幅が尽きているため置かない（docs/07_操作の入口設計書.html §3.2） -->
+      <button type="button" class="btn btn-header-sub" onclick="openBasicInfoModal()"
+              title="シナリオ基本情報（タイトル・サムネイル・概要・難易度など）">📘 <span class="header-btn-label">基本情報</span></button>
       <span class="save-status" id="save-status">✓ 自動保存有効</span>
     </div>
     <div class="header-actions">
@@ -3055,6 +3388,50 @@
           <p style="color: var(--text-secondary); text-align: center; margin-top: 100px;">左側のリストからNPCを選択するか、新規追加してください。</p>
         </div>
 
+      </div>
+    </div>
+  </div>
+
+  <!-- 📘 シナリオ基本情報モーダル（タイトル・サムネイル・項目。プレビューと紙の先頭に表紙として出る）。
+       項目の欄は renderBasicInfoItems() が組み立て、操作は #bi-items への委譲で受ける（initBasicInfoModal） -->
+  <div id="basic-info-modal" class="modal">
+    <div class="modal-content modal-content-bi">
+      <div class="modal-header">
+        <h3>📘 シナリオ基本情報</h3>
+        <button class="btn-close" onclick="closeBasicInfoModal()" aria-label="閉じる">&times;</button>
+      </div>
+      <div class="modal-body bi-body">
+        <div class="bi-top">
+          <div class="bi-thumb-col">
+            <span class="form-label">サムネイル</span>
+            <div id="bi-thumb-preview" class="bi-thumb-preview"></div>
+            <input type="file" id="bi-thumb-file" accept="image/*" style="display: none;" onchange="handleBasicInfoThumbFile(this)">
+            <div class="bi-thumb-actions">
+              <button type="button" class="btn btn-small" onclick="document.getElementById('bi-thumb-file').click()">画像を選択</button>
+              <button type="button" class="btn btn-small btn-danger-small" onclick="clearBasicInfoThumb()">削除</button>
+            </div>
+            <span id="bi-thumb-info" class="npc-add-hint">保存時に長辺1600pxへ自動縮小されます</span>
+          </div>
+          <div class="bi-title-col">
+            <div class="form-group">
+              <label class="form-label" for="bi-title">タイトル</label>
+              <input type="text" id="bi-title" class="form-input bi-title-input" placeholder="シナリオタイトル"
+                     oninput="setScenarioTitleFromBasicInfo(this.value)">
+              <div class="npc-add-hint">ヘッダーのタイトル欄と同じものです（シナリオ一覧にもこの名前で出ます）。</div>
+            </div>
+            <!-- 和文の途中で改行すると空白が入るので、1行で書く -->
+            <p class="bi-lead">ここに書いた内容は、プレビューとPDFの<strong>先頭に表紙として</strong>出ます。項目は「見出しと本文」と「レベル（星の数などで表す）」を好きな順に並べられ、見出しの中に本文とレベルを混ぜて置くこともできます。</p>
+          </div>
+        </div>
+
+        <div class="bi-items-head">
+          <span class="form-label">項目</span>
+        </div>
+        <div id="bi-items" class="bi-items"></div>
+        <div class="bi-add-row">
+          <button type="button" class="btn" onclick="addBasicInfoItem('section')">＋ 見出しと本文</button>
+          <button type="button" class="btn" onclick="addBasicInfoItem('level')">＋ レベル</button>
+        </div>
       </div>
     </div>
   </div>
@@ -3531,6 +3908,9 @@
     // プレイヤーへ渡す情報（2026-10-05）。[{ id, title, target, body }]。形は normalizeInfoList() が保証する。
     // 本文には [情報:題名] で参照だけを書き、中身はここに持つ（NPCと同じ考え方。docs/04_記法設計書.html §9）
     let currentInfos = [];
+    // シナリオの基本情報（2026-10-05）。{ thumbnailId, thumbnailUrl, items }。形は normalizeBasicInfo() が保証する。
+    // タイトルはここに持たず、従来どおりヘッダーの欄（scenarioTitle）が持つ（docs/08_シナリオ基本情報設計書.html §3）
+    let currentBasicInfo = emptyBasicInfo();
     let selectedSceneId = null; // 選択中の場面カード ID
     let isSaving = false;
     let debounceTimer;
@@ -3625,6 +4005,13 @@
       { id: 'info-list', group: 'data', icon: '📑', name: '情報一覧', short: '情報一覧',
         desc: '情報の一覧を開く・閉じる（追加・編集・コピー）', keywords: 'じょうほういちらん こぴー はんどあうと',
         key: withAlt('l'), run: () => toggleInfoDrawer() },
+      // タイトル・サムネイル・概要などの「表紙」。シナリオごとに一度書けば済む頻度の低い操作で、
+      // パネルは768pxで幅が尽きているため、パネルには出さずヘッダーのタイトル欄の横に入口を置く
+      // （docs/07_操作の入口設計書.html §3.2）。本文は書き換えないので場面図の表示中も受け付ける
+      { id: 'basic-info', group: 'data', icon: '📘', name: 'シナリオ基本情報', short: '基本情報', panel: false,
+        desc: 'タイトル・サムネイル・概要・難易度などを編集する（プレビューとPDFの先頭に出る）',
+        keywords: 'きほんじょうほう しなりおじょうほう ひょうし さむねいる がいよう なんいど れべる cover',
+        key: withAlt('b'), inSceneMode: true, run: () => openBasicInfoModal() },
 
       // ここから下はパネルに出さない（ヘッダーにボタンがある、または画面の操作）
       { id: 'palette', group: 'app', icon: '🔎', name: 'すべての操作', panel: false,
@@ -3700,6 +4087,7 @@
     let paletteModal, paletteInput, paletteList;
     let speechModal, speechInput, speechList, speechNote;
     let infoModal, infoInput, infoList, infoDrawer, infoDrawerList;
+    let basicInfoModal, basicInfoItemsBox;
 
     // === データ永続化層 ===
     //
@@ -3950,16 +4338,7 @@
         const dataUrl = n.avatarUrl;
         delete n.avatarUrl;
         if (n.avatarId || !dataUrl || dataUrl.indexOf('data:') !== 0) continue;
-
-        if (cache.has(dataUrl)) {
-          n.avatarId = cache.get(dataUrl);
-          continue;
-        }
-        const blob = dataUrlToBlob(dataUrl);
-        if (!blob) continue;
-        n.avatarId = generateUUID();
-        cache.set(dataUrl, n.avatarId);
-        await idbPut(STORE_AVATARS, { id: n.avatarId, blob: blob });
+        n.avatarId = await storeImageFromDataUrl(dataUrl, cache);
       }
       return npcs;
     }
@@ -3972,32 +4351,88 @@
         delete copy.avatarUrl;
         const id = copy.avatarId;
         delete copy.avatarId;
-        if (id) {
-          const row = await idbGet(STORE_AVATARS, id);
-          copy.avatarUrl = (row && row.blob) ? await blobToDataUrl(row.blob) : '';
-        } else {
-          copy.avatarUrl = '';
-        }
+        copy.avatarUrl = await imageIdToDataUrl(id);
         out.push(copy);
       }
       return out;
     }
 
+    // 画像1枚を data URL で受け取り、avatars ストアへ Blob で入れて id を返す。
+    // 立ち絵とシナリオのサムネイルで共用する（seen の役割は storeAvatarsFromDataUrls() を参照）
+    async function storeImageFromDataUrl(dataUrl, seen) {
+      if (seen.has(dataUrl)) return seen.get(dataUrl);
+      const blob = dataUrlToBlob(dataUrl);
+      if (!blob) return '';
+      const id = generateUUID();
+      seen.set(dataUrl, id);
+      await idbPut(STORE_AVATARS, { id: id, blob: blob });
+      return id;
+    }
+
+    async function imageIdToDataUrl(id) {
+      if (!id) return '';
+      const row = await idbGet(STORE_AVATARS, id);
+      return (row && row.blob) ? await blobToDataUrl(row.blob) : '';
+    }
+
+    // === シナリオのサムネイルの受け渡し ===
+    //
+    // 立ち絵と同じ扱い。実体は avatars ストアの Blob で、基本情報は thumbnailId でそれを指す。
+    // thumbnailUrl は画面に出すための blob: URL で、保存はしない（stripBasicInfoUrl）。
+    // ストア名は avatars のままにした（名前を変えると DB_VERSION を上げる移行が要るため。docs/08 §4）
+    function attachThumbnailUrl(bi) {
+      if (!bi.thumbnailId) {
+        bi.thumbnailUrl = '';
+        return Promise.resolve(bi);
+      }
+      return idbGet(STORE_AVATARS, bi.thumbnailId).then(row => {
+        bi.thumbnailUrl = (row && row.blob) ? makeObjectUrl(row.blob) : '';
+        return bi;
+      });
+    }
+
+    // JSONの読み込みと移行で、data URL のサムネイルを avatars ストアへ移す
+    async function storeThumbnailFromDataUrl(bi, seen) {
+      const dataUrl = bi.thumbnailUrl;
+      delete bi.thumbnailUrl;
+      if (!bi.thumbnailId && dataUrl && dataUrl.indexOf('data:') === 0) {
+        bi.thumbnailId = await storeImageFromDataUrl(dataUrl, seen || new Map());
+      }
+      return bi;
+    }
+
+    // 書き出し用に、thumbnailId を data URL へ戻す
+    async function basicInfoWithDataUrl(raw) {
+      const copy = stripBasicInfoUrl(raw);
+      const id = copy.thumbnailId;
+      delete copy.thumbnailId;
+      copy.thumbnailUrl = await imageIdToDataUrl(id);
+      return copy;
+    }
+
     // どのシナリオからも作業状態からも参照されていない画像を消す。
     // 消さないとシナリオを削除しても画像だけが残り続け、保存先を移した意味が薄れる。
+    // 画像を指すのはNPCの立ち絵（avatarId）とシナリオのサムネイル（basicInfo.thumbnailId）の2種類。
+    // 片方を数え忘れると、使っている画像を消してしまう。
     async function pruneAvatars() {
       const scenarios = await idbGetAll(STORE_SCENARIOS);
       const ws = await idbGet(STORE_WORKSPACE, WORKSPACE_KEY);
 
       const used = {};
-      scenarios.forEach(s => (s.npcs || []).forEach(n => { if (n && n.avatarId) used[n.avatarId] = true; }));
+      const markThumb = bi => { if (bi && typeof bi.thumbnailId === 'string' && bi.thumbnailId) used[bi.thumbnailId] = true; };
+      scenarios.forEach(s => {
+        (s.npcs || []).forEach(n => { if (n && n.avatarId) used[n.avatarId] = true; });
+        markThumb(s.basicInfo);
+      });
       if (ws && ws.value && Array.isArray(ws.value.npcs)) {
         ws.value.npcs.forEach(n => { if (n && n.avatarId) used[n.avatarId] = true; });
       }
+      if (ws && ws.value) markThumb(ws.value.basicInfo);
       // 編集中のNPCも参照済みとして扱う。自動保存は500ms待ってから走るため、
       // 立ち絵を追加した直後に別のシナリオを削除すると、
-      // まだ作業状態に書かれていない絵を消してしまう。
+      // まだ作業状態に書かれていない絵を消してしまう。サムネイルも同じ。
       (currentNpcs || []).forEach(n => { if (n && n.avatarId) used[n.avatarId] = true; });
+      markThumb(currentBasicInfo);
 
       const keys = await idbGetAllKeys(STORE_AVATARS);
       const orphans = keys.filter(k => !used[k]);
@@ -4085,6 +4520,91 @@
           target: typeof x.target === 'string' ? x.target : '',
           body: typeof x.body === 'string' ? x.body : ''
         }));
+    }
+
+    // === シナリオの基本情報（2026-10-05） ===
+    //
+    // 項目（items）は2種類の組を好きな順に並べる（docs/08_シナリオ基本情報設計書.html §2）。
+    //   section … 見出しと中身の組。中身（blocks）には本文（text）とレベル（level）を混ぜて並べられる。
+    //             レベルは見出しの子にもなる、という要望に応えるための形
+    //   level   … 項目名とレベル表示の組（見出しに属さない単独のもの）
+    // 保存・読込・書き出し・読み込み・移行・作業状態の復元のすべての入口をここに通す。
+    // この機能より前のシナリオには basicInfo が無いので、空の基本情報に均す。
+
+    // レベル表示に使う記号。on が満たした分、off が残りの分。
+    // 色は暗い編集画面と白い紙の両方で読める中間の濃さにしてある（記号を選ぶ画面とプレビューで共用）
+    const LEVEL_SYMBOLS = [
+      { id: 'star',     on: '★', off: '☆', label: '星',     color: '#f59e0b' },
+      { id: 'circle',   on: '●', off: '○', label: '丸',     color: '#3b82f6' },
+      { id: 'diamond',  on: '◆', off: '◇', label: 'ひし形', color: '#8b5cf6' },
+      { id: 'square',   on: '■', off: '□', label: '四角',   color: '#10b981' },
+      { id: 'heart',    on: '♥', off: '♡', label: 'ハート', color: '#f43f5e' },
+      { id: 'triangle', on: '▲', off: '△', label: '三角',   color: '#f97316' }
+    ];
+    const LEVEL_SYMBOL_BY_ID = {};
+    for (const s of LEVEL_SYMBOLS) LEVEL_SYMBOL_BY_ID[s.id] = s;
+    const LEVEL_MAX_LIMIT = 10;   // 記号を並べる数の上限（これより多いと一目で数えられない）
+    const LEVEL_DEFAULT_MAX = 5;
+
+    function emptyBasicInfo() {
+      return { thumbnailId: '', thumbnailUrl: '', items: [] };
+    }
+
+    function clampInt(v, min, max, fallback) {
+      const n = parseInt(v, 10);
+      if (!isFinite(n)) return fallback;
+      return Math.min(max, Math.max(min, n));
+    }
+
+    function normalizeBasicLevel(x) {
+      const max = clampInt(x.max, 1, LEVEL_MAX_LIMIT, LEVEL_DEFAULT_MAX);
+      return {
+        id: typeof x.id === 'string' && x.id ? x.id : generateUUID(),
+        kind: 'level',
+        label: typeof x.label === 'string' ? x.label : '',
+        value: clampInt(x.value, 0, max, 0),
+        max: max,
+        symbol: LEVEL_SYMBOL_BY_ID[x.symbol] ? x.symbol : LEVEL_SYMBOLS[0].id
+      };
+    }
+
+    function normalizeBasicSection(x) {
+      const blocks = Array.isArray(x.blocks) ? x.blocks : [];
+      return {
+        id: typeof x.id === 'string' && x.id ? x.id : generateUUID(),
+        kind: 'section',
+        heading: typeof x.heading === 'string' ? x.heading : '',
+        blocks: blocks
+          .filter(b => b && typeof b === 'object')
+          .map(b => b.kind === 'level'
+            ? normalizeBasicLevel(b)
+            : {
+                id: typeof b.id === 'string' && b.id ? b.id : generateUUID(),
+                kind: 'text',
+                body: typeof b.body === 'string' ? b.body : ''
+              })
+      };
+    }
+
+    function normalizeBasicInfo(raw) {
+      const src = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+      const items = Array.isArray(src.items) ? src.items : [];
+      return {
+        // thumbnailId が保存の実体（avatars ストアのキー）。
+        // thumbnailUrl は表示用で、読み込んだ JSON では data URL が入っている（storeThumbnailFromDataUrl() が Blob へ移す）
+        thumbnailId: typeof src.thumbnailId === 'string' ? src.thumbnailId : '',
+        thumbnailUrl: typeof src.thumbnailUrl === 'string' ? src.thumbnailUrl : '',
+        items: items
+          .filter(x => x && typeof x === 'object')
+          .map(x => x.kind === 'level' ? normalizeBasicLevel(x) : normalizeBasicSection(x))
+      };
+    }
+
+    // 保存するのは thumbnailId だけ。thumbnailUrl はこのセッション限りの表示用URLなので落とす
+    function stripBasicInfoUrl(bi) {
+      const copy = normalizeBasicInfo(bi);
+      delete copy.thumbnailUrl;
+      return copy;
     }
 
     // システムIDの正規化。
@@ -4235,8 +4755,10 @@
         return idbGet(STORE_SCENARIOS, id).then(sc => {
           if (!sc) throw new Error('シナリオが見つかりません。');
           const npcs = normalizeNpcList(sc.npcs);
-          // 立ち絵は別ストアにあるので、ここで表示用URLを付けて返す
-          return attachAvatarUrls(npcs).then(() => ({
+          // basicInfo も 2026-10-05 より前のシナリオには無い（空の基本情報に均す）
+          const basicInfo = normalizeBasicInfo(sc.basicInfo);
+          // 立ち絵とサムネイルは別ストアにあるので、ここで表示用URLを付けて返す
+          return Promise.all([attachAvatarUrls(npcs), attachThumbnailUrl(basicInfo)]).then(() => ({
             id: sc.id,
             title: sc.title,
             content: sc.content,
@@ -4246,12 +4768,13 @@
             // normalizeSceneGraph() が undefined を空のグラフに均すので分岐は要らない。
             scenes: normalizeSceneGraph(sc.scenes),
             // infos も同じ（2026-10-05 より前のシナリオには無い）
-            infos: normalizeInfoList(sc.infos)
+            infos: normalizeInfoList(sc.infos),
+            basicInfo: basicInfo
           }));
         });
       },
 
-      saveScenario(id, title, content, npcsData = [], systemId, scenesData, infosData) {
+      saveScenario(id, title, content, npcsData = [], systemId, scenesData, infosData, basicInfoData) {
         const now = new Date().toISOString();
         return idbPut(STORE_SCENARIOS, {
           id: id,
@@ -4261,6 +4784,7 @@
           npcs: normalizeNpcList(npcsData).map(stripAvatarUrl),
           scenes: normalizeSceneGraph(scenesData),
           infos: normalizeInfoList(infosData),
+          basicInfo: stripBasicInfoUrl(basicInfoData),
           updated_at: now
         }).then(() => ({ success: true, updated_at: now }));
       },
@@ -4282,8 +4806,8 @@
         return idbPut(STORE_WORKSPACE, { key: WORKSPACE_KEY, value: state });
       },
 
-      // --- 立ち絵 ---
-      putAvatar(blob) {
+      // --- 画像（NPCの立ち絵・シナリオのサムネイル）。どちらも avatars ストアに入る ---
+      putImage(blob) {
         const id = generateUUID();
         return idbPut(STORE_AVATARS, { id: id, blob: blob }).then(() => id);
       },
@@ -4306,6 +4830,8 @@
               // 場面ツリーはBlobを含まないので、画像のような変換は要らない
               scenes: normalizeSceneGraph(s.scenes),
               infos: normalizeInfoList(s.infos),
+              // サムネイルは立ち絵と同じく data URL に戻して書き出す
+              basicInfo: await basicInfoWithDataUrl(s.basicInfo),
               updated_at: s.updated_at
             });
           }
@@ -4343,6 +4869,7 @@
             npcs: await storeAvatarsFromDataUrls(normalizeNpcList(s && s.npcs), avatarCache),
             scenes: normalizeSceneGraph(s && s.scenes),
             infos: normalizeInfoList(s && s.infos),
+            basicInfo: await storeThumbnailFromDataUrl(normalizeBasicInfo(s && s.basicInfo), avatarCache),
             updated_at: (s && s.updated_at) ? s.updated_at : new Date().toISOString()
           });
         }
@@ -4410,6 +4937,7 @@
           // 同じ式を通すほうが「ここだけ漏れる」事故を防げる。
           scenes: normalizeSceneGraph(s && s.scenes),
           infos: normalizeInfoList(s && s.infos),
+          basicInfo: await storeThumbnailFromDataUrl(normalizeBasicInfo(s && s.basicInfo), avatarCache),
           updated_at: (s && s.updated_at) || new Date().toISOString()
         });
       }
@@ -4483,6 +5011,8 @@
         infoList = document.getElementById('info-list');
         infoDrawer = document.getElementById('info-drawer');
         infoDrawerList = document.getElementById('info-drawer-list');
+        basicInfoModal = document.getElementById('basic-info-modal');
+        basicInfoItemsBox = document.getElementById('bi-items');
 
         // ヘッダーのバージョン表記は RELEASE_NOTES の先頭から描く
         renderVersionTag();
@@ -4513,7 +5043,9 @@
             currentNpcs = normalizeNpcList(ws.npcs);
             currentScenes = normalizeSceneGraph(ws.scenes);
             currentInfos = normalizeInfoList(ws.infos);
+            currentBasicInfo = normalizeBasicInfo(ws.basicInfo);
             await attachAvatarUrls(currentNpcs);
+            await attachThumbnailUrl(currentBasicInfo);
           }
           // 読み込み中の表示を残さない。失敗したときだけ catch 側の文言を出す
           if (saveStatus) saveStatus.innerText = '✓ 自動保存有効';
@@ -4600,6 +5132,7 @@
         initCommandPalette();
         initSpeechModal();
         initInfoFeature();
+        initBasicInfoModal();
         renderAssistantPanel();
         window.addEventListener('keydown', handleGlobalKeydown);
       } catch (e) {
@@ -4633,7 +5166,9 @@
         content: editor.value,
         npcs: currentNpcs.map(stripAvatarUrl),
         scenes: currentScenes,
-        infos: currentInfos
+        infos: currentInfos,
+        // サムネイルも avatars ストアに既にあるので thumbnailId だけを書く
+        basicInfo: stripBasicInfoUrl(currentBasicInfo)
       };
 
       // 自動保存も容量上限に当たりうる。入力のたびに走る処理なので
@@ -4652,7 +5187,8 @@
     function updatePreview() {
       if (!previewArea || !editor) return;
       const markdownText = editor.value;
-      previewArea.innerHTML = parseMarkdown(markdownText);
+      // 先頭にシナリオの基本情報（表紙）を置く。本文の記法とは別の入口で書くので、parseMarkdown() には混ぜない
+      previewArea.innerHTML = buildScenarioCoverHTML() + parseMarkdown(markdownText);
       // 情報一覧は本文の参照（どの場面で使っているか）から組み立てるので、本文が変わったら追従させる
       refreshInfoDrawer();
     }
@@ -4694,7 +5230,7 @@
       const title = scenarioTitle.value || '無題のシナリオ';
       const content = editor.value;
 
-      API.saveScenario(currentScenarioId, title, content, currentNpcs, currentSystemId, currentScenes, currentInfos)
+      API.saveScenario(currentScenarioId, title, content, currentNpcs, currentSystemId, currentScenes, currentInfos, currentBasicInfo)
         .then(res => {
           const now = new Date(res.updated_at);
           const timeStr = now.toTimeString().split(' ')[0].substring(0, 5);
@@ -4853,7 +5389,8 @@
       'release-modal': () => closeReleaseModal(),
       'palette-modal': () => closeCommandPalette(),
       'speech-modal': () => closeSpeechModal(),
-      'info-modal': () => closeInfoModal()
+      'info-modal': () => closeInfoModal(),
+      'basic-info-modal': () => closeBasicInfoModal()
     };
 
     function closeModalElement(el) {
@@ -4987,8 +5524,10 @@
       // 紛れ込み、そのまま保存されてしまう。
       currentScenes = { nodes: [], edges: [] };
       selectedSceneId = null;
-      // 情報も同じ理由で必ず捨てる
+      // 情報・基本情報も同じ理由で必ず捨てる
       currentInfos = [];
+      releaseObjectUrl(currentBasicInfo.thumbnailUrl);
+      currentBasicInfo = emptyBasicInfo();
 
       applySystemToUI();
       saveToLocal();
@@ -5202,6 +5741,8 @@
           currentScenes = res.scenes || { nodes: [], edges: [] };
           selectedSceneId = null;
           currentInfos = res.infos || [];
+          releaseObjectUrl(currentBasicInfo.thumbnailUrl); // 前のシナリオのサムネイルの表示用URLを捨てる
+          currentBasicInfo = res.basicInfo || emptyBasicInfo();
 
           // 読み込んだシナリオのシステムに画面を合わせる
           applySystemToUI();
@@ -5235,6 +5776,8 @@
             currentScenes = { nodes: [], edges: [] };
             selectedSceneId = null;
             currentInfos = [];
+            releaseObjectUrl(currentBasicInfo.thumbnailUrl);
+            currentBasicInfo = emptyBasicInfo();
             saveToLocal();
             updatePreview();
           }
@@ -5793,8 +6336,10 @@
     // 読み込んだ時点で長辺を縮めて再エンコードする。
     // WebPは同じ見た目でJPEGより小さいので優先し、非対応環境ではJPEGに落とす。
     const AVATAR_MAX_EDGE = 1024;
+    // シナリオのサムネイルは紙面の幅いっぱい（A4で約180mm）に出るので、立ち絵より大きく残す
+    const THUMBNAIL_MAX_EDGE = 1600;
 
-    function shrinkImageFile(file) {
+    function shrinkImageFile(file, maxEdge = AVATAR_MAX_EDGE) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onerror = () => reject(new Error('画像ファイルを読み込めませんでした。'));
@@ -5803,7 +6348,7 @@
           const img = new Image();
           img.onerror = () => reject(new Error('画像として読み取れませんでした。'));
           img.onload = () => {
-            const scale = Math.min(1, AVATAR_MAX_EDGE / Math.max(img.width, img.height));
+            const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
             const w = Math.max(1, Math.round(img.width * scale));
             const h = Math.max(1, Math.round(img.height * scale));
 
@@ -6288,7 +6833,7 @@ ${derivedHTML}
       
       // 原寸で保存すると数枚で保存領域を使い切るため、必ず縮小してから持つ
       shrinkImageFile(file)
-        .then(res => API.putAvatar(res.blob).then(avatarId => ({ res, avatarId })))
+        .then(res => API.putImage(res.blob).then(avatarId => ({ res, avatarId })))
         .then(({ res, avatarId }) => {
           const npc = currentNpcs.find(n => n.id === selectedNpcId);
           if (npc) releaseObjectUrl(npc.avatarUrl); // 前の画像の表示用URLを解放する
@@ -8484,6 +9029,392 @@ ${parseRollResultLines(lines, 1)}            </div>
       editor.selectionStart = start + selStart;
       editor.selectionEnd = start + selStart + selLength;
       editor.focus();
+    }
+
+    // === シナリオの基本情報：プレビューの表紙 ===
+    //
+    // タイトル・サムネイル・項目を、プレビュー（＝紙）の先頭に1つだけ出す。
+    // 何も書いていないシナリオで「無題のシナリオ」が大きく出ないよう、
+    // タイトルが既定のままで、サムネイルも項目も無いときは表紙ごと出さない（docs/08 §5）。
+    const DEFAULT_SCENARIO_TITLE = '無題のシナリオ';
+
+    function buildScenarioCoverHTML() {
+      const bi = currentBasicInfo;
+      const rawTitle = scenarioTitle ? scenarioTitle.value.trim() : '';
+      const title = rawTitle === DEFAULT_SCENARIO_TITLE ? '' : rawTitle;
+      const itemsHTML = basicInfoItemsHTML(bi.items);
+      if (!title && !bi.thumbnailUrl && !itemsHTML) return '';
+
+      return `<header class="scenario-cover">`
+        + (bi.thumbnailUrl
+            ? `<div class="cover-thumb"><img src="${escapeHTML(bi.thumbnailUrl)}" alt="シナリオのサムネイル"></div>`
+            : '')
+        + (title ? `<h1 class="cover-title">${escapeHTML(title)}</h1>` : '')
+        + (itemsHTML ? `<div class="cover-info">${itemsHTML}</div>` : '')
+        + `</header>\n`;
+    }
+
+    // 並んだレベルは1つの表にまとめ、項目名の幅を揃える（記号の位置が縦に揃って比べやすい）
+    function basicInfoItemsHTML(items) {
+      let html = '';
+      let levels = [];
+      const flush = () => {
+        if (levels.length) html += coverLevelsHTML(levels);
+        levels = [];
+      };
+      for (const it of items) {
+        if (it.kind === 'level') { levels.push(it); continue; }
+        flush();
+        html += coverSectionHTML(it);
+      }
+      flush();
+      return html;
+    }
+
+    function coverSectionHTML(sec) {
+      const heading = sec.heading.trim();
+      let body = '';
+      let levels = [];
+      const flush = () => {
+        if (levels.length) body += coverLevelsHTML(levels);
+        levels = [];
+      };
+      for (const b of sec.blocks) {
+        if (b.kind === 'level') { levels.push(b); continue; }
+        flush();
+        // 本文は文字色の記法と改行を活かす（エスケープ → 装飾 → 改行は renderInline() が守る）
+        const text = b.body.trim();
+        if (text) body += `<div class="cover-text">${renderInline(text)}</div>`;
+      }
+      flush();
+      if (!heading && !body) return '';
+      return `<section class="cover-section">`
+        + (heading ? `<h3 class="cover-heading">${escapeHTML(heading)}</h3>` : '')
+        + body
+        + `</section>`;
+    }
+
+    function coverLevelsHTML(levels) {
+      return `<div class="cover-levels">`
+        + levels.map(lv => `<div class="cover-level-label">${escapeHTML(lv.label.trim())}</div>`
+            + `<div class="cover-level-value">${levelSymbolsHTML(lv)}</div>`).join('')
+        + `</div>`;
+    }
+
+    // 「★★★☆☆」の部分。満たした記号と残りの記号で色を分ける
+    function levelSymbolsHTML(lv) {
+      const sym = LEVEL_SYMBOL_BY_ID[lv.symbol] || LEVEL_SYMBOLS[0];
+      return `<span class="level-symbols" role="img" aria-label="${lv.max}段階中${lv.value}" title="${lv.value} / ${lv.max}"`
+        + ` style="--level-color: ${sym.color};">`
+        + `<span class="level-on">${sym.on.repeat(lv.value)}</span>`
+        + `<span class="level-off">${sym.off.repeat(lv.max - lv.value)}</span></span>`;
+    }
+
+    // === シナリオの基本情報：編集画面 ===
+    //
+    // 項目の欄は、追加・削除・並べ替えのときだけ作り直す。入力のたびに作り直すと
+    // フォーカスと入力途中の文字が失われるので、文字の入力は値を書き換えるだけにする（NPCのメモと同じ）。
+    // 操作は #bi-items への委譲で受ける。項目の id は読み込んだJSON由来の任意の文字列でありうるので、
+    // onclick の文字列に埋め込まず、data 属性（エスケープ済み）で渡す。
+    function openBasicInfoModal() {
+      if (!basicInfoModal) return;
+      const titleInput = document.getElementById('bi-title');
+      if (titleInput && scenarioTitle) titleInput.value = scenarioTitle.value;
+      renderBasicInfoThumb();
+      renderBasicInfoItems();
+      basicInfoModal.classList.add('active');
+    }
+
+    function closeBasicInfoModal() {
+      if (basicInfoModal) basicInfoModal.classList.remove('active');
+      saveToLocal();
+      updatePreview();
+    }
+
+    // タイトルの実体はヘッダーの欄。こちらで打った文字をそのまま写し、同じ自動保存の経路に乗せる
+    function setScenarioTitleFromBasicInfo(value) {
+      if (!scenarioTitle) return;
+      scenarioTitle.value = value;
+      handleInput();
+    }
+
+    function renderBasicInfoThumb() {
+      const box = document.getElementById('bi-thumb-preview');
+      if (!box) return;
+      const url = currentBasicInfo.thumbnailUrl;
+      box.classList.toggle('empty', !url);
+      box.style.backgroundImage = url ? `url('${url}')` : '';
+      box.textContent = url ? '' : '未設定';
+    }
+
+    function handleBasicInfoThumbFile(input) {
+      const file = input.files[0];
+      if (!file) return;
+      shrinkImageFile(file, THUMBNAIL_MAX_EDGE)
+        .then(res => API.putImage(res.blob).then(id => ({ res, id })))
+        .then(({ res, id }) => {
+          releaseObjectUrl(currentBasicInfo.thumbnailUrl); // 前の画像の表示用URLを解放する
+          currentBasicInfo.thumbnailId = id;
+          currentBasicInfo.thumbnailUrl = makeObjectUrl(res.blob);
+          renderBasicInfoThumb();
+          const info = document.getElementById('bi-thumb-info');
+          if (info) {
+            const kb = n => Math.round(n / 1024).toLocaleString() + 'KB';
+            info.innerText = res.width + '×' + res.height + 'px　' + kb(res.beforeBytes) + ' → ' + kb(res.afterBytes);
+          }
+          // 同じファイルを選び直しても change が起きるよう、選択を空にしておく
+          input.value = '';
+          saveToLocal();
+          updatePreview();
+        })
+        .catch(err => alert('画像を読み込めませんでした:\n\n' + err.message));
+    }
+
+    function clearBasicInfoThumb() {
+      releaseObjectUrl(currentBasicInfo.thumbnailUrl);
+      currentBasicInfo.thumbnailId = '';
+      currentBasicInfo.thumbnailUrl = '';
+      renderBasicInfoThumb();
+      const info = document.getElementById('bi-thumb-info');
+      if (info) info.innerText = '保存時に長辺1600pxへ自動縮小されます';
+      saveToLocal();
+      updatePreview();
+    }
+
+    function newBasicLevel() {
+      return normalizeBasicLevel({ value: 0, max: LEVEL_DEFAULT_MAX, symbol: LEVEL_SYMBOLS[0].id });
+    }
+
+    // 項目または見出しの中身を id で探す。見出しの中身も含めて id は重ならない
+    function findBasicInfoEntry(id) {
+      const items = currentBasicInfo.items;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].id === id) return { list: items, index: i, node: items[i], section: null };
+        if (items[i].kind !== 'section') continue;
+        const blocks = items[i].blocks;
+        for (let j = 0; j < blocks.length; j++) {
+          if (blocks[j].id === id) return { list: blocks, index: j, node: blocks[j], section: items[i] };
+        }
+      }
+      return null;
+    }
+
+    // 書きかけを誤って消さないよう、中身のあるものだけ確認する（空のものは黙って消す）
+    function basicEntryFilled(node) {
+      if (node.kind === 'text') return !!node.body.trim();
+      if (node.kind === 'level') return !!node.label.trim();
+      return !!node.heading.trim() || node.blocks.some(basicEntryFilled);
+    }
+
+    function addBasicInfoItem(kind) {
+      const item = kind === 'level'
+        ? newBasicLevel()
+        // 「見出しと本文」は本文を1つ持った状態で作る（多くはそのまま概要などを書くため）
+        : normalizeBasicSection({ blocks: [{ kind: 'text', body: '' }] });
+      currentBasicInfo.items.push(item);
+      renderBasicInfoItems();
+      focusBasicInfoField(item.id, kind === 'level' ? 'label' : 'heading');
+      handleInput();
+    }
+
+    function addBasicInfoBlock(sectionId, kind) {
+      const found = findBasicInfoEntry(sectionId);
+      if (!found || found.node.kind !== 'section') return;
+      const block = kind === 'level'
+        ? newBasicLevel()
+        : { id: generateUUID(), kind: 'text', body: '' };
+      found.node.blocks.push(block);
+      renderBasicInfoItems();
+      focusBasicInfoField(block.id, kind === 'level' ? 'label' : 'body');
+      handleInput();
+    }
+
+    function moveBasicInfoEntry(id, dir) {
+      const found = findBasicInfoEntry(id);
+      if (!found) return;
+      const to = found.index + dir;
+      if (to < 0 || to >= found.list.length) return;
+      found.list.splice(found.index, 1);
+      found.list.splice(to, 0, found.node);
+      renderBasicInfoItems();
+      // 続けて同じ向きへ動かせるよう、押したボタンにフォーカスを戻す（端に着いたら反対側のボタンへ）
+      const box = basicInfoItemsBox;
+      const sel = act => `[data-bi-act="${act}"][data-bi-id="${CSS.escape(id)}"]`;
+      const btn = box && (box.querySelector(sel(dir < 0 ? 'up' : 'down') + ':not(:disabled)')
+        || box.querySelector(sel(dir < 0 ? 'down' : 'up')));
+      if (btn) btn.focus();
+      handleInput();
+    }
+
+    function removeBasicInfoEntry(id) {
+      const found = findBasicInfoEntry(id);
+      if (!found) return;
+      const node = found.node;
+      if (basicEntryFilled(node)) {
+        const name = node.kind === 'section' ? (node.heading.trim() || '見出しなし')
+          : node.kind === 'level' ? node.label.trim()
+          : node.body.trim().split('\n')[0].substring(0, 20);
+        if (!confirm(`「${name}」を削除しますか？`)) return;
+      }
+      found.list.splice(found.index, 1);
+      renderBasicInfoItems();
+      handleInput();
+    }
+
+    // 記号をクリックした段階にする。いまの段階と同じ記号なら1つ下げる（0 にも戻せるように）
+    function setBasicLevelValue(id, n) {
+      const found = findBasicInfoEntry(id);
+      if (!found || found.node.kind !== 'level') return;
+      const lv = found.node;
+      lv.value = lv.value === n ? n - 1 : clampInt(n, 0, lv.max, 0);
+      refreshBasicLevelStars(lv);
+      // 描き直しで押したボタンが入れ替わるので、キーボードで続けて操作できるよう同じ位置へ戻す
+      const star = basicInfoItemsBox
+        && basicInfoItemsBox.querySelector(`[data-bi-stars="${CSS.escape(id)}"] [data-bi-n="${n}"]`);
+      if (star) star.focus();
+      handleInput();
+    }
+
+    // 記号の列だけを描き直す（項目名の入力欄やセレクトのフォーカスを奪わないため）
+    function refreshBasicLevelStars(lv) {
+      if (!basicInfoItemsBox) return;
+      const box = basicInfoItemsBox.querySelector(`[data-bi-stars="${CSS.escape(lv.id)}"]`);
+      if (box) box.innerHTML = basicLevelStarsHTML(lv);
+    }
+
+    function focusBasicInfoField(id, field) {
+      if (!basicInfoItemsBox) return;
+      const el = basicInfoItemsBox.querySelector(`[data-bi-field="${field}"][data-bi-id="${CSS.escape(id)}"]`);
+      if (el) {
+        el.focus();
+        el.scrollIntoView({ block: 'nearest' });
+      }
+    }
+
+    function initBasicInfoModal() {
+      const box = basicInfoItemsBox;
+      if (!box) return;
+
+      box.addEventListener('click', e => {
+        const btn = e.target.closest('[data-bi-act]');
+        if (!btn) return;
+        const id = btn.dataset.biId;
+        switch (btn.dataset.biAct) {
+          case 'up': moveBasicInfoEntry(id, -1); break;
+          case 'down': moveBasicInfoEntry(id, 1); break;
+          case 'remove': removeBasicInfoEntry(id); break;
+          case 'add-text': addBasicInfoBlock(id, 'text'); break;
+          case 'add-level': addBasicInfoBlock(id, 'level'); break;
+          case 'star': setBasicLevelValue(id, parseInt(btn.dataset.biN, 10)); break;
+        }
+      });
+
+      // 文字の入力は値を書き換えるだけ（作り直さない）
+      box.addEventListener('input', e => {
+        const el = e.target;
+        if (!el.dataset || !el.dataset.biField || el.tagName === 'SELECT') return;
+        const found = findBasicInfoEntry(el.dataset.biId);
+        if (!found) return;
+        found.node[el.dataset.biField] = el.value;
+        handleInput();
+      });
+
+      // 最大の段階と記号の選択。記号の列だけを描き直す
+      box.addEventListener('change', e => {
+        const el = e.target;
+        if (el.tagName !== 'SELECT' || !el.dataset.biField) return;
+        const found = findBasicInfoEntry(el.dataset.biId);
+        if (!found || found.node.kind !== 'level') return;
+        const lv = found.node;
+        if (el.dataset.biField === 'max') {
+          lv.max = clampInt(el.value, 1, LEVEL_MAX_LIMIT, LEVEL_DEFAULT_MAX);
+          lv.value = Math.min(lv.value, lv.max);
+        } else if (el.dataset.biField === 'symbol') {
+          lv.symbol = LEVEL_SYMBOL_BY_ID[el.value] ? el.value : LEVEL_SYMBOLS[0].id;
+        }
+        refreshBasicLevelStars(lv);
+        handleInput();
+      });
+    }
+
+    function renderBasicInfoItems() {
+      const box = basicInfoItemsBox;
+      if (!box) return;
+      const items = currentBasicInfo.items;
+      if (!items.length) {
+        box.innerHTML = '<div class="npc-entry-empty">まだ項目がありません。'
+          + '「＋ 見出しと本文」で概要・プレイ人数・推奨技能などを、「＋ レベル」で難易度などを記号の数で表せます。</div>';
+        return;
+      }
+      box.innerHTML = items.map((it, i) => it.kind === 'level'
+        ? `<div class="bi-card bi-card-level">${basicLevelEditorHTML(it, i, items.length, '🗑')}</div>`
+        : basicSectionEditorHTML(it, i, items.length)).join('');
+    }
+
+    // ↑ ↓ と削除。端では押せないようにする
+    function basicToolsHTML(id, index, length, removeIcon) {
+      const eid = escapeHTML(id);
+      return `<div class="bi-tools">`
+        + `<button type="button" class="bi-tool" data-bi-act="up" data-bi-id="${eid}" title="上へ" aria-label="上へ"${index === 0 ? ' disabled' : ''}>↑</button>`
+        + `<button type="button" class="bi-tool" data-bi-act="down" data-bi-id="${eid}" title="下へ" aria-label="下へ"${index === length - 1 ? ' disabled' : ''}>↓</button>`
+        + `<button type="button" class="bi-tool bi-tool-remove" data-bi-act="remove" data-bi-id="${eid}" title="削除" aria-label="削除">${removeIcon}</button>`
+        + `</div>`;
+    }
+
+    function basicSectionEditorHTML(sec, index, length) {
+      const eid = escapeHTML(sec.id);
+      const blocks = sec.blocks.map((b, j) => b.kind === 'level'
+        ? `<div class="bi-block bi-block-level">${basicLevelEditorHTML(b, j, sec.blocks.length, '×')}</div>`
+        : `<div class="bi-block">`
+          + `<textarea class="form-input bi-text" data-bi-field="body" data-bi-id="${escapeHTML(b.id)}"`
+          + ` placeholder="本文" aria-label="本文">${escapeHTML(b.body)}</textarea>`
+          + basicToolsHTML(b.id, j, sec.blocks.length, '×')
+          + `</div>`).join('');
+      return `<div class="bi-card">`
+        + `<div class="bi-card-head">`
+        + `<span class="bi-kind">見出し</span>`
+        + `<input type="text" class="form-input bi-heading" data-bi-field="heading" data-bi-id="${eid}"`
+        + ` value="${escapeHTML(sec.heading)}" placeholder="見出し（例: 概要・プレイ人数・推奨技能）" aria-label="見出し">`
+        + basicToolsHTML(sec.id, index, length, '🗑')
+        + `</div>`
+        + (blocks ? `<div class="bi-blocks">${blocks}</div>` : '')
+        + `<div class="bi-card-add">`
+        + `<button type="button" class="btn btn-small" data-bi-act="add-text" data-bi-id="${eid}">＋ 本文</button>`
+        + `<button type="button" class="btn btn-small" data-bi-act="add-level" data-bi-id="${eid}">＋ レベル</button>`
+        + `</div>`
+        + `</div>`;
+    }
+
+    // レベル1件の編集欄。項目名・記号の列（押して段階を決める）・最大の段階・記号の種類
+    function basicLevelEditorHTML(lv, index, length, removeIcon) {
+      const eid = escapeHTML(lv.id);
+      let maxOptions = '';
+      for (let n = 1; n <= LEVEL_MAX_LIMIT; n++) {
+        maxOptions += `<option value="${n}"${n === lv.max ? ' selected' : ''}>${n}</option>`;
+      }
+      const symbolOptions = LEVEL_SYMBOLS.map(s =>
+        `<option value="${s.id}"${s.id === lv.symbol ? ' selected' : ''}>${s.on} ${escapeHTML(s.label)}</option>`).join('');
+      return `<div class="bi-level">`
+        + `<span class="bi-kind">レベル</span>`
+        + `<input type="text" class="form-input bi-level-label" data-bi-field="label" data-bi-id="${eid}"`
+        + ` value="${escapeHTML(lv.label)}" placeholder="項目名（例: 難易度・戦闘）" aria-label="項目名">`
+        + `<div class="bi-stars" data-bi-stars="${eid}">${basicLevelStarsHTML(lv)}</div>`
+        + `<label class="bi-level-opt">段階<select class="form-input bi-select" data-bi-field="max" data-bi-id="${eid}">${maxOptions}</select></label>`
+        + `<label class="bi-level-opt">記号<select class="form-input bi-select" data-bi-field="symbol" data-bi-id="${eid}">${symbolOptions}</select></label>`
+        + `</div>`
+        + basicToolsHTML(lv.id, index, length, removeIcon);
+    }
+
+    function basicLevelStarsHTML(lv) {
+      const sym = LEVEL_SYMBOL_BY_ID[lv.symbol] || LEVEL_SYMBOLS[0];
+      const eid = escapeHTML(lv.id);
+      let html = '';
+      for (let n = 1; n <= lv.max; n++) {
+        const on = n <= lv.value;
+        html += `<button type="button" class="bi-star${on ? ' on' : ''}" data-bi-act="star" data-bi-id="${eid}" data-bi-n="${n}"`
+          + ` style="--level-color: ${sym.color};" aria-label="${n}にする" aria-pressed="${on}">${on ? sym.on : sym.off}</button>`;
+      }
+      return html + `<span class="bi-star-count">${lv.value} / ${lv.max}</span>`;
     }
 
     // === ショートカットキーのロード ===

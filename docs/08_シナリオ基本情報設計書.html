@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>シナリオ基本情報設計書 | TRPGシナリオ執筆エディタ</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="page">
+
+  <header class="hero">
+    <div class="eyebrow">TRPG SCENARIO EDITOR / 設計</div>
+    <h1>シナリオ基本情報設計書</h1>
+    <p class="lead">
+      シナリオの<strong>基本情報</strong>（タイトル・サムネイル・概要などの見出しと本文・難易度などのレベル表示）を、
+      どんな形で持ち、どう<strong>表紙</strong>としてプレビューとPDFの先頭に出すかと、<strong>なぜその形にしたか</strong>を残す。
+      項目の種類を足すとき・表紙の見た目を変えるときに読むこと。
+    </p>
+  </header>
+
+  <section>
+    <h2>1. 守備範囲</h2>
+    <p>
+      TRPGのシナリオには、本文の前に置く「基本情報」がある（プレイ人数・推奨技能・プレイ時間・難易度・ロスト率など）。
+      中身の構成は作者によってさまざまなので、決め打ちの欄ではなく、<strong>汎用の項目を好きな順に並べる</strong>形にした（2026-10-05 の要望）。
+    </p>
+    <table>
+      <thead><tr><th>要素</th><th>内容</th></tr></thead>
+      <tbody>
+        <tr><td>タイトル</td><td>シナリオ名。ヘッダーのタイトル欄と同じもの（§3）</td></tr>
+        <tr><td>サムネイル</td><td>画像1枚（§4）</td></tr>
+        <tr><td>見出しと本文</td><td>「概要」と本文のような組。主に普通の文章を書く</td></tr>
+        <tr><td>レベル</td><td>「難易度 ★★★☆☆」のような、項目名と記号の数の組。記号の種類と段階の数を選べる。見出しの子にもできる</td></tr>
+      </tbody>
+    </table>
+    <p>
+      編集はモーダル（「📘 シナリオ基本情報」）で行い、プレビュー（＝紙）の先頭に表紙として出す。
+      本文の記法（<a href="04_記法設計書.html">04 記法設計書</a>）とは別の入口であり、本文には何も書き込まない。
+    </p>
+  </section>
+
+  <section>
+    <h2>2. 項目の形</h2>
+<pre><code>basicInfo: {
+  thumbnailId: "…",             // avatars ストアのキー（§4）
+  items: [
+    { id, kind: "section", heading: "傾向", blocks: [
+        { id, kind: "text",  body: "探索が中心のシナリオです。" },
+        { id, kind: "level", label: "戦闘", value: 1, max: 3, symbol: "star" },
+        { id, kind: "level", label: "探索", value: 3, max: 3, symbol: "star" },
+        { id, kind: "text",  body: "※戦闘は回避できます。" } ] },
+    { id, kind: "level", label: "難易度", value: 3, max: 5, symbol: "star" }
+  ]
+}</code></pre>
+    <p>
+      最上位の項目は「見出しと中身の組（<code>section</code>）」と「単独のレベル（<code>level</code>）」の2種類で、好きな順に並べる。
+      <code>section</code> の中身（<code>blocks</code>）には、本文（<code>text</code>）とレベルを<strong>混ぜて</strong>並べられる。
+      要望の「レベルは任意の見出しの子として、通常の文章にまぎれて使われる場合がある」を、そのまま形にしたものである。
+    </p>
+    <table>
+      <thead><tr><th>却下した案</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>「概要」「プレイ人数」「推奨技能」などの決め打ちの欄を持つ</td>
+          <td>作者ごとに構成が違う。足りない欄は書けず、使わない欄は空のまま残る。汎用の項目にしてほしいという要望そのものに反する。</td>
+        </tr>
+        <tr>
+          <td>見出しの組を「見出し＋本文1つ＋レベルの一覧」の固定の形にする（本文の後ろにレベルが並ぶ）</td>
+          <td>本文とレベルを混ぜて並べられない（「本文 → レベル → 注意書き」が書けない）。</td>
+        </tr>
+        <tr>
+          <td>見出し・本文・レベルを平らな1列に並べ、見出しが後ろのものを束ねる（本文の <code>#</code> 見出しと同じ考え方）</td>
+          <td>見出しの後ろに、どの見出しにも属さない単独のレベルを置けなくなる（後ろのものはすべて直前の見出しに吸われる）。編集画面で「見出しと本文の組」が1つのまとまりに見えない。</td>
+        </tr>
+        <tr>
+          <td>レベルを本文の記法で書く（<code>[レベル:難易度/3/5/★]</code>）</td>
+          <td>記号を押して段階を決める・記号の種類を一覧から選ぶ、といった画面の操作ができず、記法を覚えないと使えない。本文の中でレベルを使う入口としては将来の拡張に残す（§7）。</td>
+        </tr>
+      </tbody>
+    </table>
+    <ul>
+      <li>形は <code>normalizeBasicInfo()</code> が保証する。保存・読込・書き出し・読み込み・移行・作業状態の復元の、すべての入口を通す。この機能より前のシナリオには <code>basicInfo</code> が無いので、空の基本情報に均す。</li>
+      <li>レベルの段階の数（<code>max</code>）は 1〜10。それより多いと一目で数えられない。値（<code>value</code>）は 0〜<code>max</code> に丸め、記号は <code>LEVEL_SYMBOLS</code> に無いものなら星にする。</li>
+      <li>ID は読み込んだJSON由来の任意の文字列でありうる。編集画面では <code>onclick</code> の文字列に埋め込まず、エスケープした <code>data-</code> 属性で渡す（§6）。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>3. タイトルは1か所にだけ持つ</h2>
+    <p>
+      タイトルの実体は従来どおりシナリオの <code>title</code>（ヘッダーのタイトル欄）で、<code>basicInfo</code> には持たない。
+      モーダルのタイトル欄は、ヘッダーの欄を書き換えて同じ自動保存の経路（<code>handleInput()</code>）に乗せるだけである。
+    </p>
+    <div class="callout">
+      <strong>2か所に持たないこと。</strong>タイトルはシナリオ一覧の表示名と、書き出しファイル名にも使っている。
+      基本情報側に別のタイトルを持つと、一覧の名前と表紙の名前が食い違う。
+    </div>
+  </section>
+
+  <section>
+    <h2>4. サムネイル</h2>
+    <ul>
+      <li>
+        実体は NPCの立ち絵と同じ <code>avatars</code> ストアの Blob で、基本情報は <code>thumbnailId</code> で指す。
+        画面に出すときだけ <code>blob:</code> URL を作って <code>thumbnailUrl</code> に入れ、保存するときは落とす（<code>stripBasicInfoUrl()</code>）。
+        理由と object URL の解放の決まりは <a href="03_保存方式設計書.html">03 保存方式設計書</a> §3.3 と同じである。
+      </li>
+      <li>
+        ストア名は <code>avatars</code> のままにした。名前を変えるには DB の版を上げる必要があり、
+        版を上げる前に済ませるべき対策（<code>onblocked</code>）がまだ無いため（03 §3.2）。
+      </li>
+      <li>
+        <strong>画像の棚卸し（<code>pruneAvatars()</code>）は、立ち絵とサムネイルの両方を「使用中」として数える。</strong>
+        片方を数え忘れると、使っている画像を消してしまう。
+      </li>
+      <li>読み込み時に長辺 <strong>1600px</strong> へ縮める（立ち絵は1024px）。サムネイルは紙の幅いっぱい（A4で約180mm）に出るので、立ち絵より大きく残す。</li>
+      <li>JSONの書き出しでは、立ち絵と同じく data URL に戻して <code>thumbnailUrl</code> に入れる（<code>thumbnailId</code> は書かない）。読み込みで Blob へ移し替える。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>5. 表紙の出し方</h2>
+    <p>
+      <code>updatePreview()</code> が、本文の変換結果（<code>parseMarkdown()</code>）の前に <code>buildScenarioCoverHTML()</code> の結果を置く。
+      本文の記法とは入口が別なので、<code>parseMarkdown()</code> には混ぜない。
+    </p>
+    <ul>
+      <li>並びは<strong>サムネイル → タイトル → 項目</strong>。本文とは太い線で区切る。</li>
+      <li>
+        <strong>タイトルが既定の「無題のシナリオ」のままで、サムネイルも項目も無いときは、表紙ごと出さない。</strong>
+        基本情報を使わない人のプレビューと紙の先頭に、「無題のシナリオ」が大きく出るのを避けるため。
+        タイトルだけを付けたシナリオでは、表紙はタイトルだけになる。
+      </li>
+      <li>並んだレベル（連続するもの）は1つの表にまとめ、項目名の幅を揃える。記号の頭が縦に揃い、比べやすい。</li>
+      <li>表紙の見出しは、下線の小さな見出しにした。本文の <code>##</code> 小見出し（ティールの左線）と同じ見た目にすると、どちらの見出しか分からなくなる。</li>
+      <li>本文は文字色の記法と改行を活かす（<code>renderInline()</code>。<a href="04_記法設計書.html">04</a> §4 の順序を守る）。</li>
+    </ul>
+    <div class="callout warn">
+      <strong>記号は和文フォントで描くこと。</strong>
+      本文と同じ欧文優先のフォント（Inter・Segoe UI）を当てると、<code>●</code> は欧文フォント・<code>○</code> は和文フォントのように
+      記号ごとに別のフォントで描かれ、大きさが揃わなかった。
+      記号の色は、暗い編集画面と白い紙の両方で読める中間の濃さにしてある（<code>LEVEL_SYMBOLS</code>）。
+    </div>
+    <div class="callout">
+      <strong>表紙に「編集」ボタンを置かない。</strong>
+      プレビューは台本の紙面を見る場所であり、操作のボタンは置かない（v1.9.1 で情報一覧のボタンをプレビューから移したのと同じ理由。
+      <a href="04_記法設計書.html">04</a> §9.5）。
+    </div>
+  </section>
+
+  <section>
+    <h2>6. 編集画面</h2>
+    <table>
+      <thead><tr><th>入口</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>ヘッダーのタイトル欄の隣「📘 基本情報」</td>
+          <td>タイトルの続きを書く場所なので、タイトルの隣に置く。1100px以下では名前を消してアイコンだけにする。</td>
+        </tr>
+        <tr>
+          <td>コマンドパレット・Alt+B</td>
+          <td><code>ACTIONS</code> の <code>basic-info</code>。本文を書き換えないので、場面図の表示中も受け付ける。</td>
+        </tr>
+        <tr>
+          <td>下部パネル — <strong>置かない</strong></td>
+          <td>パネルは768pxで残り14pxしかなく、1280pxでも正式名のまま収まる余地が無い。基本情報はシナリオごとに一度書けば済む頻度の低い操作なので、<a href="07_操作の入口設計書.html">07</a> §3.2 の決まりに従ってパネルには足さなかった。</td>
+        </tr>
+      </tbody>
+    </table>
+    <ul>
+      <li>
+        項目の欄は、追加・削除・並べ替えのときだけ作り直す。文字の入力は値を書き換えるだけにする（作り直すとフォーカスと入力途中の文字が失われる。NPCのメモと同じ）。
+        記号を押したとき・段階の数や記号の種類を変えたときは、その記号の列だけを描き直す。
+      </li>
+      <li>
+        記号を押すとその段階になり、<strong>今の段階と同じ記号を押すと1つ下がる</strong>。こうしないと 0 に戻せない。
+        記号のボタンは指で押すので、高さをタップ領域の下限44pxに保つ（<a href="01_要件定義書.html">01</a> §5）。
+      </li>
+      <li>並べ替えは ↑ ↓ のボタンで行う（見出しの中身は見出しの中でだけ動く）。動かした後は押したボタンにフォーカスを戻し、続けて動かせるようにする。</li>
+      <li>削除は、中身のある項目だけ確認する（空の項目は黙って消す。NPCのメモと同じ）。</li>
+      <li>操作は <code>#bi-items</code> への委譲で受ける。項目の ID は <code>data-bi-id</code> 属性に入れ、<code>CSS.escape()</code> を通して探す。</li>
+    </ul>
+    <div class="callout warn">
+      <strong>ヘッダーに要素を足したら、1280px と 768px で文字が折り返さないか確かめること。</strong>
+      基本情報のボタンを足したとき、1280pxで「一覧」「保存」などが1文字ずつ縦に折れた。
+      ヘッダーの要素は文字を1行に保ち、幅が足りないときはタイトル欄だけが縮むようにしてある（最小100px）。
+      保存状態の表示は2行まで折り返す。1400px以下では名前が最も長く使う頻度も低い「ショートカット設定」を、1100px以下では右側の3つのボタンを、アイコンだけにする。
+    </div>
+  </section>
+
+  <section>
+    <h2>7. 将来拡張の入り口</h2>
+    <table>
+      <thead><tr><th>やりたいこと</th><th>変える場所</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>レベルの記号を足す</td>
+          <td><code>LEVEL_SYMBOLS</code> に1行足す（満たした記号・残りの記号・名前・色）。保存済みの記号の ID は変えないこと</td>
+        </tr>
+        <tr>
+          <td>本文の中でもレベル表示を使う</td>
+          <td>
+            ブロック記法を足す（<a href="04_記法設計書.html">04</a> §7.1）。描画は <code>coverLevelsHTML()</code> / <code>levelSymbolsHTML()</code> を使い回せる。
+            挿入には段階と記号を選ぶ画面が要る（<a href="07_操作の入口設計書.html">07</a> §6 の「選ぶ画面を開く操作」）
+          </td>
+        </tr>
+        <tr>
+          <td>表紙を独立した1ページにする</td>
+          <td>印刷用CSSで <code>.scenario-cover</code> に <code>break-after: page</code> を付ける</td>
+        </tr>
+        <tr>
+          <td>半分の段階（★2.5）を表す</td>
+          <td><code>normalizeBasicLevel()</code> の整数への丸めと、<code>levelSymbolsHTML()</code> の描き方を変える</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <nav class="pagenav">
+    <a href="00_INDEX.html">← 目次</a>
+    <a href="03_保存方式設計書.html">保存方式設計書 §3.3（画像の持ち方） →</a>
+  </nav>
+
+  <footer class="pagefoot">
+    最終更新: 2026-10-05（新規作成。項目の形・タイトルとサムネイルの持ち方・表紙の出し方・編集画面の入口の判断を記述）
+  </footer>
+
+</div>
+</body>
+</html>
