@@ -195,6 +195,9 @@
         <tr><td><code>derived</code></td><td>派生値の定義（HP・SAN等）</td><td>NPC編集の派生値欄</td></tr>
         <tr><td><code>autoCalc</code></td><td>派生値の計算式と、その元になる能力値</td><td><code>recalcDerived()</code></td></tr>
         <tr><td><code>skills</code></td><td>分類ごとの技能一覧</td><td>技能判定モーダル</td></tr>
+        <tr><td><code>skillPlaceholder</code></td><td>NPCの所持技能の、技能名の欄の例示</td><td><code>renderNpcEditor()</code></td></tr>
+        <tr><td><code>defaultSkillValue</code></td><td><code>(技能名, NPCのstatus) =&gt; 値</code>。NPCの所持技能で値を空けたまま追加したときの値（エモクロアは Lv1、CoC6版は <code>coc6SkillInitial()</code> が技能一覧の初期値を引く）。値の欄の薄い表示にも使う</td><td><code>addNpcSkill()</code>・<code>refreshSkillValuePlaceholder()</code></td></tr>
+        <tr><td><code>normalizeSkillValue</code></td><td>省略可。入力された値の書き方を揃える（エモクロアは「2」「lv2」→「Lv2」）</td><td><code>addNpcSkill()</code></td></tr>
         <tr><td><code>rollTiers</code></td><td>判定ブロックの成功段階と、その既定のチェック状態</td><td><code>renderRollTiers()</code></td></tr>
         <tr><td><code>rollSkillPlaceholder</code></td><td>技能判定ダイアログの技能名の例示</td><td><code>applySystemToUI()</code></td></tr>
         <tr><td><code>profilePlaceholder</code></td><td>NPCの年齢・性別・職業の例示（世界観が違うため）</td><td><code>renderNpcEditor()</code></td></tr>
@@ -215,6 +218,7 @@
         <tr><td><code>groups</code></td><td><code>{ 分類名: [候補, ...] }</code>。候補は文字列か <code>[名前, 補足]</code></td></tr>
         <tr><td><code>mode</code></td><td><code>'single'</code>（既定）／<code>'multi'</code></td></tr>
         <tr><td><code>compact</code></td><td>入力欄の補助として置くとき <code>true</code>（低くする）</td></tr>
+        <tr><td><code>autoHeight</code></td><td><code>true</code> で高さを分類の数に合わせる（分類が途中で切れず、候補だけがその高さの中でスクロールする）。候補は幅なりのカラム数で並べる。<code>compact</code> より優先</td></tr>
         <tr><td><code>selected</code></td><td><code>() =&gt; [選択中の値]</code>。<code>multi</code> の番号バッジに使う</td></tr>
         <tr><td><code>formatValue</code></td><td><code>(entry, category) =&gt; 値</code>。省略時は候補の名前</td></tr>
         <tr><td><code>onPick</code></td><td><code>(値, entry, 分類) =&gt; void</code></td></tr>
@@ -423,7 +427,7 @@
   </nav>
 
   <footer class="pagefoot">
-    最終更新: 2026-10-05（操作の表 <code>ACTIONS</code> の導入に伴い、§3 のシステム依存の表示名の注記を更新）<br>
+    最終更新: 2026-10-05（操作の表 <code>ACTIONS</code> の導入に伴い、§3 のシステム依存の表示名の注記を更新。分類ピッカーの設定に <code>autoHeight</code> を追加。システム定義に <code>skillPlaceholder</code> / <code>defaultSkillValue</code> / <code>normalizeSkillValue</code> の行を追加）<br>
     2026-08-31（フェーズ6の完了に伴い、§1・§2・§3.1・§4 を更新）
   </footer>
 

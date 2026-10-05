@@ -330,6 +330,84 @@
     margin-bottom: 16px;
     border-radius: 0 4px 4px 0;
   }
+
+  /* NPCのセリフ [セリフ:NPC名]。台本の1行のように、左にアイコン、右に名前・備考・発言を詰めて並べる。
+     会話は何行も続くので、箱（背景・枠線・内側の余白）は付けない。
+     誰の発言かはアイコン・名前・色で足りる（以前は情景描写にならって左に色の線を引いていたが、
+     名前と色で示していることの繰り返しで、意味が読み取れなかったため外した）。
+     色は --npc-color で受け取り、名前・発言・アイコンの縁で共有する（未設定なら本文と同じ色）。
+     flex にしているのはアイコンと本体を並べる外枠だけで、発言そのものは
+     内側のブロック要素に載せる（文字色の <span> で文が割れないように。記法設計書 §3.5）。 */
+  #preview-area .npc-speech {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  /* セリフが続くあいだは段落の間隔を詰め、会話がひとまとまりに見えるようにする。
+     段落の下余白（16px）に負の上余白を重ね、相殺して約8pxにしている（地の文との間隔は変えない） */
+  #preview-area .row:has(> .main-content > .npc-speech) + .row:has(> .main-content > .npc-speech) {
+    margin-top: -8px;
+  }
+  /* サイドビューの小さなNPCカードは、段落の行の高さを決めてしまう。
+     下余白（要素に直接書かれた 12px）が残ると、セリフより背が高くなって会話の途中に隙間が空くので外す */
+  #preview-area .side-content > .npc-card.mini {
+    margin-bottom: 0 !important;
+  }
+  #preview-area .npc-speech-avatar {
+    width: 32px;
+    height: 32px;
+    margin-top: 2px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background-color: #e2e8f0 !important;
+    background-size: cover;
+    background-position: center top;
+    box-shadow: 0 0 0 2px var(--npc-color, #cbd5e1);
+  }
+  /* 立ち絵が無いときは、名前の1文字目を色の丸に載せる */
+  #preview-area .npc-speech-initial {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--npc-color, #94a3b8) !important;
+    color: #ffffff !important;
+    font-weight: 700;
+    font-size: 0.85rem;
+  }
+  #preview-area .npc-speech-body {
+    flex: 1;
+    min-width: 0;
+  }
+  #preview-area .npc-speech-name {
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--npc-color, #475569) !important;
+  }
+  #preview-area .npc-speech-text {
+    color: var(--npc-color, var(--preview-text)) !important;
+    font-family: 'Noto Serif JP', "BIZ UDMincho", "Hiragino Mincho ProN", "Yu Mincho", YuMincho, serif;
+    line-height: 1.7;
+  }
+  /* 備考（読み上げ方などのト書き）。名前と発言の間に、灰色の小さな文字で置く。
+     読み上げる発言と混ざらないよう、色と大きさで分ける（枠は付けずに詰める）。
+     複数行になりうるので、名前の横に並べるラベルにはしない */
+  #preview-area .npc-speech-note {
+    color: #64748b !important;
+    font-size: 0.72rem;
+    line-height: 1.5;
+  }
+  #preview-area .npc-speech-missing {
+    margin-left: 8px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background-color: #fff7ed !important;
+    color: #c2410c !important;
+    font-size: 0.7rem;
+    font-weight: 600;
+  }
   
   /* DL情報 */
   #preview-area .dl-info {
@@ -612,6 +690,16 @@
     padding-top: 6px;
     margin-top: 6px;
   }
+  /* メモは題名と内容の組で複数ある。題名は斜体にせず、内容の小見出しとして出す */
+  #preview-area .npc-card-memo-item + .npc-card-memo-item {
+    margin-top: 6px;
+  }
+  #preview-area .npc-card-memo-title {
+    font-style: normal;
+    font-weight: 700;
+    font-size: 0.78rem;
+    color: #334155 !important;
+  }
 
   /* === アシスタントパネル (タッチ入力支援) ===
      ボタンは ACTIONS から renderAssistantPanel() が組み立てる。
@@ -622,10 +710,11 @@
   .assistant-panel {
     background-color: var(--bg-card);
     border-top: 1px solid var(--border-color);
-    padding: 6px 16px;
+    /* 余白は、1280px幅（タブレット横・ノートPCで多い幅）で正式名のまま収まるよう詰めてある */
+    padding: 6px 12px;
     display: flex;
     align-items: stretch;
-    gap: 10px;
+    gap: 8px;
     overflow-x: auto;
     overflow-y: hidden;
     white-space: nowrap;
@@ -645,7 +734,7 @@
     display: flex;
     align-items: stretch;
     gap: 4px;
-    padding-right: 10px;
+    padding-right: 8px;
     border-right: 1px solid var(--border-color);
   }
   /* 分類名は縦書きにして、ボタン1個分の幅を取らないようにする */
@@ -667,7 +756,7 @@
     gap: 3px;
     min-width: 52px;
     min-height: 44px;
-    padding: 4px 8px;
+    padding: 4px 7px;
     background-color: var(--bg-input);
     border: 1px solid var(--border-color);
     border-radius: 6px;
@@ -758,8 +847,10 @@
   /* === コマンドパレット ===
      .modal の仕組みに載せているのは、Esc・背景クリック・× で閉じる処理と、
      開いている間ほかのショートカットを止める処理を共用するため。
-     入力欄が画面の中央より上にあるほうが、候補が下へ伸びても視線が動かない。 */
-  .modal-palette {
+     入力欄が画面の中央より上にあるほうが、候補が下へ伸びても視線が動かない。
+     .modal.modal-palette と書くのは、後ろにある共通の .modal { align-items: center } に勝たせるため
+     （同じ詳細度だと記述順で負け、中央に出てしまう）。 */
+  .modal.modal-palette {
     align-items: flex-start;
     padding-top: 12vh;
     box-sizing: border-box;
@@ -840,6 +931,50 @@
     gap: 3px;
     font-size: 0.72rem;
     color: var(--text-secondary);
+  }
+  /* NPCのセリフを選ぶ画面の備考欄 */
+  .speech-note-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .speech-note-row label {
+    flex-shrink: 0;
+    padding-top: 7px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+  /* 1行から始めて、改行に合わせて伸ばす（field-sizing の対応ブラウザのみ。未対応では手で伸ばせる） */
+  .speech-note-row .form-input {
+    padding: 6px 10px;
+    font-family: inherit;
+    font-size: 0.88rem;
+    line-height: 1.5;
+    resize: vertical;
+    field-sizing: content;
+    min-height: 2.2em;
+    max-height: 8em;
+  }
+  /* NPCのセリフを選ぶ画面のアイコン（プレビューのセリフと同じ規則で描く） */
+  .speech-avatar {
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background-color: var(--border-color);
+    background-size: cover;
+    background-position: center top;
+  }
+  .speech-avatar-initial {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    font-size: 0.85rem;
+    font-weight: 700;
   }
   .palette-empty {
     padding: 24px;
@@ -986,9 +1121,22 @@
     border-radius: 6px;
     background-color: rgba(0,0,0,0.1);
   }
-  /* 入力欄の補助として置く場合は低くする（NPC編集・共鳴判定） */
+  /* 入力欄の補助として置く場合は低くする（共鳴判定） */
   .picker-compact {
     height: 170px;
+  }
+  /* 高さを分類の数に合わせる（NPC編集の技能・共鳴感情タブ）。分類が途中で切れず、
+     候補（右）だけがその高さの中でスクロールする。
+     contain: size で候補の列を行の高さ決めから外し、分類の列だけで行の高さが決まるようにしている
+     （外さないと、候補が多いシステムでは行が候補の丈まで伸びる）。
+     .picker.picker-auto と書くのは、縦画面用の .picker { height } より優先させるため。 */
+  .picker.picker-auto {
+    height: auto;
+  }
+  .picker-auto .picker-main {
+    contain: size;
+    /* 幅の広いタブでは2カラム固定だと1件あたりが無駄に横長になる */
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   }
   .picker-cats {
     display: flex;
@@ -1267,14 +1415,14 @@
   .preview-section::-webkit-scrollbar,
   .picker-cats::-webkit-scrollbar,
   .picker-main::-webkit-scrollbar,
-  .npc-editor-area::-webkit-scrollbar {
+  .npc-tab-panels::-webkit-scrollbar {
     width: 6px;
   }
   .list-container::-webkit-scrollbar-thumb,
   .preview-section::-webkit-scrollbar-thumb,
   .picker-cats::-webkit-scrollbar-thumb,
   .picker-main::-webkit-scrollbar-thumb,
-  .npc-editor-area::-webkit-scrollbar-thumb {
+  .npc-tab-panels::-webkit-scrollbar-thumb {
     background-color: var(--border-color);
     border-radius: 3px;
   }
@@ -1341,13 +1489,108 @@
     padding-right: 15px;
     flex-shrink: 0;
   }
+  /* NPC一覧はサイドバーの縦幅いっぱいまで使う。
+     共通の .list-container はシナリオ一覧向けに max-height: 350px を持つため、ここで外す。
+     min-height: 0 が無いと、flex の子は中身の高さより縮まずにはみ出し、スクロールしない。 */
+  #npc-list-container {
+    max-height: none;
+    min-height: 0;
+  }
+
+  /* 編集欄は「常に見える操作 → タブ → タブの中身」の3段。
+     スクロールするのはタブの中身（.npc-tab-panels）だけにして、
+     下へスクロールしてもタブと操作ボタンが画面から消えないようにする。 */
   .npc-editor-area {
     flex: 1;
+    min-width: 0;
+    min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 12px;
+    overflow: hidden;
+  }
+  /* 本文への挿入と削除。どのタブを開いていても使えるよう、タブの外に置く */
+  .npc-editor-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .npc-head-label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--accent-color);
+    margin-right: 2px;
+  }
+  .npc-delete-btn {
+    margin-left: auto;
+  }
+  /* 狭い画面ではタブ列だけ横にスクロールさせる。
+     選択中の下線は box-shadow で描く。border＋負の margin で枠線に重ねると、
+     1px はみ出した分で overflow が縦スクロールバーを出してしまう。 */
+  .npc-tabs {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border-color);
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .npc-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    min-height: 44px;
+    padding: 0 16px;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 0.88rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color 0.15s, box-shadow 0.15s;
+  }
+  .npc-tab:hover {
+    color: var(--text-primary);
+  }
+  .npc-tab.active {
+    color: var(--accent-color);
+    box-shadow: inset 0 -2px 0 var(--accent-color);
+  }
+  /* 技能・感情の件数。開かなくても入力済みかが分かるようにする */
+  .npc-tab-count {
+    min-width: 1.4em;
+    padding: 0 6px;
+    border-radius: 10px;
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    line-height: 1.6;
+    text-align: center;
+    box-sizing: border-box;
+  }
+  .npc-tab-panels {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
     overflow-y: auto;
     padding-right: 5px;
+  }
+  /* 中身が少ないタブでも縦幅いっぱいに広げる（メモ欄を下端まで伸ばすため） */
+  .npc-tab-panel {
+    display: none;
+    flex-direction: column;
+    gap: 15px;
+  }
+  .npc-tab-panel.active {
+    display: flex;
+    flex: 1 0 auto;
   }
   .npc-list-item {
     display: flex;
@@ -1442,21 +1685,239 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .npc-skill-badge {
+  /* 所持技能・共鳴感情の一覧。1件1行にして、名前と値（Lv2・45 など）を列に揃える。
+     以前は小さなバッジを横に流していたため、件数が増えると斜め読みできなかった。 */
+  .npc-entry-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 6px;
+  }
+  .npc-entry-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 46px;
+    padding: 0 0 0 12px;
     background-color: var(--bg-input);
     border: 1px solid var(--border-color);
-    color: var(--text-primary);
-    font-size: 0.75rem;
-    padding: 4px 10px;
-    border-radius: 12px;
+    border-radius: 6px;
+    box-sizing: border-box;
+  }
+  .npc-entry-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.88rem;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* 技能の値。名前より目立たせず、それでいて列として目で追えるようにする */
+  .npc-entry-value {
+    flex-shrink: 0;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background-color: rgba(59, 130, 246, 0.14);
+    color: #93c5fd;
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+  /* 値が未入力の技能。入れ忘れに気づけるよう、空欄にはせず印を出す */
+  .npc-entry-value.empty {
+    background: none;
+    color: var(--text-secondary);
+    font-weight: 400;
+  }
+  /* 共鳴感情の分類（欲望・情念など）。補足なので値より弱く出す */
+  .npc-entry-category {
+    flex-shrink: 0;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+  }
+  /* 行の右端を縦いっぱいに使い、タップ領域の下限（44px、要件定義書 §5）を確保する */
+  .npc-entry-remove {
+    flex-shrink: 0;
+    align-self: stretch;
+    width: 44px;
+    border: none;
+    border-radius: 0 5px 5px 0;
+    background: none;
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .npc-entry-remove:hover {
+    color: #ef4444;
+    background-color: rgba(239, 68, 68, 0.12);
+  }
+  .npc-entry-empty {
+    padding: 10px 0;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+  }
+
+  /* セリフの色の選択。パレットの色を丸で並べ、「なし」と「その他」を両端に置く */
+  .npc-color-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .npc-color-swatch {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 2px solid var(--border-color);
+    background-color: var(--swatch, var(--bg-input));
+    box-sizing: border-box;
+    cursor: pointer;
+    transition: transform 0.1s, border-color 0.15s;
+  }
+  .npc-color-swatch:hover {
+    transform: scale(1.06);
+  }
+  /* 選んでいる色。外側に白い輪を出して、暗い色でも選択中と分かるようにする */
+  .npc-color-swatch.selected {
+    border-color: #ffffff;
+    box-shadow: 0 0 0 2px var(--accent-color);
+  }
+  .npc-color-none,
+  .npc-color-custom {
+    width: auto;
+    padding: 0 14px;
+    border-radius: 22px;
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
   }
-  .npc-skill-badge .remove-btn {
+  .npc-color-custom input[type="color"] {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    background: none;
     cursor: pointer;
+  }
+  /* 紙（白地）での見え方の見本。淡い色を選んだときに読みにくさが分かる */
+  .npc-color-sample {
+    align-self: flex-start;
+    margin-top: 4px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    background-color: #ffffff;
+    color: #2d3748;
+    font-family: 'Noto Serif JP', "BIZ UDMincho", "Hiragino Mincho ProN", "Yu Mincho", YuMincho, serif;
+    font-size: 0.9rem;
+  }
+
+  /* メモ。題名と内容の組をカードにして縦に積む */
+  .npc-memo-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .npc-memo-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: rgba(0,0,0,0.15);
+  }
+  .npc-memo-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .npc-memo-title {
+    flex: 1;
+    min-width: 0;
+    font-weight: 600;
+  }
+  .npc-memo-remove {
+    flex-shrink: 0;
+    width: 44px;
+    height: 40px;
+    border: none;
+    border-radius: 6px;
+    background: none;
+    color: var(--text-secondary);
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  .npc-memo-remove:hover {
     color: #ef4444;
-    font-weight: bold;
+    background-color: rgba(239, 68, 68, 0.12);
+  }
+  /* 内容に合わせて欄を伸ばす（field-sizing の対応ブラウザのみ。未対応では手で伸ばせる）。
+     メモが複数並ぶので、欄の中と外の二重スクロールにしない */
+  .npc-memo-body {
+    min-height: 6.5em;
+    line-height: 1.6;
+    resize: vertical;
+    field-sizing: content;
+  }
+
+  /* 一覧の下の「追加」欄。一覧が主役なので、区切り線で分けて控えめに置く */
+  .npc-add-box {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-color);
+  }
+  /* 技能は名前と値を別の欄にする。値は短い（Lv2・45 など）ので幅を絞る */
+  .npc-skill-add-row {
+    display: flex;
+    gap: 8px;
+  }
+  .npc-skill-add-row .form-input {
+    flex: 1;
+    min-width: 0;
+  }
+  .npc-skill-add-row .npc-skill-value-input {
+    flex: 0 0 110px;
+  }
+  .npc-add-hint {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+  }
+  /* ピッカーは普段は畳んでおく。開いたときだけ場所を取る */
+  .npc-picker-toggle > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+    /* 既定の三角マーカーを消して、自前の ::before に差し替える（リリースノートと同じ） */
+    list-style: none;
+  }
+  .npc-picker-toggle > summary::-webkit-details-marker {
+    display: none;
+  }
+  .npc-picker-toggle > summary::before {
+    content: '▶';
+    font-size: 0.6rem;
+    transition: transform 0.15s;
+  }
+  .npc-picker-toggle[open] > summary::before {
+    transform: rotate(90deg);
+  }
+  .npc-picker-toggle > summary:hover {
+    color: var(--text-primary);
+  }
+  .npc-picker-toggle .picker {
+    margin-top: 6px;
   }
 
   /* === モバイル/タブレット向けレスポンシブ (縦画面対応) === */
@@ -2320,6 +2781,33 @@
     </div>
   </div>
 
+  <!-- 🗣 NPCのセリフ（NPCを選んで [セリフ:NPC名] を挿入する）。見た目と操作はコマンドパレットと揃える -->
+  <div id="speech-modal" class="modal modal-palette">
+    <div class="modal-content palette-content" role="dialog" aria-label="NPCのセリフを挿入">
+      <div class="palette-search">
+        <span aria-hidden="true">🗣</span>
+        <input type="text" id="speech-input" class="palette-input" autocomplete="off" spellcheck="false"
+               placeholder="話すNPCを選ぶ（名前で絞り込み）">
+        <!-- Tab で絞り込み欄から備考欄へ直接移れるよう、× はタブ移動の対象から外す（Esc でも閉じられる） -->
+        <button class="btn-close" tabindex="-1" onclick="closeSpeechModal()" aria-label="閉じる">&times;</button>
+      </div>
+      <!-- 備考は [セリフ:NPC名/備考] になり、名前の横に灰色のラベルで出る（読み上げ方などのト書き） -->
+      <div class="speech-note-row">
+        <label for="speech-note">備考</label>
+        <!-- 複数行にできる。Enter は挿入、Shift+Enter で改行（bindChooserList を参照） -->
+        <textarea id="speech-note" class="form-input" rows="1"
+                  placeholder="読み上げ方など（任意）例: 震える声で。Shift+Enter で改行"></textarea>
+      </div>
+      <div id="speech-list" class="palette-list" role="listbox"></div>
+      <div class="palette-footer">
+        <span><kbd class="kbd-badge">↑</kbd> <kbd class="kbd-badge">↓</kbd> 選ぶ</span>
+        <span><kbd class="kbd-badge">Tab</kbd> 備考へ（<kbd class="kbd-badge">Shift</kbd>+<kbd class="kbd-badge">Enter</kbd> で改行）</span>
+        <span><kbd class="kbd-badge">Enter</kbd> 挿入</span>
+        <span><kbd class="kbd-badge">Esc</kbd> 閉じる</span>
+      </div>
+    </div>
+  </div>
+
   <!-- 🔎 コマンドパレット（すべての操作を名前で探して実行する） -->
   <div id="palette-modal" class="modal modal-palette">
     <div class="modal-content palette-content" role="dialog" aria-label="すべての操作">
@@ -2474,6 +2962,28 @@
       ]
     };
 
+    // CoC6版の技能の初期値を引く（NPCの所持技能で、値を空けたまま追加したときに使う）。
+    // 「運転（自動車）」のように（任意）を埋めた名前は、括弧の前の「運転」で照合する。
+    // 「DEX×2」のような式は、そのNPCの能力値が入っていれば計算し、無ければ式のまま返す
+    // （黙って0や空にすると、計算されていないことに気づけない）。
+    // 一覧に無い技能は 1 とする。6版で最も多い初期値で、下限として扱えるため。
+    function coc6SkillInitial(name, status) {
+      const target = String(name).trim();
+      for (const category in COC6_SKILLS) {
+        for (const [skill, initial] of COC6_SKILLS[category]) {
+          const base = skill.replace(/（任意）$/, '');
+          const hit = target === skill || target === base
+            || (base !== skill && target.startsWith(base + '（'));
+          if (!hit) continue;
+          const m = String(initial).match(/^([A-Z]+)×(\d+)$/);
+          if (!m) return initial;
+          const ability = parseInt((status || {})[m[1].toLowerCase()], 10);
+          return ability > 0 ? String(ability * Number(m[2])) : initial;
+        }
+      }
+      return '1';
+    }
+
     // === ゲームシステム定義 ===
     //
     // シナリオごとに1つのシステムを持つ（作成時に選び、以降は変更しない）。
@@ -2508,7 +3018,16 @@
           { from: ['spi', 'int'], to: 'mp', calc: v => v.spi + v.int }
         ],
         skills: EMOKLORE_SKILLS,
-        skillPlaceholder: '例: 観察眼:Lv2 (決定で追加)',
+        skillPlaceholder: '技能名（例: 観察眼）',
+        // NPCの所持技能で値を空けたまま追加したときの値。技能レベルは0〜3で、0は判定できない。
+        // 「持っている」技能なので最低の Lv1 を入れる。
+        // 出典: knowledge/emocloa/emocloa-judgment-system.html
+        defaultSkillValue: () => 'Lv1',
+        // 「2」「lv2」と打っても「Lv2」に揃える（一覧で値の書き方がばらつかないように）
+        normalizeSkillValue: v => {
+          const m = String(v).match(/^(?:lv\.?\s*)?(\d+)$/i);
+          return m ? 'Lv' + m[1] : v;
+        },
         rollSkillPlaceholder: '例: 観察眼 または 調査',
         // NPCのプロフィール欄の例示。世界観がシステムで違うため定義から引く
         profilePlaceholder: { age: '例: 17', gender: '例: 女性', occupation: '例: 高校生' },
@@ -2575,7 +3094,9 @@
           { from: ['str', 'siz'], to: 'db', calc: v => calcDamageBonus(v.str + v.siz) }
         ],
         skills: COC6_SKILLS,
-        skillPlaceholder: '例: 目星:45 (決定で追加)',
+        skillPlaceholder: '技能名（例: 目星）',
+        // 値を空けたまま追加したときは、技能一覧の初期値を入れる（coc6SkillInitial()）
+        defaultSkillValue: (name, status) => coc6SkillInitial(name, status),
         rollSkillPlaceholder: '例: 目星 または 図書館',
         // 6版の標準は1920年代のアメリカ。現代日本の例だと合わない
         profilePlaceholder: { age: '例: 42', gender: '例: 男性', occupation: '例: 私立探偵' },
@@ -2678,6 +3199,11 @@
     let currentSystemId = DEFAULT_SYSTEM_ID;
     let currentNpcs = []; // 現在のNPCデータ一覧
     let selectedNpcId = null; // 選択中のNPC ID
+    // NPC編集欄で開いているタブ。別のNPCへ切り替えても保つ（同じ項目を見比べやすいように）
+    let npcEditorTab = 'basic';
+    // 技能・共鳴感情タブのピッカーを開いているか。1件足すたびに編集欄ごと作り直すので、
+    // ここで覚えておかないと、続けて足すたびに畳まれてしまう
+    let npcPickerOpen = { skills: false, emotions: false };
     // 場面ツリー。形は normalizeSceneGraph() が保証する（常に閉路の無いDAG）。
     let currentScenes = { nodes: [], edges: [] };
     let selectedSceneId = null; // 選択中の場面カード ID
@@ -2735,6 +3261,11 @@
       { id: 'read', group: 'text', icon: '💬', name: '情景描写', short: '情景',
         desc: '行頭に > を挿入', keywords: 'じょうけいびょうしゃ', key: withAlt('4'),
         run: () => insertTemplate('read') },
+      // どのNPCの発言かを選ぶ必要があるので、記法を直接入れずに選ぶ画面を開く
+      // （ACTIONS は引数を取れないため。docs/07_操作の入口設計書.html §6）
+      { id: 'npc-speech', group: 'text', icon: '🗣', name: 'NPCのセリフ', short: 'セリフ',
+        desc: 'NPCを選んで [セリフ:NPC名] を挿入', keywords: 'せりふ はつげん だいし かいわ npc quote',
+        key: withAlt('q'), run: () => openSpeechModal() },
       // エモクロアでは DL情報 / [DL]、CoCでは KP情報 / [KP]
       { id: 'dl', group: 'text', icon: '📋', name: () => gmInfoLabel(), short: () => gmInfoTag(),
         desc: () => '行頭に [' + gmInfoTag() + '] を挿入', keywords: 'でぃーえるじょうほう けーぴーじょうほう kp gm',
@@ -2832,6 +3363,7 @@
     let shortcutModal, shortcutListContainer, shortcutAlert;
     let releaseModal, releaseList, versionTag;
     let paletteModal, paletteInput, paletteList;
+    let speechModal, speechInput, speechList, speechNote;
 
     // === データ永続化層 ===
     //
@@ -3168,8 +3700,41 @@
         avatarId: typeof n.avatarId === 'string' ? n.avatarId : '',
         avatarUrl: typeof n.avatarUrl === 'string' ? n.avatarUrl : '',
         status: (status && typeof status === 'object') ? status : {},
-        memo: typeof n.memo === 'string' ? n.memo : ''
+        memos: normalizeNpcMemos(n),
+        // セリフ [セリフ:NPC名] の文字色（2026-10-05）。「#rrggbb」か、未設定なら空文字
+        color: normalizeNpcColor(n.color)
       };
+    }
+
+    // NPCの色は style 属性へそのまま載せるので、#rrggbb 以外は受け付けない
+    // （読み込んだJSONに任意の文字列が入っていても、CSSを差し込ませないため）
+    function normalizeNpcColor(c) {
+      return (typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c)) ? c.toLowerCase() : '';
+    }
+
+    // NPCのメモ。題名と内容の組を複数持つ（2026-10-05）。
+    // それ以前は memo（1つの文字列）だったので、中身があれば題名「設定メモ」の1件として引き継ぐ。
+    // 旧データ・JSONの読み込み・作業状態の復元はすべて normalizeNpc() を通るので、移行はここだけでよい。
+    function normalizeNpcMemos(n) {
+      if (Array.isArray(n.memos)) {
+        return n.memos
+          .filter(m => m && typeof m === 'object')
+          .map(m => ({
+            id: typeof m.id === 'string' && m.id ? m.id : generateUUID(),
+            title: typeof m.title === 'string' ? m.title : '',
+            body: typeof m.body === 'string' ? m.body : ''
+          }));
+      }
+      if (typeof n.memo === 'string' && n.memo.trim()) {
+        return [{ id: generateUUID(), title: '設定メモ', body: n.memo }];
+      }
+      return [];
+    }
+
+    // 中身のあるメモだけを返す（追加しただけで空のままのメモを、紙面や挿入文に出さないため）
+    function filledNpcMemos(npc) {
+      return (npc && Array.isArray(npc.memos) ? npc.memos : [])
+        .filter(m => (m.title || '').trim() || (m.body || '').trim());
     }
 
     // システムIDの正規化。
@@ -3553,6 +4118,10 @@
         paletteModal = document.getElementById('palette-modal');
         paletteInput = document.getElementById('palette-input');
         paletteList = document.getElementById('palette-list');
+        speechModal = document.getElementById('speech-modal');
+        speechInput = document.getElementById('speech-input');
+        speechList = document.getElementById('speech-list');
+        speechNote = document.getElementById('speech-note');
 
         // ヘッダーのバージョン表記は RELEASE_NOTES の先頭から描く
         renderVersionTag();
@@ -3614,7 +4183,8 @@
             // これを見ないと「かんさつがん」を漢字に変換したときの確定Enterで
             // 未確定の文字列が登録されてしまう（keyCode 229 は古いブラウザ向けの保険）。
             if (e.isComposing || e.keyCode === 229) return;
-            if (e.target.id === 'npc-new-skill') {
+            // 技能は名前・値のどちらの欄で Enter を押しても追加する
+            if (e.target.id === 'npc-new-skill' || e.target.id === 'npc-new-skill-value') {
               e.preventDefault();
               addNpcSkill();
             } else if (e.target.id === 'npc-new-emotion') {
@@ -3666,6 +4236,7 @@
         loadShortcuts();
         initAssistantPanel();
         initCommandPalette();
+        initSpeechModal();
         renderAssistantPanel();
         window.addEventListener('keydown', handleGlobalKeydown);
       } catch (e) {
@@ -3913,7 +4484,8 @@
       'npc-modal': () => closeNpcModal(),
       'shortcut-modal': () => closeShortcutModal(),
       'release-modal': () => closeReleaseModal(),
-      'palette-modal': () => closeCommandPalette()
+      'palette-modal': () => closeCommandPalette(),
+      'speech-modal': () => closeSpeechModal()
     };
 
     function closeModalElement(el) {
@@ -4324,6 +4896,7 @@
      *   groups    : { 分類名: [候補, ...] } 候補は文字列か [名前, 補足]
      *   mode      : 'single'（既定）| 'multi'
      *   compact   : true で低め（入力欄の補助として置くとき）
+     *   autoHeight: true で高さを分類の数に合わせる（分類が途中で切れない。compact より優先）
      *   selected  : () => [選択中の値]      multi のときだけ使う
      *   formatValue : (entry, category) => 値 省略時は候補の名前
      *                 （valueOf という名前は使わないこと。Object.prototype に同名が
@@ -4336,7 +4909,7 @@
       if (!root) return;
       pickerConfigs[id] = config;
 
-      root.className = 'picker' + (config.compact ? ' picker-compact' : '');
+      root.className = 'picker' + (config.autoHeight ? ' picker-auto' : config.compact ? ' picker-compact' : '');
       root.innerHTML = '<div class="picker-cats"></div><div class="picker-main"></div>';
 
       const cats = root.querySelector('.picker-cats');
@@ -4750,14 +5323,21 @@
           renderNpcEditor();
         };
         
-        const avatarStyle = npc.avatarUrl ? `background-image: url('${escapeHTML(npc.avatarUrl)}');` : '';
-        
+        // セリフの色を決めてあれば、アイコンの縁に出す（一覧でも見分けられるように）
+        const color = normalizeNpcColor(npc.color);
+        const avatarStyle = (npc.avatarUrl ? `background-image: url('${escapeHTML(npc.avatarUrl)}');` : '')
+          + (color ? ` box-shadow: 0 0 0 2px ${color};` : '');
+
         item.innerHTML = `
           <div class="npc-avatar-thumb" style="${avatarStyle}"></div>
           <span class="npc-name-span">${escapeHTML(npc.name || '新規NPC')}</span>
         `;
         npcListContainer.appendChild(item);
       });
+
+      // 追加したNPCは末尾に入るので、一覧が長いとスクロールの外に隠れる。選択中のものを見える位置へ
+      const active = npcListContainer.querySelector('.npc-list-item.active');
+      if (active) active.scrollIntoView({ block: 'nearest' });
     }
 
     // === 能力値レーダーチャート ===
@@ -4882,6 +5462,81 @@
       });
     }
 
+    // 所持技能は「技能名:Lv2」「目星:45」の1文字列で持っている（保存形式は変えない）。
+    // 表示のときだけ名前と値に分ける。全角の「：」も区切りとみなす。区切りが無ければ名前だけ。
+    function splitSkillEntry(text) {
+      const m = String(text).match(/^(.*?)\s*[:：]\s*(.*)$/);
+      return m ? { name: m[1], value: m[2] } : { name: String(text), value: '' };
+    }
+
+    // 共鳴感情は「執着（欲望）」の形（ピッカーの formatValue が作る）。末尾の括弧を分類として分ける
+    function splitEmotionEntry(text) {
+      const m = String(text).match(/^(.*?)\s*[（(]([^（）()]+)[）)]\s*$/);
+      return m ? { name: m[1], category: m[2] } : { name: String(text), category: '' };
+    }
+
+    // 所持技能・共鳴感情の一覧の1行。tailHTML は名前の右に置く値・分類（呼び出し側でエスケープ済み）
+    function npcEntryRowHTML(name, tailHTML, removeCall) {
+      return `<div class="npc-entry-row">
+          <span class="npc-entry-name" title="${escapeHTML(name)}">${escapeHTML(name)}</span>
+          ${tailHTML}
+          <button type="button" class="npc-entry-remove" onclick="${removeCall}"
+                  title="削除" aria-label="${escapeHTML(name)} を削除">&times;</button>
+        </div>`;
+    }
+
+    // === NPCのセリフの色 ===
+    //
+    // 候補は文字色と同じパレット（INLINE_COLORS）＋「なし」＋任意の色。
+    // パレットを先に並べるのは、印刷して読める濃さを保証できるのがパレットの色だけだから
+    // （docs/04_記法設計書.html §3）。任意の色は逃げ道として最後に置く。
+    function npcColorPickerHTML(npc) {
+      const current = normalizeNpcColor(npc.color);
+      const paletteHexes = Object.values(INLINE_COLORS).map(c => c.hex.toLowerCase());
+      const isCustom = current && !paletteHexes.includes(current);
+
+      let html = `<div class="npc-color-row" id="npc-color-row">`
+        + `<button type="button" class="npc-color-swatch npc-color-none${current ? '' : ' selected'}" data-color=""
+                   onclick="setNpcColor('')" title="色なし（本文と同じ色）">なし</button>`;
+      for (const name in INLINE_COLORS) {
+        const hex = INLINE_COLORS[name].hex.toLowerCase();
+        html += `<button type="button" class="npc-color-swatch${current === hex ? ' selected' : ''}" data-color="${hex}"
+                         style="--swatch: ${hex};" onclick="setNpcColor('${hex}')" title="${escapeHTML(name)}"
+                         aria-label="${escapeHTML(name)}"></button>`;
+      }
+      // input の oninput は、色を選んでいる最中にも連続して呼ばれる。
+      // 編集欄を作り直すとピッカーごと閉じてしまうので、setNpcColor() は作り直さずに表示だけ更新する
+      html += `<label class="npc-color-swatch npc-color-custom${isCustom ? ' selected' : ''}" data-color="custom" title="その他の色">
+                 <input type="color" value="${isCustom ? current : '#334155'}" oninput="setNpcColor(this.value)">その他
+               </label>`;
+      html += `</div>`;
+      // 紙（白地）に出たときの見え方を確かめるための見本
+      html += `<div class="npc-color-sample" id="npc-color-sample"${current ? ` style="color: ${current};"` : ''}>「この色で発言が表示されます」</div>`;
+      return html;
+    }
+
+    function setNpcColor(color) {
+      const npc = currentNpcs.find(n => n.id === selectedNpcId);
+      if (!npc) return;
+      npc.color = normalizeNpcColor(color);
+
+      // 作り直さずに、選択状態・見本・一覧のアイコンの縁だけを更新する（理由は npcColorPickerHTML() を参照）
+      const row = document.getElementById('npc-color-row');
+      if (row) {
+        row.querySelectorAll('.npc-color-swatch').forEach(el => {
+          const c = el.dataset.color;
+          const on = c === 'custom'
+            ? (npc.color !== '' && !row.querySelector(`.npc-color-swatch[data-color="${npc.color}"]`))
+            : c === npc.color;
+          el.classList.toggle('selected', on);
+        });
+      }
+      const sample = document.getElementById('npc-color-sample');
+      if (sample) sample.style.color = npc.color;
+      const thumb = document.querySelector('.npc-list-item.active .npc-avatar-thumb');
+      if (thumb) thumb.style.boxShadow = npc.color ? `0 0 0 2px ${npc.color}` : '';
+    }
+
     // NPC詳細エディタのレンダリング (共鳴者シート準拠 - 8能力値版)
     function renderNpcEditor() {
       if (!npcEditorArea) return;
@@ -4909,27 +5564,36 @@
       const age = npc.status.age || '';
       const occupation = npc.status.occupation || '';
       
-      // 技能バッジ生成
-      let skillsHTML = '';
-      npc.status.skills.forEach((skill, index) => {
-        skillsHTML += `
-          <span class="npc-skill-badge">
-            ${escapeHTML(skill)}
-            <span class="remove-btn" onclick="removeNpcSkill(${index})">&times;</span>
-          </span>
-        `;
-      });
+      // 所持技能の一覧。「技能名:Lv2」を名前と値に分けて列に揃える
+      const skillsHTML = npc.status.skills.map((skill, index) => {
+        const s = splitSkillEntry(skill);
+        const value = s.value
+          ? `<span class="npc-entry-value">${escapeHTML(s.value)}</span>`
+          : `<span class="npc-entry-value empty" title="値（Lv・技能値）が入っていません">値なし</span>`;
+        return npcEntryRowHTML(s.name, value, `removeNpcSkill(${index})`);
+      }).join('');
 
-      // 共鳴感情バッジ生成
-      let emotionsHTML = '';
-      npc.status.emotions.forEach((emotion, index) => {
-        emotionsHTML += `
-          <span class="npc-skill-badge" style="background-color: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.3);">
-            ${escapeHTML(emotion)}
-            <span class="remove-btn" onclick="removeNpcEmotion(${index})">&times;</span>
-          </span>
-        `;
-      });
+      // メモ。1件ずつ「題名＋内容」のカードにする。
+      // 入力のたびに作り直すとフォーカスが外れるので、編集は updateNpcMemo() で値だけ書き換える
+      const memosHTML = (npc.memos || []).map((m, i) => `
+          <div class="npc-memo-card">
+            <div class="npc-memo-head">
+              <input type="text" id="npc-memo-title-${i}" class="form-input npc-memo-title" value="${escapeHTML(m.title)}"
+                     placeholder="題名（例: 背景・主要セリフ・シナリオ上の役割）" aria-label="メモの題名"
+                     oninput="updateNpcMemo(${i}, 'title', this.value)">
+              <button type="button" class="npc-memo-remove" onclick="removeNpcMemo(${i})"
+                      title="このメモを削除" aria-label="このメモを削除">🗑</button>
+            </div>
+            <textarea class="form-input npc-memo-body" placeholder="内容" aria-label="メモの内容"
+                      oninput="updateNpcMemo(${i}, 'body', this.value)">${escapeHTML(m.body)}</textarea>
+          </div>`).join('');
+
+      // 共鳴感情の一覧。「執着（欲望）」を感情名と分類に分ける
+      const emotionsHTML = npc.status.emotions.map((emotion, index) => {
+        const e = splitEmotionEntry(emotion);
+        const category = e.category ? `<span class="npc-entry-category">${escapeHTML(e.category)}</span>` : '';
+        return npcEntryRowHTML(e.name, category, `removeNpcEmotion(${index})`);
+      }).join('');
 
       const sys = currentSystem();
       // プロフィール欄の例示。定義が無い古いシステム定義でも落ちないようにする
@@ -4964,17 +5628,49 @@
            </div>`
         : '';
 
-      // 共鳴感情はエモクロア固有の仕組みなので、他システムでは欄ごと出さない
-      const emotionsSection = !sys.hasEmotions ? '' : `
-        <div class="form-group">
-          <label class="form-label">共鳴感情</label>
-          <div style="display: flex; gap: 8px;">
-            <input type="text" id="npc-new-emotion" class="form-input" style="flex: 1;" placeholder="例: 執着（欲望） (決定で追加)">
-            <button class="btn btn-primary" style="padding: 6px 12px;" onclick="addNpcEmotion()">追加</button>
+      // 項目が1画面に収まらず探しにくかったため、種類ごとのタブに分けている。
+      // 共鳴感情はエモクロア固有の仕組みなので、他システムではタブごと出さない。
+      const tabs = [
+        { id: 'basic', label: '基本' },
+        { id: 'status', label: '能力値' },
+        { id: 'skills', label: '技能', count: npc.status.skills.length }
+      ];
+      if (sys.hasEmotions) tabs.push({ id: 'emotions', label: '共鳴感情', count: npc.status.emotions.length });
+      if (!Array.isArray(npc.memos)) npc.memos = [];
+      tabs.push({ id: 'memo', label: 'メモ', count: npc.memos.length });
+      // 前に開いていたタブがこのシステムに無ければ（CoCの共鳴感情など）先頭へ戻す
+      if (!tabs.some(t => t.id === npcEditorTab)) npcEditorTab = 'basic';
+
+      const tabsHTML = tabs.map(t => {
+        const on = t.id === npcEditorTab;
+        const count = t.count ? `<span class="npc-tab-count">${t.count}</span>` : '';
+        return `<button type="button" class="npc-tab${on ? ' active' : ''}" role="tab" id="npc-tab-${t.id}"
+                        data-tab="${t.id}" aria-controls="npc-panel-${t.id}" aria-selected="${on}"
+                        tabindex="${on ? 0 : -1}" onclick="setNpcEditorTab('${t.id}')">${t.label}${count}</button>`;
+      }).join('');
+      const panelAttrs = id => `class="npc-tab-panel${id === npcEditorTab ? ' active' : ''}" role="tabpanel"
+                                id="npc-panel-${id}" data-tab="${id}" aria-labelledby="npc-tab-${id}"`;
+
+      // 技能タブと同じ構成：一覧が主役、その下に控えめな追加欄（ピッカーは畳んでおく）
+      const emotionsPanel = !sys.hasEmotions ? '' : `
+        <div ${panelAttrs('emotions')}>
+          <div class="form-group">
+            <label class="form-label">共鳴感情</label>
+            ${emotionsHTML
+              ? `<div id="npc-emotions-list" class="npc-entry-list">${emotionsHTML}</div>`
+              : '<div class="npc-entry-empty">まだ感情がありません。下の欄から追加してください。</div>'}
           </div>
-          <div id="npc-emotion-picker"></div>
-          <div id="npc-emotions-list" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
-            ${emotionsHTML || '<span style="font-size: 0.8rem; color: var(--text-secondary);">追加された感情はありません。</span>'}
+          <div class="npc-add-box">
+            <label class="form-label" for="npc-new-emotion">感情を追加</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="npc-new-emotion" class="form-input" style="flex: 1;" placeholder="例: 執着（欲望） (決定で追加)">
+              <button class="btn btn-primary" style="padding: 6px 12px;" onclick="addNpcEmotion()">追加</button>
+            </div>
+            <details class="npc-picker-toggle" ${npcPickerOpen.emotions ? 'open' : ''}
+                     ontoggle="npcPickerOpen.emotions = this.open">
+              <summary>感情の一覧から選ぶ</summary>
+              <div id="npc-emotion-picker"></div>
+            </details>
           </div>
         </div>`;
 
@@ -4996,20 +5692,25 @@
       const avatarStyle = npc.avatarUrl ? `background-image: url('${escapeHTML(npc.avatarUrl)}');` : '';
 
       npcEditorArea.innerHTML = `
-        <!-- 本文挿入ヘルパーパネル -->
-        <div style="background-color: var(--bg-input); border: 1px solid var(--border-color); border-radius: 6px; padding: 12px; display: flex; flex-direction: column; gap: 8px;">
-          <span style="font-size: 0.8rem; font-weight: 700; color: var(--accent-color);">✍️ 本文への挿入ヘルパー</span>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button class="btn btn-small btn-primary" onclick="insertNpcTextHelper('profile')">📝 プロフィールを挿入</button>
-            <button class="btn btn-small" style="background-color: #1e293b;" onclick="insertNpcTextHelper('card')">🏷️ NPCカード記法を挿入</button>
-            <button class="btn btn-small" style="background-color: #0f172a;" onclick="insertNpcTextHelper('quote')">🗣️ セリフ用タグを挿入</button>
-          </div>
+        <!-- どのタブを開いていても使う操作（本文への挿入・削除） -->
+        <div class="npc-editor-head">
+          <span class="npc-head-label">✍️ 本文へ挿入</span>
+          <button class="btn btn-small btn-primary" onclick="insertNpcTextHelper('profile')">📝 プロフィール</button>
+          <button class="btn btn-small" style="background-color: #1e293b;" onclick="insertNpcTextHelper('card')">🏷️ NPCカード記法</button>
+          <button class="btn btn-small" style="background-color: #0f172a;" onclick="insertNpcTextHelper('quote')">🗣️ セリフ用タグ</button>
+          <button class="btn btn-small btn-danger-small npc-delete-btn" onclick="deleteNpc('${npc.id}')">🗑 このNPCを削除</button>
         </div>
 
+        <div class="npc-tabs" role="tablist" aria-label="NPCの設定項目" onkeydown="onNpcTabKeydown(event)">
+          ${tabsHTML}
+        </div>
+
+        <div class="npc-tab-panels">
+        <div ${panelAttrs('basic')}>
         <div class="form-row">
           <div class="form-group" style="flex: 3;">
             <label class="form-label">NPC名</label>
-            <input type="text" class="form-input" value="${escapeHTML(npc.name || '')}" oninput="updateNpcField('name', this.value)">
+            <input type="text" id="npc-name-input" class="form-input" value="${escapeHTML(npc.name || '')}" oninput="updateNpcField('name', this.value)">
           </div>
           <div class="form-group">
             <label class="form-label">年齢</label>
@@ -5042,8 +5743,20 @@
           </div>
         </div>
 
+        <!-- セリフの色。本文の [セリフ:NPC名] の発言がこの色で出る -->
+        <div class="form-group">
+          <label class="form-label">セリフの色</label>
+          ${npcColorPickerHTML(npc)}
+          <div class="npc-add-hint">
+            本文に <code>[セリフ:${escapeHTML(npc.name || 'NPC名')}] 「…」</code> と書いた発言が、この色とアイコン・名前付きで表示されます。
+            淡い色は印刷すると読みにくくなるので、迷ったらパレットの色を選んでください。
+          </div>
+        </div>
+        </div>
+
         <!-- 能力値と派生値はシステム定義から生成する（この関数の先頭を参照）。
              システムごとに項目数も名称も違うため、ここに直接書かないこと。 -->
+        <div ${panelAttrs('status')}>
         <div class="npc-status-box">
           <span class="form-label npc-status-title">${escapeHTML(sys.abilityBoxLabel)}</span>
 
@@ -5061,44 +5774,67 @@ ${derivedHTML}
             <div id="npc-radar" class="npc-radar-box">${buildRadarChartSVG(npc)}</div>
           </div>
         </div>
+        </div>
 
-        <!-- 所持技能。技能名は判定ダイアログと同じピッカーから選べる（単数選択）。
+        <!-- 所持技能。一覧が主役で、その下に控えめな追加欄を置く。
+             技能名は判定ダイアログと同じピッカーから選べる（単数選択）が、普段は畳んでおく。
              値は「技能名:Lv2」「技能名:45」の形なので、名前だけ入れて後ろは手で足す。 -->
+        <div ${panelAttrs('skills')}>
         <div class="form-group">
           <label class="form-label">所持技能</label>
-          <div style="display: flex; gap: 8px;">
-            <input type="text" id="npc-new-skill" class="form-input" style="flex: 1;" placeholder="${escapeHTML(sys.skillPlaceholder)}">
+          ${skillsHTML
+            ? `<div id="npc-skills-list" class="npc-entry-list">${skillsHTML}</div>`
+            : '<div class="npc-entry-empty">まだ技能がありません。下の欄から追加してください。</div>'}
+        </div>
+        <div class="npc-add-box">
+          <label class="form-label" for="npc-new-skill">技能を追加</label>
+          <!-- 名前と値は別の欄。値の欄には、空けたまま追加したときに入る値を薄く出しておく -->
+          <div class="npc-skill-add-row">
+            <input type="text" id="npc-new-skill" class="form-input" placeholder="${escapeHTML(sys.skillPlaceholder)}"
+                   aria-label="技能名" oninput="refreshSkillValuePlaceholder()">
+            <input type="text" id="npc-new-skill-value" class="form-input npc-skill-value-input"
+                   placeholder="値" aria-label="値">
             <button class="btn btn-primary" style="padding: 6px 12px;" onclick="addNpcSkill()">追加</button>
           </div>
-          <div id="npc-skill-picker"></div>
-          <div id="npc-skills-list" style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;">
-            ${skillsHTML || '<span style="font-size: 0.8rem; color: var(--text-secondary);">追加された技能はありません。</span>'}
-          </div>
+          <div class="npc-add-hint">値を空けたまま追加すると、値の欄に薄く出ている値が入ります。</div>
+          <details class="npc-picker-toggle" ${npcPickerOpen.skills ? 'open' : ''}
+                   ontoggle="npcPickerOpen.skills = this.open">
+            <summary>技能の一覧から選ぶ</summary>
+            <div id="npc-skill-picker"></div>
+          </details>
+        </div>
         </div>
 
-        ${emotionsSection}
-        
-        <!-- メモ -->
-        <div class="form-group" style="flex: 1; display: flex; flex-direction: column;">
-          <label class="form-label">設定メモ / 主要セリフ / キャラクター背景</label>
-          <textarea class="form-input" style="flex: 1; min-height: 80px; resize: none;" placeholder="キャラクターの背景や性格、シナリオ上の役割など自由に入力してください。" oninput="updateNpcField('memo', this.value)">${escapeHTML(npc.memo || '')}</textarea>
+        ${emotionsPanel}
+
+        <!-- メモ。題名と内容の組を複数持てる（背景・主要セリフ・役割などを分けて書くため） -->
+        <div ${panelAttrs('memo')}>
+          ${memosHTML
+            ? `<div class="npc-memo-list">${memosHTML}</div>`
+            : '<div class="npc-entry-empty">メモはまだありません。背景・主要セリフ・シナリオ上の役割などを、題名を付けて分けて書けます。</div>'}
+          <button type="button" class="btn" style="align-self: flex-start;" onclick="addNpcMemo()">＋ メモを追加</button>
         </div>
-        
-        <div style="display: flex; justify-content: flex-end; margin-top: 10px;">
-          <button class="btn btn-danger-small" style="padding: 8px 16px;" onclick="deleteNpc('${npc.id}')">🗑 このNPCを削除</button>
         </div>
       `;
       
       // 入力欄の補助ピッカー。npcEditorArea ごと作り直されるため、描画のたびに組み立てる
       // （initPicker() は直前に見ていた分類を覚えているので、選び直す手間は増えない）。
+      // 高さは分類の数に合わせる（固定の高さだと分類が途中で切れる）
       initPicker('npc-skill-picker', {
         groups: sys.skills,
         mode: 'single',
-        compact: true,
-        onPick: (name) => fillInputFromPicker('npc-new-skill', name)
+        autoHeight: true,
+        // 名前を入れたら値の欄へ移る。値を打つか、そのまま Enter でデフォルト値が入る
+        onPick: (name) => {
+          const nameInput = document.getElementById('npc-new-skill');
+          if (nameInput) nameInput.value = name;
+          refreshSkillValuePlaceholder();
+          const valueInput = document.getElementById('npc-new-skill-value');
+          if (valueInput) valueInput.focus();
+        }
       });
       if (sys.hasEmotions) {
-        initPicker('npc-emotion-picker', emotionPickerConfig('npc-new-emotion'));
+        initPicker('npc-emotion-picker', { ...emotionPickerConfig('npc-new-emotion'), autoHeight: true });
       }
 
       // Enterでの追加は npcEditorArea への委譲で処理している（DOMContentLoaded を参照）。
@@ -5106,6 +5842,36 @@ ${derivedHTML}
       //   ・keypress は非推奨で、日本語入力の変換確定と区別できない
       //   ・renderNpcEditor() のたびに張り直しが必要
       // という問題があったため撤去した。
+    }
+
+    // NPC編集欄のタブを切り替える。
+    // 作り直さずに表示だけ切り替える（入力途中の値や立ち絵の縮小結果の表示を消さないため）。
+    function setNpcEditorTab(tab) {
+      npcEditorTab = tab;
+      if (!npcEditorArea) return;
+      npcEditorArea.querySelectorAll('.npc-tab').forEach(btn => {
+        const on = btn.dataset.tab === tab;
+        btn.classList.toggle('active', on);
+        btn.setAttribute('aria-selected', on ? 'true' : 'false');
+        btn.tabIndex = on ? 0 : -1;
+      });
+      npcEditorArea.querySelectorAll('.npc-tab-panel').forEach(panel => {
+        panel.classList.toggle('active', panel.dataset.tab === tab);
+      });
+      const scroller = npcEditorArea.querySelector('.npc-tab-panels');
+      if (scroller) scroller.scrollTop = 0;
+    }
+
+    // タブにフォーカスがあるとき、左右の矢印キーで隣のタブへ移る
+    function onNpcTabKeydown(e) {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      const btns = Array.from(npcEditorArea.querySelectorAll('.npc-tab'));
+      const i = btns.findIndex(b => b.dataset.tab === npcEditorTab);
+      if (i < 0) return;
+      const next = btns[(i + (e.key === 'ArrowRight' ? 1 : -1) + btns.length) % btns.length];
+      e.preventDefault();
+      setNpcEditorTab(next.dataset.tab);
+      next.focus();
     }
 
     // 能力値から派生値（HP・SAN・ダメージボーナス等）を自動計算する。
@@ -5207,14 +5973,23 @@ ${derivedHTML}
         avatarId: '',
         avatarUrl: '',
         status: status,
-        memo: ''
+        memos: [],
+        color: ''
       };
       
       currentNpcs.push(newNpc);
       selectedNpcId = newId;
-      
+      // 追加した直後は名前を付けることが多いので、名前のある「基本」タブを開き、
+      // 仮の名前「新規NPC」を選んだ状態にする（そのまま打てば置き換わる）
+      npcEditorTab = 'basic';
+
       renderNpcList();
       renderNpcEditor();
+      const nameInput = document.getElementById('npc-name-input');
+      if (nameInput) {
+        nameInput.focus();
+        nameInput.select();
+      }
     }
 
     function deleteNpc(id) {
@@ -5259,19 +6034,46 @@ ${derivedHTML}
       npc.status[field] = value;
     }
 
+    // 値を空けたまま追加したときに入る値。システム定義の defaultSkillValue に従う
+    function defaultSkillValue(name) {
+      const sys = currentSystem();
+      const npc = currentNpcs.find(n => n.id === selectedNpcId);
+      return sys.defaultSkillValue ? sys.defaultSkillValue(name, (npc && npc.status) || {}) : '';
+    }
+
+    // 値の欄に、空けたまま追加したときに入る値を薄く出す。
+    // CoC6版は技能ごとに初期値が違うので、名前が変わるたびに出し直す。
+    function refreshSkillValuePlaceholder() {
+      const nameInput = document.getElementById('npc-new-skill');
+      const valueInput = document.getElementById('npc-new-skill-value');
+      if (!nameInput || !valueInput) return;
+      const name = splitSkillEntry(nameInput.value).name.trim();
+      // 名前が空のうちは出さない（CoC6版では「一覧に無い技能」の 1 が出てしまい紛らわしい）
+      valueInput.placeholder = name ? defaultSkillValue(name) : '値';
+    }
+
     function addNpcSkill() {
-      const input = document.getElementById('npc-new-skill');
-      if (!input) return;
-      const value = input.value.trim();
-      if (!value) return;
-      
+      const nameInput = document.getElementById('npc-new-skill');
+      const valueInput = document.getElementById('npc-new-skill-value');
+      if (!nameInput) return;
+
+      // 以前の書き方（名前の欄に「観察眼:Lv2」）で打っても、名前と値に分けて受け付ける
+      const typed = splitSkillEntry(nameInput.value.trim());
+      const name = typed.name.trim();
+      if (!name) return;
+      let value = (valueInput ? valueInput.value.trim() : '') || typed.value.trim();
+      if (!value) value = defaultSkillValue(name);
+
+      const sys = currentSystem();
+      if (value && sys.normalizeSkillValue) value = sys.normalizeSkillValue(value);
+
       const npc = currentNpcs.find(n => n.id === selectedNpcId);
       if (!npc) return;
       if (!npc.status) npc.status = {};
       if (!npc.status.skills) npc.status.skills = [];
-      
-      npc.status.skills.push(value);
-      input.value = '';
+
+      // 保存形式は従来どおり「名前:値」の1文字列（プレビュー・書き出し・旧データとの互換のため）
+      npc.status.skills.push(value ? name + ':' + value : name);
 
       renderNpcEditor();
       // renderNpcEditor() が入力欄ごと作り直すためフォーカスが外れる。
@@ -5321,6 +6123,40 @@ ${derivedHTML}
       renderNpcEditor();
     }
 
+    // === NPCのメモ（題名＋内容の組を複数） ===
+    function addNpcMemo() {
+      const npc = currentNpcs.find(n => n.id === selectedNpcId);
+      if (!npc) return;
+      if (!Array.isArray(npc.memos)) npc.memos = [];
+      npc.memos.push({ id: generateUUID(), title: '', body: '' });
+
+      renderNpcEditor();
+      // 追加したメモの題名から打ち始められるようにする
+      const title = document.getElementById('npc-memo-title-' + (npc.memos.length - 1));
+      if (title) {
+        title.focus();
+        title.scrollIntoView({ block: 'nearest' });
+      }
+    }
+
+    // 入力のたびに呼ばれる。作り直すとフォーカスが外れるので、値を書き換えるだけにする
+    function updateNpcMemo(index, field, value) {
+      const npc = currentNpcs.find(n => n.id === selectedNpcId);
+      const memo = npc && Array.isArray(npc.memos) ? npc.memos[index] : null;
+      if (memo) memo[field] = value;
+    }
+
+    function removeNpcMemo(index) {
+      const npc = currentNpcs.find(n => n.id === selectedNpcId);
+      const memo = npc && Array.isArray(npc.memos) ? npc.memos[index] : null;
+      if (!memo) return;
+      // 書きかけを誤って消さないよう、中身のあるメモだけ確認する（空のメモは黙って消す）
+      const filled = memo.title.trim() || memo.body.trim();
+      if (filled && !confirm(`メモ「${memo.title.trim() || '無題'}」を削除しますか？`)) return;
+      npc.memos.splice(index, 1);
+      renderNpcEditor();
+    }
+
     // === 本文へのNPC情報挿入ヘルパー ===
     function insertNpcTextHelper(mode) {
       const npc = currentNpcs.find(n => n.id === selectedNpcId);
@@ -5343,14 +6179,19 @@ ${derivedHTML}
 
         const skills = (npc.status.skills && npc.status.skills.length > 0) ? npc.status.skills.join(', ') : 'なし';
         const emotions = (npc.status.emotions && npc.status.emotions.length > 0) ? npc.status.emotions.join(', ') : 'なし';
-        // 複数行のメモをそのまま流し込むと、2行目以降が「・」を失って
+        // メモは「・題名：内容」で1件ずつ並べる。
+        // 複数行の内容をそのまま流し込むと、2行目以降が「・」を失って
         // 箇条書きから外れた素の行になる。継続行を字下げして見た目を揃える。
-        const memo = (npc.memo || '特記事項なし').replace(/\n/g, '\n　　');
+        const memos = filledNpcMemos(npc);
+        const memoLines = memos.length
+          ? memos.map(m => '・' + (m.title.trim() || 'メモ') + '：'
+              + (m.body.trim() || '―').replace(/\n/g, '\n　　')).join('\n')
+          : '・設定メモ：特記事項なし';
 
         // 共鳴感情の行はエモクロアのときだけ出す
         const emotionsRow = profSys.hasEmotions ? `\n・共鳴感情：${emotions}` : '';
 
-        template = `\n\n[${gmInfoTag()}] 【NPC紹介：${name}】\n・プロフィール：年齢 ${age} / 性別 ${gender} / 職業 ${occupation}\n・能力値：${abilityLine}\n・ステータス：${derivedLine}\n・所持技能：${skills}${emotionsRow}\n・設定メモ：${memo}\n`;
+        template = `\n\n[${gmInfoTag()}] 【NPC紹介：${name}】\n・プロフィール：年齢 ${age} / 性別 ${gender} / 職業 ${occupation}\n・能力値：${abilityLine}\n・ステータス：${derivedLine}\n・所持技能：${skills}${emotionsRow}\n${memoLines}\n`;
         insertAtCursor(template);
       } 
       else if (mode === 'card') {
@@ -5358,28 +6199,30 @@ ${derivedHTML}
         insertAtCursor(template);
       } 
       else if (mode === 'quote') {
-        // セリフ挿入ヘルパーの改善（「」の間に自動フォーカス ＆ 余計な文字を排除）
-        if (!editor) return;
-        const startPos = editor.selectionStart;
-        const endPos = editor.selectionEnd;
-        const originalText = editor.value;
-
-        const prefix = `\n\n> 「`;
-        const suffix = `」 >> [NPC:${name}]\n`;
-        const quoteTemplate = prefix + suffix;
-
-        editor.value = originalText.substring(0, startPos) + quoteTemplate + originalText.substring(endPos);
-        
-        // カーソル位置を prefix の直後 (「 の次) に移動
-        const newCursorPos = startPos + prefix.length;
-        editor.selectionStart = newCursorPos;
-        editor.selectionEnd = newCursorPos;
+        insertNpcSpeech(name);
       }
 
       saveToLocal();
       updatePreview();
-      
+
       if (editor) editor.focus();
+    }
+
+    // NPCのセリフ [セリフ:NPC名] 「」 を入れ、カーソルを「」の間に置く。
+    // NPC管理の「セリフ用タグ」と、NPCを選ぶ画面（openSpeechModal）で共用する。
+    //
+    // 2026-10-05 から専用の記法を入れる。アイコン・名前・NPCの色が付く。
+    // 以前は「> 「…」 >> [NPC:名前]」（情景描写＋サイドビューの小さなNPCカード）を入れていた。
+    // 既存の本文に残っているその書き方は、これまでどおりの表示のまま使える。
+    // note（備考）を渡すと [セリフ:NPC名/備考] にする。備考は複数行でよい。
+    // ただし「]」はタグを途中で閉じてしまうので取り除き、空行も詰める
+    // （空行があると段落がそこで分かれ、タグが閉じないまま切れるため）。
+    function insertNpcSpeech(name, note) {
+      if (!editor) return;
+      const cleanNote = String(note || '').replace(/\]/g, '')
+        .split(/\r?\n/).map(line => line.trim()).filter(Boolean).join('\n');
+      const prefix = `\n\n[セリフ:${name}${cleanNote ? '/' + cleanNote : ''}] 「`;
+      replaceRange(editor.selectionStart, editor.selectionEnd, prefix + '」\n', prefix.length, 0);
     }
 
     // ===== 場面図モード =====
@@ -6665,6 +7508,8 @@ ${derivedHTML}
       const normalizedText = text.replace(/\r\n/g, '\n');
       const blocks = normalizedText.split(/\n{2,}/);
       let html = '';
+      // いまの場面（# 見出しから次の # 見出しまで）で、サイドビューにカードを出したNPCの id
+      let sideCardShown = new Set();
 
       for (let block of blocks) {
         block = block.trim();
@@ -6678,6 +7523,8 @@ ${derivedHTML}
           } else {
             const title = block.replace(/^#\s*/, '');
             html += `<h2 class="scene-title">${renderInline(title)}</h2>\n`;
+            // 場面が変わったら、サイドビューのNPCカードをまた出せるようにする
+            sideCardShown = new Set();
           }
           continue;
         }
@@ -6711,7 +7558,9 @@ ${derivedHTML}
         }
 
         const mainHTML = parseElement(mainText, 'main');
-        const sideHTML = parseElement(sideText, 'side');
+        // サイドビューの小さなNPCカードは、場面ごと・NPCごとに最初の1回だけ出す（resolveSideNpcCard）
+        const sideCard = resolveSideNpcCard(mainText, sideText, sideCardShown);
+        const sideHTML = sideCard !== null ? sideCard : parseElement(sideText, 'side');
 
         html += `
 <div class="row">
@@ -6788,6 +7637,15 @@ ${derivedHTML}
               ${itemsHTML}
             </div>
           </div>`;
+        }
+
+        // NPCのセリフ [セリフ:NPC名] 発言（2026-10-05）。
+        // アイコンと名前を添え、発言はそのNPCの色で出す。サイドビューのNPCカードとは別物
+        // （設計は docs/04_記法設計書.html §8）。
+        const speechMatch = html.match(SPEECH_TAG_RE);
+        if (speechMatch) {
+          const tag = splitSpeechTag(speechMatch[1]);
+          return buildNpcSpeechHTML(tag.name, html.substring(speechMatch[0].length).trim(), tag.note);
         }
 
         // 本文中NPCカード [NPC:NPC名] (簡易指定 /簡易 にも対応)
@@ -6929,9 +7787,96 @@ ${parseRollResultLines(lines, 1)}            </div>
       return html;
     }
 
+    // NPCのセリフのタグ。[セリフ:NPC名] / [セリフ:NPC名/備考]（備考は読み上げ方などのト書き）。
+    // 備考は複数行にできるので、タグの中の改行を許す。閉じ忘れても、このパターンが見るのは
+    // 1つの段落（空行で区切られた単位）だけなので、被害はその段落の中に収まる。
+    const SPEECH_TAG_RE = /^\[セリフ[:：]\s*([^\]]+)\]/;
+
+    // タグの中身を名前と備考に分ける。最初の「/」「／」より後ろが備考
+    // （[NPC:名前/簡易] と同じ書き方。名前に「/」は使えない）。名前は1行、備考は複数行でよい。
+    // 「/」はエスケープの影響を受けないので、生の文字列にもエスケープ済みの文字列にも使える。
+    function splitSpeechTag(inner) {
+      const m = String(inner).match(/^([^/／\n]*)[/／]([\s\S]*)$/);
+      return m
+        ? { name: m[1].trim(), note: m[2].trim() }
+        : { name: String(inner).trim(), note: '' };
+    }
+
+    // 生の名前（parseMarkdown 側の未エスケープの文字列）でNPCを探す
+    function findNpcByRawName(name) {
+      const target = String(name).trim();
+      return currentNpcs.find(n => n.name === target) || null;
+    }
+
+    // 段落のサイドビューに出す小さなNPCカードを決める。
+    //   ・本文が [セリフ:NPC名] で、サイドに何も書いていない → そのNPCのカードを自動で出す
+    //   ・サイドに [NPC:名前] と書いてある → そのカード
+    // どちらも、同じ場面（# 見出しの区切り）ですでにカードを出したNPCなら出さない。
+    // セリフのたびにカードが並ぶと邪魔だから。初登場の場所でだけ、誰なのかを示せば足りる。
+    //
+    // 戻り値: 文字列ならそれをサイドのHTMLとして使う（空文字＝何も出さない）。
+    //         null なら関与しないので、従来どおり parseElement() に任せる。
+    // ここが受け取るのは未エスケープの生文字列（parseMarkdown 側）なので、名前は生のまま比べる。
+    function resolveSideNpcCard(mainText, sideText, shown) {
+      let npc = null;
+      if (!sideText) {
+        const m = mainText.match(SPEECH_TAG_RE);
+        if (!m) return null;
+        npc = findNpcByRawName(splitSpeechTag(m[1]).name);
+        // 未登録のNPCには出すカードが無い（本文側のセリフに「未登録」の印が出ている）
+        if (!npc) return '';
+      } else {
+        const m = sideText.match(/^\[NPC:\s*([^\]/]+)(?:\/簡易)?\]/);
+        if (!m) return null;
+        npc = findNpcByRawName(m[1]);
+        // 未登録なら「未登録」の警告を出す従来の表示に任せる
+        if (!npc) return null;
+      }
+      if (shown.has(npc.id)) return '';
+      shown.add(npc.id);
+      return generateNpcCardHTML(escapeHTML(npc.name), true);
+    }
+
+    // NPCのセリフ [セリフ:NPC名/備考] のHTML。
+    // name・body・note は parseElement() が切り出したエスケープ済みの文字列なので、
+    // ここで escapeHTML() を重ねない（docs/04_記法設計書.html §4.1）。
+    function buildNpcSpeechHTML(name, body, note) {
+      // 記法側の名前はエスケープ済みなので、NPC側もエスケープしてから比べる。
+      // 生の名前と比べると、「&」を含む名前のNPCが見つからなくなる。
+      const npc = currentNpcs.find(n => escapeHTML(n.name) === name);
+      const color = npc ? normalizeNpcColor(npc.color) : '';
+      // 色は CSS 変数で渡し、名前・発言・左の線で共有する（未設定なら本文と同じ色）
+      const style = color ? ` style="--npc-color: ${color};"` : '';
+
+      // アイコンは立ち絵。無ければ名前の1文字目を色付きの丸に載せる
+      let avatar;
+      if (npc && npc.avatarUrl) {
+        avatar = `<div class="npc-speech-avatar" style="background-image: url('${escapeHTML(npc.avatarUrl)}');"></div>`;
+      } else {
+        const initial = npc ? escapeHTML(Array.from(npc.name.trim())[0] || '?') : '?';
+        avatar = `<div class="npc-speech-avatar npc-speech-initial">${initial}</div>`;
+      }
+
+      // 未登録の名前でも発言そのものは出す（本文が消えるほうが困る）。気づけるよう印だけ付ける
+      const missing = npc ? '' : '<span class="npc-speech-missing">未登録のNPC</span>';
+
+      // 備考（読み上げ方など）は GM へのト書きなので、発言とは見た目を分け、名前と発言の間に置く。
+      // 複数行になりうるので、名前の横のラベルではなく独立した欄にする（改行は decorate() が <br> にする）
+      const noteHTML = note ? `<div class="npc-speech-note">${decorate(note)}</div>` : '';
+
+      return `<div class="npc-speech"${style}>${avatar}`
+        + `<div class="npc-speech-body">`
+        + `<div class="npc-speech-name">${name}${missing}</div>`
+        + noteHTML
+        + `<div class="npc-speech-text">${decorate(body)}</div>`
+        + `</div></div>`;
+    }
+
     // 本文中にNPCカードを埋め込むためのHTMLジェネレータ
     function generateNpcCardHTML(name, isMini = false) {
-      const npc = currentNpcs.find(n => n.name === name);
+      // name は parseElement() が切り出したエスケープ済みの文字列なので、NPC側もエスケープして比べる
+      // （以前は生の名前と比べており、「&」を含む名前のNPCが「未登録」と表示されていた）
+      const npc = currentNpcs.find(n => escapeHTML(n.name) === name);
       if (!npc) {
         return `<div class="npc-card mini" style="border-color: #ef4444 !important; background-color: #fef2f2 !important; padding: 8px 12px; font-size: 0.8rem; border-radius: 6px;">⚠️ NPC「<strong>${escapeHTML(name)}</strong>」未登録</div>`;
       }
@@ -6949,7 +7894,14 @@ ${parseRollResultLines(lines, 1)}            </div>
       // `<b>` がタグとして解釈されて要素が生成されていた。
       // 「エスケープ → 装飾 → 改行」の順序は renderInline() が守るので、
       // ここで自前にエスケープや <br> 変換を書かないこと。
-      const memo = npc.memo ? renderInline(npc.memo) : '―';
+      // メモは題名と内容の組で複数ある。中身のあるものだけを、題名を小見出しにして並べる。
+      const memoItems = filledNpcMemos(npc);
+      const memo = memoItems.length
+        ? memoItems.map(m => `<div class="npc-card-memo-item">`
+            + (m.title.trim() ? `<div class="npc-card-memo-title">${escapeHTML(m.title.trim())}</div>` : '')
+            + (m.body.trim() ? `<div>${renderInline(m.body)}</div>` : '')
+            + `</div>`).join('')
+        : '―';
 
       // 簡易版NPCカード表示 (セリフ用サイドカラム等に最適)
       if (isMini) {
@@ -7416,15 +8368,61 @@ ${parseRollResultLines(lines, 1)}            </div>
         + `</div>`;
     }
 
-    function setPaletteIndex(i) {
-      paletteIndex = i;
-      if (!paletteList) return;
-      paletteList.querySelectorAll('.palette-item').forEach(el => {
+    // 候補の一覧で i 番目を選択中として強調する（コマンドパレットとNPCのセリフで共用）
+    function highlightListOption(listEl, i) {
+      if (!listEl) return;
+      listEl.querySelectorAll('.palette-item').forEach(el => {
         const on = Number(el.dataset.index) === i;
         el.classList.toggle('active', on);
         el.setAttribute('aria-selected', on ? 'true' : 'false');
         if (on) el.scrollIntoView({ block: 'nearest' });
       });
+    }
+
+    // 絞り込み欄と候補の一覧に、↑↓で選ぶ・Enter／クリックで決める操作を付ける
+    // （コマンドパレットとNPCのセリフで共用）。
+    //   count() … 候補の数 / index() … 選択中の位置 / setIndex(i) … 選択を移す
+    //   choose(i) … 決める / render() … 絞り込み欄が変わったときに描き直す
+    //   extraInputs … 絞り込み以外の入力欄（NPCのセリフの備考欄など）。そこでも ↑↓・Enter を効かせる
+    function bindChooserList(input, listEl, h) {
+      input.addEventListener('input', () => {
+        h.setIndex(0);
+        h.render();
+      });
+      const onKeydown = e => {
+        // 日本語入力の変換中の矢印・Enter は変換の操作なので拾わない
+        if (e.isComposing || e.keyCode === 229) return;
+        // 複数行の欄（NPCのセリフの備考）では、Shift+Enter の改行と、↑↓ による行の移動を欄に任せる
+        if (e.target.tagName === 'TEXTAREA'
+            && ((e.key === 'Enter' && e.shiftKey) || e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+          return;
+        }
+        const n = h.count();
+        if (e.key === 'ArrowDown' && n) {
+          e.preventDefault();
+          h.setIndex((h.index() + 1) % n);
+        } else if (e.key === 'ArrowUp' && n) {
+          e.preventDefault();
+          h.setIndex((h.index() - 1 + n) % n);
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          h.choose(h.index());
+        }
+      };
+      [input].concat(h.extraInputs || []).forEach(el => el.addEventListener('keydown', onKeydown));
+      listEl.addEventListener('mousemove', e => {
+        const item = e.target.closest('.palette-item');
+        if (item && Number(item.dataset.index) !== h.index()) h.setIndex(Number(item.dataset.index));
+      });
+      listEl.addEventListener('click', e => {
+        const item = e.target.closest('.palette-item');
+        if (item) h.choose(Number(item.dataset.index));
+      });
+    }
+
+    function setPaletteIndex(i) {
+      paletteIndex = i;
+      highlightListOption(paletteList, i);
     }
 
     function runPaletteItem(i) {
@@ -7437,32 +8435,103 @@ ${parseRollResultLines(lines, 1)}            </div>
 
     function initCommandPalette() {
       if (!paletteInput || !paletteList) return;
-      paletteInput.addEventListener('input', () => {
-        paletteIndex = 0;
-        renderPalette();
+      bindChooserList(paletteInput, paletteList, {
+        count: () => paletteMatches.length,
+        index: () => paletteIndex,
+        setIndex: setPaletteIndex,
+        choose: runPaletteItem,
+        render: renderPalette
       });
-      paletteInput.addEventListener('keydown', e => {
-        // 日本語入力の変換中の矢印・Enter は変換の操作なので拾わない
-        if (e.isComposing || e.keyCode === 229) return;
-        const n = paletteMatches.length;
-        if (e.key === 'ArrowDown' && n) {
-          e.preventDefault();
-          setPaletteIndex((paletteIndex + 1) % n);
-        } else if (e.key === 'ArrowUp' && n) {
-          e.preventDefault();
-          setPaletteIndex((paletteIndex - 1 + n) % n);
-        } else if (e.key === 'Enter') {
-          e.preventDefault();
-          runPaletteItem(paletteIndex);
-        }
+    }
+
+    // === 🗣 NPCのセリフ（NPCを選んで挿入する） ===
+    //
+    // [セリフ:NPC名] はどのNPCかを決めないと入れられないので、下部パネル・パレット・キー操作からは
+    // この選ぶ画面を開く。見た目と操作はコマンドパレットと揃えてある（↑↓・Enter・名前で絞り込み）。
+    let speechMatches = [];  // 表示中のNPC（並び順は画面と同じ）
+    let speechIndex = 0;
+
+    function openSpeechModal() {
+      if (!speechModal) return;
+      hidePanelTip();
+      speechInput.value = '';
+      if (speechNote) speechNote.value = '';
+      speechIndex = 0;
+      renderSpeechList();
+      speechModal.classList.add('active');
+      speechInput.focus();
+    }
+
+    function closeSpeechModal() {
+      if (!speechModal || !speechModal.classList.contains('active')) return;
+      speechModal.classList.remove('active');
+      // 本文から開いたので本文へ戻す。選択範囲は textarea が覚えている
+      if (document.body.dataset.mode === 'write' && editor) editor.focus();
+    }
+
+    function renderSpeechList() {
+      if (!speechList) return;
+      if (currentNpcs.length === 0) {
+        speechMatches = [];
+        speechList.innerHTML = `<div class="palette-empty">
+            NPCがまだ登録されていません。<br>
+            <button type="button" class="btn" style="margin-top: 12px;" onclick="closeSpeechModal(); openNpcModal();">👥 NPC管理を開く</button>
+          </div>`;
+        return;
+      }
+
+      const tokens = normalizeForSearch(speechInput.value).split(/[\s　]+/).filter(Boolean);
+      speechMatches = currentNpcs.filter(npc => {
+        const hay = normalizeForSearch([npc.name, npc.status && npc.status.occupation].join(' '));
+        return tokens.every(t => hay.includes(t));
       });
-      paletteList.addEventListener('mousemove', e => {
-        const item = e.target.closest('.palette-item');
-        if (item && Number(item.dataset.index) !== paletteIndex) setPaletteIndex(Number(item.dataset.index));
-      });
-      paletteList.addEventListener('click', e => {
-        const item = e.target.closest('.palette-item');
-        if (item) runPaletteItem(Number(item.dataset.index));
+      if (speechMatches.length === 0) {
+        speechList.innerHTML = '<div class="palette-empty">一致するNPCがいません。</div>';
+        return;
+      }
+
+      speechList.innerHTML = speechMatches.map((npc, i) => {
+        const color = normalizeNpcColor(npc.color);
+        const ring = color ? `box-shadow: 0 0 0 2px ${color};` : '';
+        // アイコンはプレビューのセリフと同じ規則（立ち絵、無ければ名前の1文字目を色の丸に）
+        const avatar = npc.avatarUrl
+          ? `<span class="speech-avatar" style="background-image: url('${escapeHTML(npc.avatarUrl)}'); ${ring}"></span>`
+          : `<span class="speech-avatar speech-avatar-initial" style="${color ? `background-color: ${color};` : ''} ${ring}">`
+            + `${escapeHTML(Array.from((npc.name || '').trim())[0] || '?')}</span>`;
+        const st = npc.status || {};
+        const profile = [st.age && st.age + '歳', st.gender, st.occupation].filter(Boolean).join(' / ');
+        return `<div class="palette-item" role="option" data-index="${i}">${avatar}`
+          + `<span class="palette-item-text"><span class="palette-item-name">${escapeHTML(npc.name)}</span>`
+          + `<span class="palette-item-desc">${escapeHTML(profile || 'プロフィール未入力')}</span></span>`
+          + (color ? '' : '<span class="palette-item-keys">色なし</span>')
+          + `</div>`;
+      }).join('');
+      setSpeechIndex(Math.min(speechIndex, speechMatches.length - 1));
+    }
+
+    function setSpeechIndex(i) {
+      speechIndex = i;
+      highlightListOption(speechList, i);
+    }
+
+    function chooseSpeechNpc(i) {
+      const npc = speechMatches[i];
+      if (!npc) return;
+      const note = speechNote ? speechNote.value : '';
+      closeSpeechModal();
+      insertNpcSpeech(npc.name, note);
+      handleInput();
+    }
+
+    function initSpeechModal() {
+      if (!speechInput || !speechList) return;
+      bindChooserList(speechInput, speechList, {
+        count: () => speechMatches.length,
+        index: () => speechIndex,
+        setIndex: setSpeechIndex,
+        choose: chooseSpeechNpc,
+        render: renderSpeechList,
+        extraInputs: speechNote ? [speechNote] : []
       });
     }
 

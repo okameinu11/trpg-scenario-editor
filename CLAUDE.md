@@ -64,7 +64,7 @@ perl scripts/devenv/setup.pl --version           # devenv の版
 
 ### 独自記法のプレビュー
 
-`parseMarkdown()` から `parseElement()` が、Markdown風の独自記法をプレビュー用HTMLへ変換する。TRPG固有の記法（技能判定・共鳴判定・SANチェック・NPCカード・情景描写・GM情報）と、文中を装飾するインライン記法（文字色）を持ち、**標準Markdownとは互換ではない**。
+`parseMarkdown()` から `parseElement()` が、Markdown風の独自記法をプレビュー用HTMLへ変換する。TRPG固有の記法（技能判定・共鳴判定・SANチェック・NPCカード・NPCのセリフ・情景描写・GM情報）と、文中を装飾するインライン記法（文字色）を持ち、**標準Markdownとは互換ではない**。
 
 記法は括弧で系統が分かれている。**ブロック記法は `[...]`、インライン記法は `{...}`。**
 
