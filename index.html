@@ -1877,6 +1877,80 @@
     border: 1px solid rgba(255, 255, 255, 0.25);
   }
 
+  /* マイパレット（自分で登録した色）。文字色の画面とNPCのセリフの色で共用する。
+     色の名前は持たないので、色の丸だけを並べる（色の値は吹き出しに出る）。指で押すので44pxを保つ */
+  .my-palette {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .my-palette-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .my-palette-chip {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 2px solid var(--border-color);
+    background-color: var(--swatch);
+    box-sizing: border-box;
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+  .my-palette-chip:hover {
+    transform: scale(1.06);
+  }
+  /* 整理中は、押すと消えることが分かるよう × を重ねる */
+  .my-palette-chip.managing::after {
+    content: '×';
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: #ef4444;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 20px;
+    text-align: center;
+  }
+  .my-palette-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .my-palette-msg,
+  .my-palette-empty {
+    font-size: 0.78rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+  }
+  /* NPCのセリフの色の欄：固定パレットとマイパレットの間の区切り */
+  .npc-color-divider {
+    width: 1px;
+    height: 32px;
+    margin: 0 2px;
+    background-color: var(--border-color);
+  }
+  .npc-my-palette {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+  }
+  .npc-my-palette-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+
   /* 🧠 SANチェックのよく使う組み合わせ */
   .san-preset-row {
     display: flex;
@@ -3598,7 +3672,8 @@
         <h3>🎨 文字色</h3>
         <button class="btn-close" onclick="closeColorModal()">&times;</button>
       </div>
-      <div class="modal-body">
+      <!-- data-mp-ctx="text" … この中のマイパレットの操作は文字色として扱う（initMyPalette() の委譲） -->
+      <div class="modal-body" data-mp-ctx="text">
         <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0 0 14px; line-height: 1.6;">
           エディタで選んだ文字を <code>{赤:…}</code> の形で囲みます。
           何も選んでいない場合は空の記法を挿入し、カーソルを中に置きます。
@@ -3611,11 +3686,18 @@
         </div>
 
         <div class="form-group">
+          <span class="form-label">マイパレット</span>
+          <!-- 自分で登録した色。中身は renderTextMyPalette() が組み立てる（NPCのセリフの色と同じ一覧） -->
+          <div id="color-my-palette" class="my-palette"></div>
+        </div>
+
+        <div class="form-group">
           <span class="form-label">任意の色</span>
           <div class="tier-add-row">
             <input type="color" id="color-custom" value="#dc2626" class="form-input"
                    style="max-width: 76px; height: 42px; padding: 2px;">
             <button class="btn" onmousedown="event.preventDefault(); applyCustomColor()">この色を適用</button>
+            <button type="button" class="btn" data-mp-act="add" title="この色をマイパレットに登録して、次から1回で選べるようにする">＋ マイパレットに登録</button>
           </div>
           <div style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 6px; line-height: 1.6;">
             淡い色はPDFにすると読めなくなります。迷ったらパレットを使ってください。
@@ -5438,6 +5520,8 @@
         updatePreview();
         // 色見本はシステムに依存しないので1回だけ組み立てる
         renderColorSwatches();
+        // マイパレットは applySystemToUI() が組み立てるNPCの色の欄でも使うので、その前に読み込む
+        initMyPalette();
         // 自由枠は applySystemToUI() の renderRollTiers() が読むので、その前に読み込む
         loadCustomTiers();
         // 技能リスト・判定段階・NPCの能力値欄はシステムごとに違うので、
@@ -6523,7 +6607,11 @@
     }
 
     function openColorModal() {
-      if (colorModal) colorModal.classList.add('active');
+      if (!colorModal) return;
+      // 開くたびに整理中を解き、NPC管理の側で登録・削除した色も反映する
+      myPaletteManaging.text = false;
+      renderTextMyPalette();
+      colorModal.classList.add('active');
     }
 
     function closeColorModal() {
@@ -6798,17 +6886,172 @@
         </div>`;
     }
 
+    // === マイパレット ===
+    //
+    // 利用者が自分で登録しておく色の一覧。色を選べる場所（文字色・NPCのセリフの色）のすべてで、同じ一覧を使う。
+    // シナリオではなく「この端末の設定」として localStorage に置く（ショートカット・判定の自由枠と同じ）。
+    // 自分の好みの色はシナリオをまたいで使うものなので（docs/04_記法設計書.html §3.6）。
+    //
+    // 色を選べる場所を足すときは、その場所を data-mp-ctx="名前" の要素で包み、
+    // onMyPaletteAction() と refreshMyPalettes() にその場所の処理を1つずつ足す。
+    const MY_PALETTE_KEY = 'trpg_my_palette';
+    const MY_PALETTE_MAX = 24; // 並べて見分けが付く数。超えたら整理してもらう
+    let myPalette = [];        // ['#rrggbb', ...]。登録した順
+    const myPaletteManaging = {}; // 場所ごとの「整理中」（押すと消える状態）か
+
+    function loadMyPalette() {
+      myPalette = [];
+      try {
+        const parsed = JSON.parse(localStorage.getItem(MY_PALETTE_KEY) || '[]');
+        if (!Array.isArray(parsed)) return;
+        // 壊れた値・重複が混ざっていても画面ごと落とさない。#rrggbb だけを小文字で受け付ける
+        // （style 属性へそのまま載せるので、任意の文字列を通さない。normalizeNpcColor() と同じ理由）
+        parsed.forEach(v => {
+          const hex = normalizeNpcColor(v);
+          if (hex && !myPalette.includes(hex) && myPalette.length < MY_PALETTE_MAX) myPalette.push(hex);
+        });
+      } catch (e) {
+        console.error('マイパレットの読み込みに失敗しました:', e);
+      }
+    }
+
+    // 戻り値は利用者に見せる結果の文言
+    function addToMyPalette(raw) {
+      const hex = normalizeNpcColor(raw);
+      if (!hex) return '色を選んでから登録してください。';
+      const presets = Object.values(INLINE_COLORS).map(c => c.hex.toLowerCase());
+      if (presets.includes(hex)) return 'この色は上の固定パレットにあります。';
+      if (myPalette.includes(hex)) return 'この色はもう登録されています。';
+      if (myPalette.length >= MY_PALETTE_MAX) return `登録できるのは${MY_PALETTE_MAX}色までです。「整理」で減らしてから登録してください。`;
+      myPalette.push(hex);
+      try {
+        writeSetting(MY_PALETTE_KEY, JSON.stringify(myPalette));
+      } catch (e) {
+        myPalette.pop(); // 保存できなかったら画面にも足さない
+        return e.message;
+      }
+      return '登録しました。';
+    }
+
+    function removeFromMyPalette(hex) {
+      const before = myPalette.slice();
+      myPalette = myPalette.filter(c => c !== hex);
+      try {
+        writeSetting(MY_PALETTE_KEY, JSON.stringify(myPalette));
+      } catch (e) {
+        myPalette = before;
+        return e.message;
+      }
+      return '';
+    }
+
+    // 色の丸ボタン。整理中は押すと消える（印として × を重ねる）。
+    // extraClass … その場所の見た目に合わせるクラス（NPCの色では選択中の表示を共用する）
+    // selectedHex … いま選ばれている色（NPCの色）。文字色の画面には「選択中」が無いので渡さない
+    function myPaletteChipsHTML(ctx, extraClass, selectedHex) {
+      const managing = !!myPaletteManaging[ctx];
+      return myPalette.map(hex => `<button type="button" class="my-palette-chip${extraClass ? ' ' + extraClass : ''}`
+        + `${hex === selectedHex ? ' selected' : ''}${managing ? ' managing' : ''}"`
+        + ` data-mp-act="${managing ? 'remove' : 'pick'}" data-color="${hex}" style="--swatch: ${hex};"`
+        + ` title="${managing ? hex + ' を削除' : hex}" aria-label="${managing ? hex + ' を削除' : 'マイパレット ' + hex}"></button>`).join('');
+    }
+
+    // 登録・整理のボタンと、結果の文言の欄。addLabel を渡さなければ登録ボタンは出さない（別の場所に置く場合）
+    function myPaletteToolsHTML(ctx, addLabel) {
+      const managing = !!myPaletteManaging[ctx];
+      return `<div class="my-palette-tools">`
+        + (addLabel ? `<button type="button" class="btn btn-small" data-mp-act="add">${addLabel}</button>` : '')
+        + (myPalette.length || managing
+            ? `<button type="button" class="btn btn-small${managing ? ' btn-primary' : ''}" data-mp-act="manage">${managing ? '整理を終える' : '整理'}</button>`
+            : '')
+        + `<span class="my-palette-msg" role="status"></span>`
+        + `</div>`;
+    }
+
+    function showMyPaletteMessage(ctx, text) {
+      const el = document.querySelector(`[data-mp-ctx="${ctx}"] .my-palette-msg`);
+      if (el) el.textContent = text || '';
+    }
+
+    // 色を選べる場所のうち、いま画面にあるものをすべて描き直す（どこで登録・削除しても、ほかの場所に揃える）
+    function refreshMyPalettes() {
+      renderTextMyPalette();
+      const npc = currentNpcs.find(n => n.id === selectedNpcId);
+      const box = document.getElementById('npc-color-picker');
+      if (box && npc) box.outerHTML = npcColorPickerHTML(npc);
+    }
+
+    // 文字色の画面のマイパレット
+    function renderTextMyPalette() {
+      const box = document.getElementById('color-my-palette');
+      if (!box) return;
+      box.innerHTML = (myPalette.length
+          ? `<div class="my-palette-chips">${myPaletteChipsHTML('text', '')}</div>`
+          : '<div class="my-palette-empty">まだありません。下の「任意の色」で色を選んで「＋ マイパレットに登録」すると、ここに並びます。</div>')
+        + myPaletteToolsHTML('text', '');
+    }
+
+    function onMyPaletteAction(ctx, act, hex) {
+      if (act === 'pick') {
+        if (ctx === 'text') applyColor(hex);
+        else if (ctx === 'npc') setNpcColor(hex);
+        return;
+      }
+      let message = '';
+      if (act === 'add') {
+        // 登録するのは、その場所でいま選んでいる色
+        let raw = '';
+        if (ctx === 'text') {
+          const input = document.getElementById('color-custom');
+          raw = input ? input.value : '';
+        } else if (ctx === 'npc') {
+          const npc = currentNpcs.find(n => n.id === selectedNpcId);
+          raw = npc ? npc.color : '';
+          if (!raw) message = 'NPCに色を選んでから登録してください（「その他」で好きな色を選べます）。';
+        }
+        if (!message) message = addToMyPalette(raw);
+      } else if (act === 'remove') {
+        message = removeFromMyPalette(hex);
+        if (!myPalette.length) myPaletteManaging[ctx] = false;
+      } else if (act === 'manage') {
+        myPaletteManaging[ctx] = !myPaletteManaging[ctx];
+        if (myPaletteManaging[ctx]) message = '消したい色を押してください。';
+      }
+      refreshMyPalettes();
+      showMyPaletteMessage(ctx, message);
+    }
+
+    function initMyPalette() {
+      loadMyPalette();
+      renderTextMyPalette();
+      // 文字色の画面では、押した瞬間にボタンへフォーカスが移ると本文の選択範囲が分からなくなるので、
+      // ほかの色のボタンと同じく mousedown の既定動作を止める（docs/07_操作の入口設計書.html §3.4）
+      document.addEventListener('mousedown', e => {
+        const el = e.target.closest && e.target.closest('[data-mp-act]');
+        if (el && el.closest('[data-mp-ctx="text"]')) e.preventDefault();
+      });
+      document.addEventListener('click', e => {
+        const el = e.target.closest && e.target.closest('[data-mp-act]');
+        if (!el) return;
+        const ctxEl = el.closest('[data-mp-ctx]');
+        if (ctxEl) onMyPaletteAction(ctxEl.dataset.mpCtx, el.dataset.mpAct, el.dataset.color);
+      });
+    }
+
     // === NPCのセリフの色 ===
     //
-    // 候補は文字色と同じパレット（INLINE_COLORS）＋「なし」＋任意の色。
+    // 候補は文字色と同じパレット（INLINE_COLORS）＋「なし」＋マイパレット＋任意の色。
     // パレットを先に並べるのは、印刷して読める濃さを保証できるのがパレットの色だけだから
     // （docs/04_記法設計書.html §3）。任意の色は逃げ道として最後に置く。
+    // マイパレットに登録・削除したときは、この欄だけを描き直す（refreshMyPalettes()）。
+    // そのため全体を #npc-color-picker で包み、マイパレットの操作を受けるよう data-mp-ctx="npc" を付ける
     function npcColorPickerHTML(npc) {
       const current = normalizeNpcColor(npc.color);
-      const paletteHexes = Object.values(INLINE_COLORS).map(c => c.hex.toLowerCase());
+      const paletteHexes = Object.values(INLINE_COLORS).map(c => c.hex.toLowerCase()).concat(myPalette);
       const isCustom = current && !paletteHexes.includes(current);
 
-      let html = `<div class="npc-color-row" id="npc-color-row">`
+      let html = `<div id="npc-color-picker" class="npc-color-picker" data-mp-ctx="npc">`
+        + `<div class="npc-color-row" id="npc-color-row">`
         + `<button type="button" class="npc-color-swatch npc-color-none${current ? '' : ' selected'}" data-color=""
                    onclick="setNpcColor('')" title="色なし（本文と同じ色）">なし</button>`;
       for (const name in INLINE_COLORS) {
@@ -6817,14 +7060,23 @@
                          style="--swatch: ${hex};" onclick="setNpcColor('${hex}')" title="${escapeHTML(name)}"
                          aria-label="${escapeHTML(name)}"></button>`;
       }
+      // マイパレットの色。選択中の表示は固定パレットと同じクラス（npc-color-swatch）で共用する
+      if (myPalette.length) {
+        html += `<span class="npc-color-divider" aria-hidden="true"></span>`
+          + myPaletteChipsHTML('npc', 'npc-color-swatch', current);
+      }
       // input の oninput は、色を選んでいる最中にも連続して呼ばれる。
       // 編集欄を作り直すとピッカーごと閉じてしまうので、setNpcColor() は作り直さずに表示だけ更新する
       html += `<label class="npc-color-swatch npc-color-custom${isCustom ? ' selected' : ''}" data-color="custom" title="その他の色">
                  <input type="color" value="${isCustom ? current : '#334155'}" oninput="setNpcColor(this.value)">その他
                </label>`;
       html += `</div>`;
+      // マイパレットへの登録（いまNPCに付けている色を登録する）と整理
+      html += `<div class="npc-my-palette"><span class="npc-my-palette-label">マイパレット</span>`
+        + myPaletteToolsHTML('npc', '＋ 今の色を登録') + `</div>`;
       // 紙（白地）に出たときの見え方を確かめるための見本
       html += `<div class="npc-color-sample" id="npc-color-sample"${current ? ` style="color: ${current};"` : ''}>「この色で発言が表示されます」</div>`;
+      html += `</div>`;
       return html;
     }
 
