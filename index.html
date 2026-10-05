@@ -62,11 +62,34 @@
     justify-content: space-between;
     height: 60px;
     box-sizing: border-box;
+    gap: 12px;
   }
+  /* 幅が足りないとき、ボタンや表記の文字を縦に折り返して潰さない（以前は「一覧」「保存」が
+     1文字ずつ折れていた）。縮むのはタイトル欄と保存状態の表示だけにし、残りは文字を1行に保つ */
   .header-left {
     display: flex;
     align-items: center;
     gap: 15px;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .header-left > * {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .header-left > .scenario-title-input {
+    flex: 0 1 250px;
+    min-width: 100px;
+  }
+  /* 保存状態は「✓ ローカル自動保存済み (16:41)」のように長くなるので、2行まで折り返して幅を譲る */
+  .header-left > .save-status {
+    flex: 0 0 9.5em;
+    min-width: 6em;
+    white-space: normal;
+    font-size: 0.75rem;
+    line-height: 1.35;
+    max-height: 2.7em;
+    overflow: hidden;
   }
   .app-logo {
     font-size: 1.25rem;
@@ -190,6 +213,10 @@
     display: flex;
     gap: 10px;
     align-items: center;
+    flex-shrink: 0;
+  }
+  .header-actions .btn {
+    white-space: nowrap;
   }
   .btn {
     background-color: var(--bg-input);
@@ -2634,9 +2661,17 @@
 
   /* ヘッダーは要素が多く、幅が足りないと文字が縦に潰れる。
      画面が狭くなったらタブはアイコンだけにして、先に場所を譲る。 */
+  @media (max-width: 1400px) {
+    .header-btn-label-wide { display: none; }
+  }
   @media (max-width: 1100px) {
     .mode-tab-label { display: none; }
     .mode-tab { padding: 5px 9px; }
+    .header-btn-label { display: none; }
+    header.control-header { padding: 10px 12px; }
+    .header-left { gap: 10px; }
+    /* ここまで狭いと保存状態にも縮んでもらう（はみ出た行は隠れる） */
+    .header-left > .save-status { flex-shrink: 1; }
   }
 
   /* プレビュー・紙に出す場面図 */
@@ -2713,9 +2748,12 @@
       <span class="save-status" id="save-status">✓ 自動保存有効</span>
     </div>
     <div class="header-actions">
-      <button class="btn" onclick="openShortcutModal()">⌨️ ショートカット設定</button>
-      <button class="btn btn-primary" id="btn-save" onclick="saveScenarioToStore()">💾 保存</button>
-      <button class="btn" onclick="triggerPrint()">🖨 PDF出力</button>
+      <!-- 狭い画面（1100px以下）では名前を消してアイコンだけにする。名前は title で補う -->
+      <!-- ショートカット設定は名前が最も長く、使う頻度は最も低い（コマンドパレットからも開ける）。
+           タイトル欄に幅を譲るため、ほかより先（1400px以下）にアイコンだけにする -->
+      <button class="btn" onclick="openShortcutModal()" title="ショートカット設定">⌨️ <span class="header-btn-label header-btn-label-wide">ショートカット設定</span></button>
+      <button class="btn btn-primary" id="btn-save" onclick="saveScenarioToStore()" title="保存">💾 <span class="header-btn-label">保存</span></button>
+      <button class="btn" onclick="triggerPrint()" title="PDF出力">🖨 <span class="header-btn-label">PDF出力</span></button>
     </div>
   </header>
 
@@ -4648,7 +4686,8 @@
       isSaving = true;
       if (btnSave) {
         btnSave.disabled = true;
-        btnSave.innerText = '保存中...';
+        // 名前は .header-btn-label に入れる（狭い画面ではアイコンだけになるため。ヘッダーのHTMLを参照）
+        btnSave.innerHTML = '⏳ <span class="header-btn-label">保存中...</span>';
       }
       if (saveStatus) saveStatus.innerText = '● 保存中...';
 
@@ -4673,7 +4712,7 @@
           isSaving = false;
           if (btnSave) {
             btnSave.disabled = false;
-            btnSave.innerText = '💾 保存';
+            btnSave.innerHTML = '💾 <span class="header-btn-label">保存</span>';
           }
         });
     }
