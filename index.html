@@ -1217,6 +1217,76 @@
     color: var(--text-secondary);
   }
 
+  /* パネルのメニュー（場面図・目次）。吹き出しと同じ理由で body 直下に置き、押したボタンの真上に出す */
+  .panel-menu {
+    position: fixed;
+    z-index: 900; /* モーダル(1000)より下 */
+    min-width: 260px;
+    max-width: calc(100vw - 16px);
+    padding: 4px;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+    box-sizing: border-box;
+  }
+  .panel-menu[hidden] {
+    display: none;
+  }
+  .panel-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 48px;
+    padding: 6px 10px;
+    border: none;
+    border-radius: 6px;
+    background: none;
+    color: var(--text-primary);
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .panel-menu-item:hover,
+  .panel-menu-item:focus-visible {
+    background-color: rgba(59,130,246,0.15);
+    outline: none;
+  }
+  .panel-menu-icon {
+    font-size: 1.15rem;
+  }
+  .panel-menu-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .panel-menu-name {
+    font-size: 0.88rem;
+    font-weight: 700;
+  }
+  .panel-menu-desc {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+  }
+  .panel-menu-keys .kbd-badge {
+    font-size: 0.68rem;
+  }
+  /* メニューを開くボタンには、右上に小さな ▾ を付けて「押すと選べる」ことを示す */
+  .btn-panel-menu {
+    position: relative;
+  }
+  .btn-panel-menu::after {
+    content: '▾';
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    font-size: 0.6rem;
+    line-height: 1;
+    color: var(--text-secondary);
+  }
+
   /* === コマンドパレット ===
      .modal の仕組みに載せているのは、Esc・背景クリック・× で閉じる処理と、
      開いている間ほかのショートカットを止める処理を共用するため。
@@ -3582,6 +3652,8 @@
   <!-- 下部：執筆アシスタントパネル（ボタンは ACTIONS から renderAssistantPanel() が組み立てる） -->
   <footer class="assistant-panel" id="assistant-panel" aria-label="クイック挿入"></footer>
   <div id="panel-tip" class="no-print" role="tooltip"></div>
+  <!-- パネルのメニュー（場面図・目次など、1つのボタンにまとめた操作を選ぶ）。togglePanelMenu() が中身を入れて重ねる -->
+  <div id="panel-menu" class="panel-menu no-print" role="menu" aria-label="挿入するものを選ぶ" hidden></div>
 
   <!-- シナリオ一覧モーダル -->
   <div id="list-modal" class="modal">
@@ -4441,6 +4513,7 @@
     //   keywords  … パレットの絞り込み用の読みと別名（空白区切り）。読みはひらがなで書く。
     //               日本語入力の変換前（ひらがなのまま）で打っても当たるようにするため
     //   panel     … false ならパネルに出さない（ヘッダーに既にボタンがあるもの）
+    //   panelMenu … PANEL_MENUS のどれか。同じ値の操作はパネルで1つのボタン（メニュー）にまとまる
     //   available … そのシステムで使えるか。false ならパネル・パレット・キー操作のすべてから消える
     //   inModal / inSceneMode … モーダル表示中・場面図表示中にも受け付けるか（既定は受け付けない）
     //   key       … 既定のショートカット。null なら未割り当て
@@ -4452,6 +4525,12 @@
       { id: 'data', label: '資料' },
       { id: 'app', label: '操作' }
     ];
+
+    // パネルで1つのボタンにまとめる操作の組（ACTIONS の panelMenu）。ボタンを押すと、組の操作を選ぶメニューが出る。
+    // 使う頻度の低い挿入を、パネルの幅を増やさずに見える場所へ置くための形（docs/07_操作の入口設計書.html §3.7）
+    const PANEL_MENUS = {
+      'insert-block': { icon: '🗺', name: '場面図・目次', short: '図・目次', desc: '場面図か目次を選んで本文に挿入する' }
+    };
 
     const withAlt = key => ({ key, ctrlKey: false, altKey: true, shiftKey: false });
     const withCtrl = key => ({ key, ctrlKey: true, altKey: false, shiftKey: false });
@@ -4466,13 +4545,14 @@
       { id: 'search-list', group: 'structure', icon: '🔍', name: '探索一覧', short: '探索',
         desc: '探索箇所ブロックを挿入', keywords: 'たんさくいちらん', key: withAlt('3'),
         run: () => insertTemplate('search-list') },
+      // 場面図と目次は、どちらもシナリオに1回入れれば済む全幅のブロック。パネルでは1つのボタン（メニュー）に
+      // まとめる（panelMenu。docs/07_操作の入口設計書.html §3.7）。パレットとキーでは今までどおり別々の操作
       { id: 'scene-map-insert', group: 'structure', icon: '🗺', name: '場面図を挿入', short: '場面図',
         desc: '本文に [場面図] を挿入する', keywords: 'ばめんずをそうにゅう map', key: withAlt('z'),
-        run: () => insertTemplate('scene-map') },
-      // シナリオに1回書けば済むので、幅の尽きたパネルには出さない（docs/07_操作の入口設計書.html §3.2）
-      { id: 'toc-insert', group: 'structure', icon: '🔖', name: '目次を挿入', short: '目次', panel: false,
+        panelMenu: 'insert-block', run: () => insertTemplate('scene-map') },
+      { id: 'toc-insert', group: 'structure', icon: '🔖', name: '目次を挿入', short: '目次',
         desc: '本文に [目次] を挿入する（見出しの一覧が自動で入る）', keywords: 'もくじ もくじをそうにゅう toc contents',
-        key: null, run: () => insertTemplate('toc') },
+        key: null, panelMenu: 'insert-block', run: () => insertTemplate('toc') },
 
       { id: 'read', group: 'text', icon: '💬', name: '情景描写', short: '情景',
         desc: '行頭に > を挿入', keywords: 'じょうけいびょうしゃ', key: withAlt('4'),
@@ -10888,13 +10968,31 @@ ${parseRollResultLines(lines, 1)}            </div>
       const panel = document.getElementById('assistant-panel');
       if (!panel) return;
       hidePanelTip();
+      closePanelMenu();
       const sys = currentSystem();
       let html = '';
       for (const g of ACTION_GROUPS) {
         const items = ACTIONS.filter(a => a.group === g.id && a.panel !== false && isActionAvailable(a, sys));
         if (items.length === 0) continue;
         html += `<div class="panel-group"><span class="panel-group-label">${escapeHTML(g.label)}</span>`;
+        const menusDone = new Set();
         for (const a of items) {
+          // panelMenu の組は、最初に出てきた位置に1つのボタンとして出す。
+          // 組のうち使えるものが1つしかなければ、メニューにせずそのボタンを出す
+          if (a.panelMenu) {
+            if (menusDone.has(a.panelMenu)) continue;
+            menusDone.add(a.panelMenu);
+            const def = PANEL_MENUS[a.panelMenu];
+            if (def && items.filter(x => x.panelMenu === a.panelMenu).length > 1) {
+              html += `<button type="button" class="btn-panel btn-panel-menu" data-panel-menu="${a.panelMenu}"`
+                + ` aria-haspopup="menu" aria-expanded="false" aria-label="${escapeHTML(def.name)}">`
+                + `<span class="btn-panel-icon">${def.icon}</span>`
+                + `<span class="btn-panel-full">${escapeHTML(def.name)}</span>`
+                + `<span class="btn-panel-short">${escapeHTML(def.short)}</span>`
+                + `</button>`;
+              continue;
+            }
+          }
           // 情報一覧を開いたままパネルを作り直しても（システムの切り替えなど）、押された状態を保つ
           const active = a.id === 'info-list' && isInfoDrawerOpen() ? ' active' : '';
           html += `<button type="button" class="btn-panel${active}" data-action="${a.id}" aria-label="${escapeHTML(actionName(a))}">`
@@ -10975,13 +11073,22 @@ ${parseRollResultLines(lines, 1)}            </div>
         if (!btn) return;
         e.preventDefault();
         hidePanelTip();
+        if (btn.dataset.panelMenu) {
+          togglePanelMenu(btn, false);
+          return;
+        }
+        closePanelMenu();
         runAction(btn.dataset.action);
       });
       // Tab で移ってきて Enter / Space を押した場合（mousedown が起きない）
       panel.addEventListener('click', e => {
         const btn = e.target.closest('.btn-panel');
-        if (btn && e.detail === 0) runAction(btn.dataset.action);
+        if (!btn || e.detail !== 0) return;
+        // キーボードで開いたメニューは、続けて矢印キーで選べるよう先頭の項目にフォーカスを移す
+        if (btn.dataset.panelMenu) togglePanelMenu(btn, true);
+        else runAction(btn.dataset.action);
       });
+      initPanelMenu();
 
       // 吹き出しはマウスのときだけ出す。タッチで出すと、指を離した後も残って邪魔になる
       panel.addEventListener('pointerover', e => {
@@ -11004,12 +11111,17 @@ ${parseRollResultLines(lines, 1)}            </div>
     let panelTipTarget = null;
     function showPanelTip(btn) {
       const tip = document.getElementById('panel-tip');
-      const a = ACTION_BY_ID[btn.dataset.action];
-      if (!tip || !a || panelTipTarget === btn) return;
+      // メニューのボタンは組の名前と説明を出す（キーは組の中の各操作にあるので出さない）。メニューを開いている間は出さない
+      const menu = btn.dataset.panelMenu ? PANEL_MENUS[btn.dataset.panelMenu] : null;
+      const a = menu ? null : ACTION_BY_ID[btn.dataset.action];
+      if (!tip || (!a && !menu) || panelTipTarget === btn || panelMenuButton === btn) return;
       panelTipTarget = btn;
-      tip.innerHTML = `<div class="panel-tip-head"><span>${a.icon} ${escapeHTML(actionName(a))}</span>`
-        + `<span>${shortcutKbdHTML(shortcuts[a.id])}</span></div>`
-        + `<div class="panel-tip-desc">${escapeHTML(actionDesc(a))}</div>`;
+      tip.innerHTML = menu
+        ? `<div class="panel-tip-head"><span>${menu.icon} ${escapeHTML(menu.name)}</span></div>`
+          + `<div class="panel-tip-desc">${escapeHTML(menu.desc)}</div>`
+        : `<div class="panel-tip-head"><span>${a.icon} ${escapeHTML(actionName(a))}</span>`
+          + `<span>${shortcutKbdHTML(shortcuts[a.id])}</span></div>`
+          + `<div class="panel-tip-desc">${escapeHTML(actionDesc(a))}</div>`;
       tip.classList.add('show');
       // 中身を入れてから測る。ボタンの真上に出し、画面の端からははみ出させない
       const r = btn.getBoundingClientRect();
@@ -11023,6 +11135,100 @@ ${parseRollResultLines(lines, 1)}            </div>
       panelTipTarget = null;
       const tip = document.getElementById('panel-tip');
       if (tip) tip.classList.remove('show');
+    }
+
+    // === パネルのメニュー（panelMenu の組） ===
+    //
+    // 吹き出しと同じく、パネル（横スクロールのため overflow を持つ）の外の body 直下に1つだけ置き、
+    // 押したボタンの真上に重ねる（docs/07_操作の入口設計書.html §3.3・§3.7）。
+    // 項目もパネルのボタンと同じく mousedown で実行する（本文の選択範囲とカーソルを動かさないため。§3.4）
+    let panelMenuButton = null; // メニューを開いたボタン（開いていなければ null）
+
+    function togglePanelMenu(btn, byKeyboard) {
+      if (panelMenuButton === btn) { closePanelMenu(); return; }
+      closePanelMenu();
+      const menu = document.getElementById('panel-menu');
+      if (!menu) return;
+      const sys = currentSystem();
+      const items = ACTIONS.filter(a => a.panelMenu === btn.dataset.panelMenu && isActionAvailable(a, sys));
+      menu.innerHTML = items.map(a => `<button type="button" class="panel-menu-item" role="menuitem" data-action="${a.id}">`
+        + `<span class="panel-menu-icon">${a.icon}</span>`
+        + `<span class="panel-menu-text"><span class="panel-menu-name">${escapeHTML(actionName(a))}</span>`
+        + `<span class="panel-menu-desc">${escapeHTML(actionDesc(a))}</span></span>`
+        + `<span class="panel-menu-keys">${shortcutKbdHTML(shortcuts[a.id])}</span>`
+        + `</button>`).join('');
+      menu.hidden = false;
+      // 中身を入れてから測る。ボタンの真上に出し、画面の端からははみ出させない
+      const r = btn.getBoundingClientRect();
+      const left = Math.min(Math.max(8, r.left), window.innerWidth - menu.offsetWidth - 8);
+      menu.style.left = left + 'px';
+      menu.style.top = (r.top - menu.offsetHeight - 6) + 'px';
+      panelMenuButton = btn;
+      btn.classList.add('active');
+      btn.setAttribute('aria-expanded', 'true');
+      if (byKeyboard) {
+        const first = menu.querySelector('.panel-menu-item');
+        if (first) first.focus();
+      }
+    }
+
+    // restoreFocus … キーボードで閉じたとき、開いたボタンへフォーカスを戻す
+    function closePanelMenu(restoreFocus) {
+      const menu = document.getElementById('panel-menu');
+      if (menu) menu.hidden = true;
+      const btn = panelMenuButton;
+      panelMenuButton = null;
+      if (!btn) return;
+      btn.classList.remove('active');
+      btn.setAttribute('aria-expanded', 'false');
+      if (restoreFocus) btn.focus();
+    }
+
+    function initPanelMenu() {
+      const menu = document.getElementById('panel-menu');
+      if (!menu) return;
+      const runItem = item => {
+        closePanelMenu();
+        runAction(item.dataset.action);
+      };
+      menu.addEventListener('mousedown', e => {
+        e.preventDefault();
+        const item = e.target.closest('.panel-menu-item');
+        if (item) runItem(item);
+      });
+      // キーボードで Enter / Space を押した場合（mousedown が起きない）
+      menu.addEventListener('click', e => {
+        const item = e.target.closest('.panel-menu-item');
+        if (item && e.detail === 0) runItem(item);
+      });
+      menu.addEventListener('keydown', e => {
+        const items = Array.from(menu.querySelectorAll('.panel-menu-item'));
+        const i = items.indexOf(document.activeElement);
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          const next = items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length];
+          if (next) next.focus();
+        } else if (e.key === 'Tab') {
+          closePanelMenu();
+        }
+      });
+      // メニューの外を押したら閉じる（開いたボタン自身は除く。そちらは togglePanelMenu() が閉じる）
+      document.addEventListener('mousedown', e => {
+        if (!panelMenuButton) return;
+        if (menu.contains(e.target) || panelMenuButton.contains(e.target)) return;
+        closePanelMenu();
+      }, true);
+      // Esc で閉じる。モーダルの Esc 処理より先に受け取り、ほかへは渡さない
+      document.addEventListener('keydown', e => {
+        if (!panelMenuButton || e.key !== 'Escape') return;
+        e.preventDefault();
+        e.stopPropagation();
+        closePanelMenu(menu.contains(document.activeElement));
+      }, true);
+      // ボタンの位置が変わったら、重ねた位置がずれるので閉じる
+      window.addEventListener('resize', () => closePanelMenu());
+      const panel = document.getElementById('assistant-panel');
+      if (panel) panel.addEventListener('scroll', () => closePanelMenu());
     }
 
     // === コマンドパレット ===
