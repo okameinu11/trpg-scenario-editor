@@ -69,7 +69,7 @@
   .header-left {
     display: flex;
     align-items: center;
-    gap: 15px;
+    gap: 12px;
     flex: 1 1 auto;
     min-width: 0;
   }
@@ -209,7 +209,7 @@
     outline: none;
     border-color: var(--accent-color);
   }
-  /* タイトル欄の隣の小さなボタン（基本情報）。右端の主要な操作より控えめにする */
+  /* タイトル欄の隣の小さなボタン（基本情報・巻末）。右端の主要な操作より控えめにする */
   .btn-header-sub {
     flex-shrink: 0;
     padding: 6px 12px;
@@ -611,6 +611,90 @@
   }
   #preview-area .level-off {
     color: #cbd5e1 !important;
+  }
+  /* 巻末（FAQ → あとがきなどの節 → 権利表記）。台本の最後に出る（docs/09_巻末設計書.html）。
+     見出しはシーン見出しと同じ大きさにして「本文とは別の節」に見せる。FAQの Q と A は色の付いた丸で見分ける */
+  #preview-area .scenario-faq,
+  #preview-area .scenario-backmatter {
+    margin-top: 40px;
+  }
+  #preview-area h2.appendix-heading {
+    font-family: 'Noto Serif JP', "BIZ UDMincho", "Hiragino Mincho ProN", "Yu Mincho", YuMincho, serif;
+    font-size: 1.5rem;
+    border-bottom: 2px solid var(--preview-text) !important;
+    padding-bottom: 6px;
+    margin: 0 0 8px;
+    color: var(--preview-text) !important;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+  #preview-area .backmatter-section + .backmatter-section {
+    margin-top: 32px;
+  }
+  #preview-area .backmatter-text {
+    padding-top: 8px;
+    font-size: 0.92rem;
+    line-height: 1.85;
+    color: var(--preview-text) !important;
+  }
+  /* 権利表記。台本の一番最後に、細い線で区切って小さめの灰色の文字で置く（奥付の扱い） */
+  #preview-area .scenario-rights {
+    margin-top: 48px;
+    padding-top: 12px;
+    border-top: 1px solid #cbd5e1 !important;
+    font-size: 0.75rem;
+    line-height: 1.7;
+    color: #475569 !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  #preview-area .scenario-rights:first-child {
+    margin-top: 0;
+  }
+  #preview-area .faq-item {
+    padding: 12px 0;
+    border-bottom: 1px dashed #cbd5e1 !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  #preview-area .faq-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  #preview-area .faq-row + .faq-row {
+    margin-top: 6px;
+  }
+  #preview-area .faq-mark {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    margin-top: 2px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff !important;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+  #preview-area .faq-q .faq-mark { background-color: #475569 !important; }
+  #preview-area .faq-a .faq-mark { background-color: #0d9488 !important; }
+  #preview-area .faq-text {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.92rem;
+    line-height: 1.75;
+    color: var(--preview-text) !important;
+  }
+  #preview-area .faq-q .faq-text {
+    font-weight: 700;
+  }
+  #preview-area .faq-empty {
+    color: #94a3b8 !important;
+    font-weight: 400;
+    font-size: 0.8rem;
   }
   #preview-area .npc-speech-missing {
     margin-left: 8px;
@@ -1900,10 +1984,12 @@
   .npc-delete-btn {
     margin-left: auto;
   }
-  /* 狭い画面ではタブ列だけ横にスクロールさせる。
+  /* タブ（NPC管理・巻末で共用。.modal-tabs は NPC 以外のモーダル用の名前）。
+     狭い画面ではタブ列だけ横にスクロールさせる。
      選択中の下線は box-shadow で描く。border＋負の margin で枠線に重ねると、
      1px はみ出した分で overflow が縦スクロールバーを出してしまう。 */
-  .npc-tabs {
+  .npc-tabs,
+  .modal-tabs {
     display: flex;
     gap: 2px;
     flex-shrink: 0;
@@ -1911,7 +1997,8 @@
     overflow-x: auto;
     overflow-y: hidden;
   }
-  .npc-tab {
+  .npc-tab,
+  .modal-tab {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -1928,15 +2015,18 @@
     cursor: pointer;
     transition: color 0.15s, box-shadow 0.15s;
   }
-  .npc-tab:hover {
+  .npc-tab:hover,
+  .modal-tab:hover {
     color: var(--text-primary);
   }
-  .npc-tab.active {
+  .npc-tab.active,
+  .modal-tab.active {
     color: var(--accent-color);
     box-shadow: inset 0 -2px 0 var(--accent-color);
   }
   /* 技能・感情の件数。開かなくても入力済みかが分かるようにする */
-  .npc-tab-count {
+  .npc-tab-count,
+  .modal-tab-count {
     min-width: 1.4em;
     padding: 0 6px;
     border-radius: 10px;
@@ -2490,12 +2580,13 @@
     padding: 6px 8px;
     font-size: 0.85rem;
   }
-  .bi-tools {
+  /* 並べ替え（↑ ↓）と削除のボタン。基本情報と巻末（FAQ・あとがきなど）で共用する（entryToolsHTML） */
+  .entry-tools {
     display: flex;
     flex-shrink: 0;
     gap: 2px;
   }
-  .bi-tool {
+  .entry-tool {
     width: 36px;
     height: 40px;
     border: none;
@@ -2505,21 +2596,137 @@
     font-size: 1rem;
     cursor: pointer;
   }
-  .bi-tool:hover:not(:disabled) {
+  .entry-tool:hover:not(:disabled) {
     color: var(--text-primary);
     background-color: rgba(255,255,255,0.06);
   }
-  .bi-tool:disabled {
+  .entry-tool:disabled {
     opacity: 0.3;
     cursor: default;
   }
-  .bi-tool-remove:hover:not(:disabled) {
+  .entry-tool-remove:hover:not(:disabled) {
     color: #ef4444;
     background-color: rgba(239, 68, 68, 0.12);
   }
   .bi-add-row {
     display: flex;
     gap: 8px;
+  }
+
+  /* === 巻末モーダル（FAQ／あとがき・権利表記のタブ） === */
+  .modal-content-backmatter {
+    max-width: 820px;
+    height: 90%;
+  }
+  /* タブはスクロールする本文の外（見出しの下）に置き、下へスクロールしても消えないようにする */
+  .backmatter-tabs {
+    padding: 0 20px;
+  }
+  .backmatter-body {
+    flex: 1;
+    min-height: 0;
+  }
+  .backmatter-panel {
+    display: none;
+    flex-direction: column;
+    gap: 15px;
+  }
+  .backmatter-panel.active {
+    display: flex;
+  }
+  /* あとがきなどの節。見出しと本文の2行、並べ替えと削除は右に1列（FAQの欄と同じ組み方） */
+  .bm-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: rgba(0,0,0,0.15);
+  }
+  .bm-card .entry-tools {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+  .bm-heading {
+    font-weight: 600;
+  }
+  .bm-body,
+  .bm-rights-input {
+    min-height: 6em;
+    line-height: 1.6;
+    resize: vertical;
+    field-sizing: content;
+  }
+  .bm-add-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .bm-presets-label {
+    margin-left: 8px;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+  /* 権利表記は節の一覧と別物なので、線で区切る */
+  .bm-rights {
+    padding-top: 15px;
+    border-top: 1px solid var(--border-color);
+  }
+  .faq-lead {
+    margin: 0;
+    font-size: 0.8rem;
+    line-height: 1.7;
+    color: var(--text-secondary);
+  }
+  .faq-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  /* 1件 = 質問と回答の2行。並べ替えと削除は右に1列で置く */
+  .faq-card {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: rgba(0,0,0,0.15);
+  }
+  .faq-card .entry-tools {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+  .faq-edit-mark {
+    width: 28px;
+    height: 28px;
+    margin-top: 6px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+  .faq-edit-mark-q { background-color: #475569; }
+  .faq-edit-mark-a { background-color: #0d9488; }
+  /* 内容に合わせて欄を伸ばす（NPCのメモと同じ。未対応のブラウザでは手で伸ばせる） */
+  .faq-input {
+    line-height: 1.6;
+    resize: vertical;
+    field-sizing: content;
+  }
+  .faq-input-q {
+    min-height: 2.6em;
+    font-weight: 600;
+  }
+  .faq-input-a {
+    min-height: 4.5em;
   }
 
   /* === モバイル/タブレット向けレスポンシブ (縦画面対応) === */
@@ -2988,19 +3195,28 @@
     }
   }
 
-  /* ヘッダーは要素が多く、幅が足りないと文字が縦に潰れる。
-     画面が狭くなったらタブはアイコンだけにして、先に場所を譲る。 */
-  @media (max-width: 1400px) {
-    .header-btn-label-wide { display: none; }
-  }
-  @media (max-width: 1100px) {
-    .mode-tab-label { display: none; }
-    .mode-tab { padding: 5px 9px; }
-    .header-btn-label { display: none; }
-    header.control-header { padding: 10px 12px; }
-    .header-left { gap: 10px; }
-    /* ここまで狭いと保存状態にも縮んでもらう（はみ出た行は隠れる） */
-    .header-left > .save-status { flex-shrink: 1; }
+  /* ヘッダーは要素が多く、幅が足りないと左側が右側のボタンの下に潜り込む。
+     どこまで詰めるかは fitHeader() が実際の幅を測って決め、header-compact-1〜4 を順に足していく
+     （決め打ちの画面幅ではシステム名の長さやボタンの数の違いに追従できない。docs/07 §3.6）。
+     1: ショートカット設定の名前 → 2: 執筆/場面図・基本情報/巻末 の名前 → 3: 残りの名前と余白 → 4: 一覧の文字 */
+  .header-compact-1 .header-btn-label-wide { display: none; }
+  .header-compact-2 .mode-tab-label,
+  .header-compact-2 .header-btn-label-sub { display: none; }
+  .header-compact-2 .mode-tab { padding: 5px 9px; }
+  .header-compact-3 .header-btn-label { display: none; }
+  header.control-header.header-compact-3 { padding: 10px 12px; }
+  .header-compact-3 .header-left { gap: 8px; }
+  .header-compact-3 .btn-header-sub,
+  .header-compact-3 .header-actions .btn { padding: 8px 10px; }
+  .header-compact-3 .header-actions { gap: 6px; }
+  /* ここまで狭いと保存状態にも縮んでもらう（はみ出た行は隠れる） */
+  .header-compact-3 .header-left > .save-status { flex-shrink: 1; }
+  .header-compact-4 .app-logo-label { display: none; }
+  /* それでも収まらない狭い画面（768px未満）では、左側を横スクロールにして右側のボタンの下に潜らせない
+     （下部パネルと同じく、最後の手段。スクロールバーは隠し、指でずらせる） */
+  .header-compact-4 .header-left {
+    overflow-x: auto;
+    scrollbar-width: none;
   }
 
   /* プレビュー・紙に出す場面図 */
@@ -3062,7 +3278,7 @@
   <header class="control-header">
     <div class="header-left">
       <div class="app-logo" onclick="openListModal()" title="シナリオ一覧を表示">
-        <span>📂</span> <span>一覧</span>
+        <span>📂</span> <span class="app-logo-label">一覧</span>
       </div>
       <div class="mode-tabs">
         <button type="button" class="mode-tab" data-target-mode="write"
@@ -3077,13 +3293,16 @@
       <!-- タイトルの続き（サムネイル・概要など）を書く入口なので、タイトル欄の隣に置く。
            下部パネルは幅が尽きているため置かない（docs/07_操作の入口設計書.html §3.2） -->
       <button type="button" class="btn btn-header-sub" onclick="openBasicInfoModal()"
-              title="シナリオ基本情報（タイトル・サムネイル・概要・難易度など）">📘 <span class="header-btn-label">基本情報</span></button>
+              title="シナリオ基本情報（タイトル・サムネイル・概要・難易度など）">📘 <span class="header-btn-label header-btn-label-sub">基本情報</span></button>
+      <!-- 巻末（FAQ・あとがき・権利表記）も「シナリオに付ける資料」の入口なので、基本情報（表紙）の隣に並べる。
+           ヘッダーの幅を増やさないよう、巻末に出るものは1つのボタン（開いた画面のタブ）にまとめる（docs/09_巻末設計書.html §4） -->
+      <button type="button" class="btn btn-header-sub" onclick="openBackMatterModal()"
+              title="巻末（FAQ・あとがき・権利表記。台本の最後に出る）">📕 <span class="header-btn-label header-btn-label-sub">巻末</span></button>
       <span class="save-status" id="save-status">✓ 自動保存有効</span>
     </div>
     <div class="header-actions">
-      <!-- 狭い画面（1100px以下）では名前を消してアイコンだけにする。名前は title で補う -->
-      <!-- ショートカット設定は名前が最も長く、使う頻度は最も低い（コマンドパレットからも開ける）。
-           タイトル欄に幅を譲るため、ほかより先（1400px以下）にアイコンだけにする -->
+      <!-- 幅が足りないときは名前を消してアイコンだけにする（fitHeader()）。名前は title で補う。
+           ショートカット設定は名前が最も長く、使う頻度は最も低い（コマンドパレットからも開ける）ので、最初に名前を消す -->
       <button class="btn" onclick="openShortcutModal()" title="ショートカット設定">⌨️ <span class="header-btn-label header-btn-label-wide">ショートカット設定</span></button>
       <button class="btn btn-primary" id="btn-save" onclick="saveScenarioToStore()" title="保存">💾 <span class="header-btn-label">保存</span></button>
       <button class="btn" onclick="triggerPrint()" title="PDF出力">🖨 <span class="header-btn-label">PDF出力</span></button>
@@ -3431,6 +3650,53 @@
         <div class="bi-add-row">
           <button type="button" class="btn" onclick="addBasicInfoItem('section')">＋ 見出しと本文</button>
           <button type="button" class="btn" onclick="addBasicInfoItem('level')">＋ レベル</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 📕 巻末モーダル（台本の末尾に出るもの：FAQ → あとがきなどの節 → 権利表記）。タブで切り替える。
+       一覧は renderFaqList() / renderBackSections() が組み立て、
+       操作は #faq-list / #bm-sections への委譲で受ける（initFaqModal / initBackMatterModal） -->
+  <div id="backmatter-modal" class="modal">
+    <div class="modal-content modal-content-backmatter">
+      <div class="modal-header">
+        <h3>📕 巻末</h3>
+        <button class="btn-close" onclick="closeBackMatterModal()" aria-label="閉じる">&times;</button>
+      </div>
+      <div class="modal-tabs backmatter-tabs" role="tablist" aria-label="巻末の項目" onkeydown="onBackMatterTabKeydown(event)">
+        <button type="button" class="modal-tab" role="tab" id="bm-tab-faq" data-tab="faq"
+                aria-controls="bm-panel-faq" onclick="setBackMatterTab('faq')">FAQ</button>
+        <button type="button" class="modal-tab" role="tab" id="bm-tab-after" data-tab="after"
+                aria-controls="bm-panel-after" onclick="setBackMatterTab('after')">あとがき・権利表記</button>
+      </div>
+      <div class="modal-body backmatter-body">
+        <div class="backmatter-panel" role="tabpanel" id="bm-panel-faq" data-tab="faq" aria-labelledby="bm-tab-faq">
+          <p class="faq-lead">質問と回答の組を登録します。台本（プレビューとPDF）の<strong>本文の後ろに「FAQ」としてまとめて</strong>出ます。質問と回答には文字色の記法と改行が使えます。</p>
+          <div id="faq-list" class="faq-list"></div>
+          <div>
+            <button type="button" class="btn" onclick="addFaq()">＋ Q&amp;Aを追加</button>
+          </div>
+        </div>
+        <div class="backmatter-panel" role="tabpanel" id="bm-panel-after" data-tab="after" aria-labelledby="bm-tab-after">
+          <p class="faq-lead">あとがき・謝辞・クレジットなどを、見出しと本文の組で書きます。台本の<strong>FAQの後ろ</strong>に出ます。</p>
+          <div id="bm-sections" class="faq-list"></div>
+          <div class="bm-add-row">
+            <button type="button" class="btn" onclick="addBackSection('')">＋ 見出しと本文</button>
+            <!-- 見出しを入れた状態で足す近道。見出しは後から自由に変えられる -->
+            <span class="bm-presets-label">よく使う見出し</span>
+            <button type="button" class="btn btn-small" onclick="addBackSection('あとがき')">あとがき</button>
+            <button type="button" class="btn btn-small" onclick="addBackSection('謝辞')">謝辞</button>
+            <button type="button" class="btn btn-small" onclick="addBackSection('クレジット')">クレジット</button>
+            <button type="button" class="btn btn-small" onclick="addBackSection('更新履歴')">更新履歴</button>
+          </div>
+          <div class="form-group bm-rights">
+            <label class="form-label" for="bm-rights">権利表記</label>
+            <textarea id="bm-rights" class="form-input bm-rights-input" oninput="setBackMatterRights(this.value)"
+                      placeholder="使ったゲームシステムや素材の権利表記"></textarea>
+            <!-- 定型文は持たない。公式の文面は改訂されうるので、アプリに古い文面を残さない（docs/09_巻末設計書.html §5） -->
+            <div class="npc-add-hint">台本の一番最後に、小さめの文字で出ます。ゲームシステムや素材の権利表記は、それぞれの公式ガイドラインにある文面をそのまま貼ってください。</div>
+          </div>
         </div>
       </div>
     </div>
@@ -3911,6 +4177,11 @@
     // シナリオの基本情報（2026-10-05）。{ thumbnailId, thumbnailUrl, items }。形は normalizeBasicInfo() が保証する。
     // タイトルはここに持たず、従来どおりヘッダーの欄（scenarioTitle）が持つ（docs/08_シナリオ基本情報設計書.html §3）
     let currentBasicInfo = emptyBasicInfo();
+    // 巻末（2026-10-05）。台本の最後に「FAQ → あとがきなどの節 → 権利表記」の順で出す（docs/09_巻末設計書.html）。
+    // FAQ: [{ id, question, answer }]（normalizeFaqList()）
+    // それ以外: { sections: [{ id, heading, body }], rights }（normalizeBackMatter()）
+    let currentFaqs = [];
+    let currentBackMatter = emptyBackMatter();
     let selectedSceneId = null; // 選択中の場面カード ID
     let isSaving = false;
     let debounceTimer;
@@ -4012,6 +4283,17 @@
         desc: 'タイトル・サムネイル・概要・難易度などを編集する（プレビューとPDFの先頭に出る）',
         keywords: 'きほんじょうほう しなりおじょうほう ひょうし さむねいる がいよう なんいど れべる cover',
         key: withAlt('b'), inSceneMode: true, run: () => openBasicInfoModal() },
+      // 巻末（台本の最後に出るもの）。基本情報と同じく頻度が低く、パネルには幅が無いので
+      // ヘッダー（基本情報の隣）の「📕 巻末」から開く。ここの2行は、その画面をどちらのタブで開くかの違い。
+      // Alt+F はブラウザのメニューと重なるので、FAQ は Alt+A（Answer）にした
+      { id: 'faq', group: 'data', icon: '❓', name: 'FAQ', short: 'FAQ', panel: false,
+        desc: 'シナリオのQ&A（質問と回答）を編集する（本文の後ろに出る）',
+        keywords: 'えふえーきゅー よくあるしつもん しつもん かいとう きゅーあんどえー かんまつ qa q&a faq',
+        key: withAlt('a'), inSceneMode: true, run: () => openBackMatterModal('faq') },
+      { id: 'afterword', group: 'data', icon: '📕', name: 'あとがき・権利表記', short: '巻末', panel: false,
+        desc: 'あとがき・謝辞・クレジットなどと、権利表記を編集する（台本の最後に出る）',
+        keywords: 'あとがき けんりひょうき しゃじ くれじっと こうしんりれき かんまつ ちょさくけん copyright credit',
+        key: null, inSceneMode: true, run: () => openBackMatterModal('after') },
 
       // ここから下はパネルに出さない（ヘッダーにボタンがある、または画面の操作）
       { id: 'palette', group: 'app', icon: '🔎', name: 'すべての操作', panel: false,
@@ -4088,6 +4370,7 @@
     let speechModal, speechInput, speechList, speechNote;
     let infoModal, infoInput, infoList, infoDrawer, infoDrawerList;
     let basicInfoModal, basicInfoItemsBox;
+    let backMatterModal, faqListBox, backSectionsBox;
 
     // === データ永続化層 ===
     //
@@ -4522,6 +4805,38 @@
         }));
     }
 
+    // FAQの正規化。保存・読込・書き出し・読み込み・移行・作業状態の復元のすべての入口をここに通す。
+    // この機能より前のシナリオには faqs が無いので、空の一覧に均す。
+    function normalizeFaqList(list) {
+      if (!Array.isArray(list)) return [];
+      return list
+        .filter(x => x && typeof x === 'object')
+        .map(x => ({
+          id: typeof x.id === 'string' && x.id ? x.id : generateUUID(),
+          question: typeof x.question === 'string' ? x.question : '',
+          answer: typeof x.answer === 'string' ? x.answer : ''
+        }));
+    }
+
+    // 巻末のFAQ以外（あとがきなどの節と権利表記）。入口は normalizeFaqList() と同じ
+    function emptyBackMatter() {
+      return { sections: [], rights: '' };
+    }
+
+    function normalizeBackMatter(raw) {
+      const src = (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+      return {
+        sections: (Array.isArray(src.sections) ? src.sections : [])
+          .filter(x => x && typeof x === 'object')
+          .map(x => ({
+            id: typeof x.id === 'string' && x.id ? x.id : generateUUID(),
+            heading: typeof x.heading === 'string' ? x.heading : '',
+            body: typeof x.body === 'string' ? x.body : ''
+          })),
+        rights: typeof src.rights === 'string' ? src.rights : ''
+      };
+    }
+
     // === シナリオの基本情報（2026-10-05） ===
     //
     // 項目（items）は2種類の組を好きな順に並べる（docs/08_シナリオ基本情報設計書.html §2）。
@@ -4769,12 +5084,14 @@
             scenes: normalizeSceneGraph(sc.scenes),
             // infos も同じ（2026-10-05 より前のシナリオには無い）
             infos: normalizeInfoList(sc.infos),
-            basicInfo: basicInfo
+            basicInfo: basicInfo,
+            faqs: normalizeFaqList(sc.faqs),
+            backMatter: normalizeBackMatter(sc.backMatter)
           }));
         });
       },
 
-      saveScenario(id, title, content, npcsData = [], systemId, scenesData, infosData, basicInfoData) {
+      saveScenario(id, title, content, npcsData = [], systemId, scenesData, infosData, basicInfoData, faqsData, backMatterData) {
         const now = new Date().toISOString();
         return idbPut(STORE_SCENARIOS, {
           id: id,
@@ -4785,6 +5102,8 @@
           scenes: normalizeSceneGraph(scenesData),
           infos: normalizeInfoList(infosData),
           basicInfo: stripBasicInfoUrl(basicInfoData),
+          faqs: normalizeFaqList(faqsData),
+          backMatter: normalizeBackMatter(backMatterData),
           updated_at: now
         }).then(() => ({ success: true, updated_at: now }));
       },
@@ -4832,6 +5151,8 @@
               infos: normalizeInfoList(s.infos),
               // サムネイルは立ち絵と同じく data URL に戻して書き出す
               basicInfo: await basicInfoWithDataUrl(s.basicInfo),
+              faqs: normalizeFaqList(s.faqs),
+              backMatter: normalizeBackMatter(s.backMatter),
               updated_at: s.updated_at
             });
           }
@@ -4870,6 +5191,8 @@
             scenes: normalizeSceneGraph(s && s.scenes),
             infos: normalizeInfoList(s && s.infos),
             basicInfo: await storeThumbnailFromDataUrl(normalizeBasicInfo(s && s.basicInfo), avatarCache),
+            faqs: normalizeFaqList(s && s.faqs),
+            backMatter: normalizeBackMatter(s && s.backMatter),
             updated_at: (s && s.updated_at) ? s.updated_at : new Date().toISOString()
           });
         }
@@ -4938,6 +5261,8 @@
           scenes: normalizeSceneGraph(s && s.scenes),
           infos: normalizeInfoList(s && s.infos),
           basicInfo: await storeThumbnailFromDataUrl(normalizeBasicInfo(s && s.basicInfo), avatarCache),
+          faqs: normalizeFaqList(s && s.faqs),
+          backMatter: normalizeBackMatter(s && s.backMatter),
           updated_at: (s && s.updated_at) || new Date().toISOString()
         });
       }
@@ -5013,6 +5338,9 @@
         infoDrawerList = document.getElementById('info-drawer-list');
         basicInfoModal = document.getElementById('basic-info-modal');
         basicInfoItemsBox = document.getElementById('bi-items');
+        backMatterModal = document.getElementById('backmatter-modal');
+        faqListBox = document.getElementById('faq-list');
+        backSectionsBox = document.getElementById('bm-sections');
 
         // ヘッダーのバージョン表記は RELEASE_NOTES の先頭から描く
         renderVersionTag();
@@ -5044,6 +5372,8 @@
             currentScenes = normalizeSceneGraph(ws.scenes);
             currentInfos = normalizeInfoList(ws.infos);
             currentBasicInfo = normalizeBasicInfo(ws.basicInfo);
+            currentFaqs = normalizeFaqList(ws.faqs);
+            currentBackMatter = normalizeBackMatter(ws.backMatter);
             await attachAvatarUrls(currentNpcs);
             await attachThumbnailUrl(currentBasicInfo);
           }
@@ -5133,6 +5463,9 @@
         initSpeechModal();
         initInfoFeature();
         initBasicInfoModal();
+        initFaqModal();
+        initBackMatterModal();
+        initHeaderFit();
         renderAssistantPanel();
         window.addEventListener('keydown', handleGlobalKeydown);
       } catch (e) {
@@ -5168,7 +5501,9 @@
         scenes: currentScenes,
         infos: currentInfos,
         // サムネイルも avatars ストアに既にあるので thumbnailId だけを書く
-        basicInfo: stripBasicInfoUrl(currentBasicInfo)
+        basicInfo: stripBasicInfoUrl(currentBasicInfo),
+        faqs: currentFaqs,
+        backMatter: currentBackMatter
       };
 
       // 自動保存も容量上限に当たりうる。入力のたびに走る処理なので
@@ -5187,8 +5522,10 @@
     function updatePreview() {
       if (!previewArea || !editor) return;
       const markdownText = editor.value;
-      // 先頭にシナリオの基本情報（表紙）を置く。本文の記法とは別の入口で書くので、parseMarkdown() には混ぜない
-      previewArea.innerHTML = buildScenarioCoverHTML() + parseMarkdown(markdownText);
+      // 先頭にシナリオの基本情報（表紙）、末尾に巻末（FAQ → あとがきなど → 権利表記）を置く。
+      // どれも本文の記法とは別の入口で書くので、parseMarkdown() には混ぜない
+      previewArea.innerHTML = buildScenarioCoverHTML() + parseMarkdown(markdownText)
+        + buildFaqSectionHTML() + buildBackMatterHTML();
       // 情報一覧は本文の参照（どの場面で使っているか）から組み立てるので、本文が変わったら追従させる
       refreshInfoDrawer();
     }
@@ -5230,7 +5567,7 @@
       const title = scenarioTitle.value || '無題のシナリオ';
       const content = editor.value;
 
-      API.saveScenario(currentScenarioId, title, content, currentNpcs, currentSystemId, currentScenes, currentInfos, currentBasicInfo)
+      API.saveScenario(currentScenarioId, title, content, currentNpcs, currentSystemId, currentScenes, currentInfos, currentBasicInfo, currentFaqs, currentBackMatter)
         .then(res => {
           const now = new Date(res.updated_at);
           const timeStr = now.toTimeString().split(' ')[0].substring(0, 5);
@@ -5390,7 +5727,8 @@
       'palette-modal': () => closeCommandPalette(),
       'speech-modal': () => closeSpeechModal(),
       'info-modal': () => closeInfoModal(),
-      'basic-info-modal': () => closeBasicInfoModal()
+      'basic-info-modal': () => closeBasicInfoModal(),
+      'backmatter-modal': () => closeBackMatterModal()
     };
 
     function closeModalElement(el) {
@@ -5528,6 +5866,8 @@
       currentInfos = [];
       releaseObjectUrl(currentBasicInfo.thumbnailUrl);
       currentBasicInfo = emptyBasicInfo();
+      currentFaqs = [];
+      currentBackMatter = emptyBackMatter();
 
       applySystemToUI();
       saveToLocal();
@@ -5543,6 +5883,8 @@
 
       const badge = document.getElementById('system-badge');
       if (badge) badge.innerText = sys.short;
+      // システム名の長さでヘッダーの収まり方が変わる
+      fitHeader();
 
       // 判定する技能名の例示。技能の呼び方がシステムで違うため定義から引く
       const rollSkillInput = document.getElementById('roll-skill-name');
@@ -5743,6 +6085,8 @@
           currentInfos = res.infos || [];
           releaseObjectUrl(currentBasicInfo.thumbnailUrl); // 前のシナリオのサムネイルの表示用URLを捨てる
           currentBasicInfo = res.basicInfo || emptyBasicInfo();
+          currentFaqs = res.faqs || [];
+          currentBackMatter = res.backMatter || emptyBackMatter();
 
           // 読み込んだシナリオのシステムに画面を合わせる
           applySystemToUI();
@@ -5778,6 +6122,8 @@
             currentInfos = [];
             releaseObjectUrl(currentBasicInfo.thumbnailUrl);
             currentBasicInfo = emptyBasicInfo();
+            currentFaqs = [];
+            currentBackMatter = emptyBackMatter();
             saveToLocal();
             updatePreview();
           }
@@ -9351,13 +9697,14 @@ ${parseRollResultLines(lines, 1)}            </div>
         : basicSectionEditorHTML(it, i, items.length)).join('');
     }
 
-    // ↑ ↓ と削除。端では押せないようにする
-    function basicToolsHTML(id, index, length, removeIcon) {
-      const eid = escapeHTML(id);
-      return `<div class="bi-tools">`
-        + `<button type="button" class="bi-tool" data-bi-act="up" data-bi-id="${eid}" title="上へ" aria-label="上へ"${index === 0 ? ' disabled' : ''}>↑</button>`
-        + `<button type="button" class="bi-tool" data-bi-act="down" data-bi-id="${eid}" title="下へ" aria-label="下へ"${index === length - 1 ? ' disabled' : ''}>↓</button>`
-        + `<button type="button" class="bi-tool bi-tool-remove" data-bi-act="remove" data-bi-id="${eid}" title="削除" aria-label="削除">${removeIcon}</button>`
+    // ↑ ↓ と削除。端では押せないようにする。基本情報と巻末（FAQ・あとがきなど）で共用する。
+    // prefix は data 属性の名前（'bi' なら data-bi-act / data-bi-id）。画面ごとに委譲の受け口が別なので分けている
+    function entryToolsHTML(prefix, id, index, length, removeIcon) {
+      const attrs = act => `data-${prefix}-act="${act}" data-${prefix}-id="${escapeHTML(id)}"`;
+      return `<div class="entry-tools">`
+        + `<button type="button" class="entry-tool" ${attrs('up')} title="上へ" aria-label="上へ"${index === 0 ? ' disabled' : ''}>↑</button>`
+        + `<button type="button" class="entry-tool" ${attrs('down')} title="下へ" aria-label="下へ"${index === length - 1 ? ' disabled' : ''}>↓</button>`
+        + `<button type="button" class="entry-tool entry-tool-remove" ${attrs('remove')} title="削除" aria-label="削除">${removeIcon}</button>`
         + `</div>`;
     }
 
@@ -9368,14 +9715,14 @@ ${parseRollResultLines(lines, 1)}            </div>
         : `<div class="bi-block">`
           + `<textarea class="form-input bi-text" data-bi-field="body" data-bi-id="${escapeHTML(b.id)}"`
           + ` placeholder="本文" aria-label="本文">${escapeHTML(b.body)}</textarea>`
-          + basicToolsHTML(b.id, j, sec.blocks.length, '×')
+          + entryToolsHTML('bi', b.id, j, sec.blocks.length, '×')
           + `</div>`).join('');
       return `<div class="bi-card">`
         + `<div class="bi-card-head">`
         + `<span class="bi-kind">見出し</span>`
         + `<input type="text" class="form-input bi-heading" data-bi-field="heading" data-bi-id="${eid}"`
         + ` value="${escapeHTML(sec.heading)}" placeholder="見出し（例: 概要・プレイ人数・推奨技能）" aria-label="見出し">`
-        + basicToolsHTML(sec.id, index, length, '🗑')
+        + entryToolsHTML('bi', sec.id, index, length, '🗑')
         + `</div>`
         + (blocks ? `<div class="bi-blocks">${blocks}</div>` : '')
         + `<div class="bi-card-add">`
@@ -9402,7 +9749,7 @@ ${parseRollResultLines(lines, 1)}            </div>
         + `<label class="bi-level-opt">段階<select class="form-input bi-select" data-bi-field="max" data-bi-id="${eid}">${maxOptions}</select></label>`
         + `<label class="bi-level-opt">記号<select class="form-input bi-select" data-bi-field="symbol" data-bi-id="${eid}">${symbolOptions}</select></label>`
         + `</div>`
-        + basicToolsHTML(lv.id, index, length, removeIcon);
+        + entryToolsHTML('bi', lv.id, index, length, removeIcon);
     }
 
     function basicLevelStarsHTML(lv) {
@@ -9415,6 +9762,258 @@ ${parseRollResultLines(lines, 1)}            </div>
           + ` style="--level-color: ${sym.color};" aria-label="${n}にする" aria-pressed="${on}">${on ? sym.on : sym.off}</button>`;
       }
       return html + `<span class="bi-star-count">${lv.value} / ${lv.max}</span>`;
+    }
+
+    // === 巻末（FAQ・あとがきなど・権利表記） ===
+    //
+    // 台本の最後に「FAQ → あとがきなどの節 → 権利表記」の順で出す（docs/09_巻末設計書.html）。
+    // どれも、書いてあるものだけを出し、何も無ければ出さない。
+
+    // FAQ。1件も無ければ節ごと出さない
+    function buildFaqSectionHTML() {
+      const items = currentFaqs.filter(f => f.question.trim() || f.answer.trim());
+      if (!items.length) return '';
+      // 印の丸と文を flex で並べるので、文は内側の要素で1段包む（文字色の <span> で文が割れないように。記法設計書 §3.5）
+      const row = (kind, mark, text) => `<div class="faq-row faq-${kind}"><span class="faq-mark">${mark}</span>`
+        + `<div class="faq-text">${text ? renderInline(text) : '<span class="faq-empty">（未入力）</span>'}</div></div>`;
+      return `\n<section class="scenario-faq">`
+        + `<h2 class="appendix-heading">FAQ</h2>`
+        + items.map(f => `<div class="faq-item">`
+            + row('q', 'Q', f.question.trim())
+            + row('a', 'A', f.answer.trim())
+            + `</div>`).join('')
+        + `</section>\n`;
+    }
+
+    // あとがきなどの節と、権利表記（一番最後）
+    function buildBackMatterHTML() {
+      const bm = currentBackMatter;
+      let html = bm.sections.map(sec => {
+        const heading = sec.heading.trim();
+        const body = sec.body.trim();
+        if (!heading && !body) return '';
+        return `<section class="backmatter-section">`
+          + (heading ? `<h2 class="appendix-heading">${escapeHTML(heading)}</h2>` : '')
+          + (body ? `<div class="backmatter-text">${renderInline(body)}</div>` : '')
+          + `</section>`;
+      }).join('');
+      const rights = bm.rights.trim();
+      if (rights) html += `<footer class="scenario-rights">${renderInline(rights)}</footer>`;
+      return html ? `\n<div class="scenario-backmatter">${html}</div>\n` : '';
+    }
+
+    // === 巻末：編集画面 ===
+    //
+    // FAQ と「あとがき・権利表記」をタブで切り替える1つの画面。ヘッダーのボタンを増やさないためにまとめた。
+    // 一覧は追加・削除・並べ替えのときだけ作り直し、文字の入力は値を書き換えるだけにする
+    // （作り直すとフォーカスと入力途中の文字が失われる。基本情報・NPCのメモと同じ）。
+    let backMatterTab = 'faq'; // 前に開いていたタブ。ヘッダーのボタンからはこのタブで開く
+
+    // tab を渡せばそのタブで開く（コマンドパレット・ショートカットから）。省略すると前に開いていたタブ
+    function openBackMatterModal(tab) {
+      if (!backMatterModal) return;
+      if (tab) backMatterTab = tab;
+      renderFaqList();
+      renderBackSections();
+      const rights = document.getElementById('bm-rights');
+      if (rights) rights.value = currentBackMatter.rights;
+      setBackMatterTab(backMatterTab);
+      backMatterModal.classList.add('active');
+    }
+
+    function closeBackMatterModal() {
+      if (backMatterModal) backMatterModal.classList.remove('active');
+      saveToLocal();
+      updatePreview();
+    }
+
+    function setBackMatterTab(tab) {
+      backMatterTab = tab;
+      if (!backMatterModal) return;
+      backMatterModal.querySelectorAll('.modal-tab').forEach(btn => {
+        const on = btn.dataset.tab === tab;
+        btn.classList.toggle('active', on);
+        btn.setAttribute('aria-selected', on ? 'true' : 'false');
+        btn.tabIndex = on ? 0 : -1;
+      });
+      backMatterModal.querySelectorAll('.backmatter-panel').forEach(panel => {
+        panel.classList.toggle('active', panel.dataset.tab === tab);
+      });
+      const body = backMatterModal.querySelector('.backmatter-body');
+      if (body) body.scrollTop = 0;
+    }
+
+    // タブにフォーカスがあるとき、左右の矢印キーで隣のタブへ移る（NPC管理のタブと同じ）
+    function onBackMatterTabKeydown(e) {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      const btns = Array.from(backMatterModal.querySelectorAll('.modal-tab'));
+      const i = btns.findIndex(b => b.dataset.tab === backMatterTab);
+      if (i < 0) return;
+      const next = btns[(i + (e.key === 'ArrowRight' ? 1 : -1) + btns.length) % btns.length];
+      e.preventDefault();
+      setBackMatterTab(next.dataset.tab);
+      next.focus();
+    }
+
+    // --- 一覧の操作（FAQ・あとがきなどの節で共用） ---
+
+    // list の中の id を dir（-1 上 / 1 下）へ1つ動かす。動かせなければ false
+    function moveListEntry(list, id, dir) {
+      const i = list.findIndex(x => x.id === id);
+      const to = i + dir;
+      if (i < 0 || to < 0 || to >= list.length) return false;
+      const [item] = list.splice(i, 1);
+      list.splice(to, 0, item);
+      return true;
+    }
+
+    // 作り直した一覧で、押したボタンにフォーカスを戻す（続けて同じ向きへ動かせるように）。
+    // 端に着いて押せなくなったら、反対向きのボタンへ
+    function focusMovedTool(box, prefix, id, dir) {
+      const sel = act => `[data-${prefix}-act="${act}"][data-${prefix}-id="${CSS.escape(id)}"]`;
+      const btn = box.querySelector(sel(dir < 0 ? 'up' : 'down') + ':not(:disabled)')
+        || box.querySelector(sel(dir < 0 ? 'down' : 'up'));
+      if (btn) btn.focus();
+    }
+
+    function focusListField(box, prefix, id, field) {
+      const el = box && box.querySelector(`[data-${prefix}-field="${field}"][data-${prefix}-id="${CSS.escape(id)}"]`);
+      if (el) {
+        el.focus();
+        el.scrollIntoView({ block: 'nearest' });
+      }
+    }
+
+    // ↑ ↓ と削除のボタンを委譲で受け、文字の入力は値を書き換えるだけにする
+    function bindListEditor(box, prefix, list, handlers) {
+      const camel = prefix.replace(/-(\w)/g, (_, c) => c.toUpperCase());
+      box.addEventListener('click', e => {
+        const btn = e.target.closest(`[data-${prefix}-act]`);
+        if (!btn) return;
+        const id = btn.dataset[camel + 'Id'];
+        const act = btn.dataset[camel + 'Act'];
+        if (act === 'up' || act === 'down') {
+          const dir = act === 'up' ? -1 : 1;
+          if (!moveListEntry(list(), id, dir)) return;
+          handlers.render();
+          focusMovedTool(box, prefix, id, dir);
+          handleInput();
+        } else if (act === 'remove') {
+          const items = list();
+          const i = items.findIndex(x => x.id === id);
+          if (i < 0) return;
+          // 書きかけを誤って消さないよう、中身のあるものだけ確認する（空のものは黙って消す）
+          const name = handlers.label(items[i]);
+          if (name && !confirm(`${name}を削除しますか？`)) return;
+          items.splice(i, 1);
+          handlers.render();
+          handleInput();
+        }
+      });
+      box.addEventListener('input', e => {
+        const el = e.target;
+        const field = el.dataset && el.dataset[camel + 'Field'];
+        if (!field) return;
+        const item = list().find(x => x.id === el.dataset[camel + 'Id']);
+        if (!item) return;
+        item[field] = el.value;
+        handleInput();
+      });
+    }
+
+    // 削除の確認に出す名前。中身が無ければ空文字（確認せずに消す）
+    function firstLine(text, max) {
+      return String(text || '').trim().split('\n')[0].substring(0, max);
+    }
+
+    // --- FAQ ---
+
+    function addFaq() {
+      const faq = { id: generateUUID(), question: '', answer: '' };
+      currentFaqs.push(faq);
+      renderFaqList();
+      // 追加した質問の欄から打ち始められるようにする
+      focusListField(faqListBox, 'faq', faq.id, 'question');
+      handleInput();
+    }
+
+    function renderFaqList() {
+      if (!faqListBox) return;
+      if (!currentFaqs.length) {
+        faqListBox.innerHTML = '<div class="npc-entry-empty">まだQ&amp;Aがありません。'
+          + '「＋ Q&amp;Aを追加」から、遊ぶ人・回す人から出そうな質問と、その回答を書けます。</div>';
+        return;
+      }
+      faqListBox.innerHTML = currentFaqs.map((f, i) => {
+        const eid = escapeHTML(f.id);
+        return `<div class="faq-card">`
+          + `<span class="faq-edit-mark faq-edit-mark-q" aria-hidden="true">Q</span>`
+          + `<textarea class="form-input faq-input faq-input-q" data-faq-field="question" data-faq-id="${eid}" rows="1"`
+          + ` placeholder="質問（例: 探索者が〇〇した場合はどうなりますか？）" aria-label="質問">${escapeHTML(f.question)}</textarea>`
+          + entryToolsHTML('faq', f.id, i, currentFaqs.length, '🗑')
+          + `<span class="faq-edit-mark faq-edit-mark-a" aria-hidden="true">A</span>`
+          + `<textarea class="form-input faq-input faq-input-a" data-faq-field="answer" data-faq-id="${eid}"`
+          + ` placeholder="回答" aria-label="回答">${escapeHTML(f.answer)}</textarea>`
+          + `</div>`;
+      }).join('');
+    }
+
+    function initFaqModal() {
+      if (!faqListBox) return;
+      bindListEditor(faqListBox, 'faq', () => currentFaqs, {
+        render: renderFaqList,
+        label: f => {
+          const name = firstLine(f.question, 30) || firstLine(f.answer, 30);
+          return name ? 'Q&A「' + name + '」' : '';
+        }
+      });
+    }
+
+    // --- あとがきなどの節と権利表記 ---
+
+    // heading を渡すと、その見出しを入れた状態で足す（「あとがき」などの近道）。
+    // 見出しが入っていれば本文から、空なら見出しから打ち始める
+    function addBackSection(heading) {
+      const sec = { id: generateUUID(), heading: heading || '', body: '' };
+      currentBackMatter.sections.push(sec);
+      renderBackSections();
+      focusListField(backSectionsBox, 'bm', sec.id, sec.heading ? 'body' : 'heading');
+      handleInput();
+    }
+
+    function setBackMatterRights(value) {
+      currentBackMatter.rights = value;
+      handleInput();
+    }
+
+    function renderBackSections() {
+      if (!backSectionsBox) return;
+      const sections = currentBackMatter.sections;
+      if (!sections.length) {
+        backSectionsBox.innerHTML = '<div class="npc-entry-empty">まだありません。下のボタンから、あとがき・謝辞・クレジットなどを足せます。</div>';
+        return;
+      }
+      backSectionsBox.innerHTML = sections.map((sec, i) => {
+        const eid = escapeHTML(sec.id);
+        return `<div class="bm-card">`
+          + `<input type="text" class="form-input bm-heading" data-bm-field="heading" data-bm-id="${eid}"`
+          + ` value="${escapeHTML(sec.heading)}" placeholder="見出し（例: あとがき）" aria-label="見出し">`
+          + entryToolsHTML('bm', sec.id, i, sections.length, '🗑')
+          + `<textarea class="form-input bm-body" data-bm-field="body" data-bm-id="${eid}"`
+          + ` placeholder="本文" aria-label="本文">${escapeHTML(sec.body)}</textarea>`
+          + `</div>`;
+      }).join('');
+    }
+
+    function initBackMatterModal() {
+      if (!backSectionsBox) return;
+      bindListEditor(backSectionsBox, 'bm', () => currentBackMatter.sections, {
+        render: renderBackSections,
+        label: sec => {
+          const name = firstLine(sec.heading, 30) || firstLine(sec.body, 30);
+          return name ? '「' + name + '」' : '';
+        }
+      });
     }
 
     // === ショートカットキーのロード ===
@@ -9563,6 +10162,40 @@ ${parseRollResultLines(lines, 1)}            </div>
         + `</button>`;
       panel.innerHTML = html;
       fitAssistantPanel();
+    }
+
+    // === ヘッダーの詰め方 ===
+    //
+    // パネルと同じく、決め打ちの画面幅ではなく実際に収まるかを測って詰める（docs/07_操作の入口設計書.html §3.6）。
+    // 左側（タイトル欄など）は min-width: 0 で縮むため、はみ出してもヘッダー自体の幅は変わらず、
+    // 右側のボタンの下に潜り込むだけになる。そのため .header-left の中ではみ出していないかを見る。
+    // タイトル欄は最後に縮む部分なので、収まっていても狭すぎる（HEADER_TITLE_COMFORT 未満）なら次の段へ進む。
+    const HEADER_COMPACT_LEVELS = 4;
+    // タイトル欄の幅（枠込み）の下限の目安。170px で全角10文字ほどが見える。
+    // 1280px（タブレット横向き・ノートPCで多い幅）で、執筆/場面図・基本情報/巻末 の名前を残せる値にしてある
+    const HEADER_TITLE_COMFORT = 170;
+
+    function fitHeader() {
+      const header = document.querySelector('header.control-header');
+      if (!header || !header.clientWidth) return;
+      const left = header.querySelector('.header-left');
+      for (let level = 0; level <= HEADER_COMPACT_LEVELS; level++) {
+        for (let k = 1; k <= HEADER_COMPACT_LEVELS; k++) {
+          header.classList.toggle('header-compact-' + k, k <= level);
+        }
+        const fits = left.scrollWidth <= left.clientWidth;
+        const roomy = !scenarioTitle || scenarioTitle.getBoundingClientRect().width >= HEADER_TITLE_COMFORT;
+        if (fits && roomy) return;
+      }
+    }
+
+    function initHeaderFit() {
+      const header = document.querySelector('header.control-header');
+      if (!header) return;
+      if (window.ResizeObserver) new ResizeObserver(() => fitHeader()).observe(header);
+      // Webフォントが届くと文字の幅が変わる（ヘッダーの大きさは変わらないので ResizeObserver では拾えない）
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitHeader);
+      fitHeader();
     }
 
     // 幅が足りないときは、分類名を消し、名前を短くし、さらに余白を詰める。

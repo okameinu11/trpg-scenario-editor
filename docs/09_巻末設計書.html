@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>巻末設計書 | TRPGシナリオ執筆エディタ</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="page">
+
+  <header class="hero">
+    <div class="eyebrow">TRPG SCENARIO EDITOR / 設計</div>
+    <h1>巻末設計書</h1>
+    <p class="lead">
+      台本の最後に置く<strong>巻末</strong>（FAQ・あとがきなどの節・権利表記）を、どんな形で持ち、どの順でどう出すかと、
+      <strong>なぜその形にしたか</strong>を残す。巻末の見た目や入口を変えるときに読むこと。
+    </p>
+  </header>
+
+  <section>
+    <h2>1. 守備範囲</h2>
+    <p>配布されるTRPGシナリオの最後に付くものを、本文とは別の入口で書けるようにする（2026-10-05 の要望）。</p>
+    <table>
+      <thead><tr><th>要素</th><th>内容</th></tr></thead>
+      <tbody>
+        <tr><td>FAQ</td><td>遊ぶ人・回す人から出そうな質問と、その回答の組（「探索者が〇〇した場合は？」など）</td></tr>
+        <tr><td>あとがきなどの節</td><td>見出しと本文の組。あとがき・謝辞・クレジット・更新履歴など、作者によって中身が違う</td></tr>
+        <tr><td>権利表記</td><td>使ったゲームシステムや素材の権利表記。台本の一番最後に1つだけ置く</td></tr>
+      </tbody>
+    </table>
+    <p>
+      FAQはこのアプリ自体の使い方のヘルプではない。要望を受けたときに、どちらの意味かを利用者に確かめて決めた。
+      構成・並び順・入口・定型文の有無も、利用者に選んでもらって決めた（以下の各節）。
+    </p>
+  </section>
+
+  <section>
+    <h2>2. 形</h2>
+<pre><code>faqs: [
+  { id, question: "探索者が洋館から逃げ出した場合は？",
+        answer:   "その時点でエンディング「雨上がり」へ進めてください。" }
+],
+backMatter: {
+  sections: [ { id, heading: "あとがき", body: "…" }, { id, heading: "クレジット", body: "…" } ],
+  rights: "本作は…"
+}</code></pre>
+    <ul>
+      <li>シナリオのレコードに <code>faqs</code> と <code>backMatter</code> として持つ。保存・読込・書き出し・読み込み・移行・作業状態の復元のすべての入口で <code>normalizeFaqList()</code> / <code>normalizeBackMatter()</code> を通す。この機能より前のシナリオには無いので、空に均す。</li>
+      <li>FAQは先に作った機能なので、別の欄（<code>faqs</code>）のまま残した。巻末の画面にまとめたのは入口だけである（§4）。</li>
+      <li>並び順は配列の順。編集画面の ↑ ↓ で並べ替える。</li>
+    </ul>
+    <table>
+      <thead><tr><th>却下した案</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>「あとがき」と「権利表記」の決まった2つの欄だけを持つ</td>
+          <td>謝辞やクレジットを分けて書けない。要望が「あとがきや最後の権利表記<strong>など</strong>」で、決まった欄では足りない。</td>
+        </tr>
+        <tr>
+          <td>権利表記も節の1つにする（見出し「権利表記」の節）</td>
+          <td>「最後に置く」「小さめの文字で出す」が守れない。節を並べ替えると権利表記が途中に来てしまう。</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>3. 台本の最後に、決まった順で出す</h2>
+    <p>
+      <code>updatePreview()</code> が、本文の変換結果の後ろに <code>buildFaqSectionHTML()</code>・<code>buildBackMatterHTML()</code> の順で置く。
+      先頭の表紙（<a href="08_シナリオ基本情報設計書.html">08</a>）と同じく、本文の記法とは別の入口なので <code>parseMarkdown()</code> には混ぜない。
+    </p>
+    <p><strong>本文 → FAQ → あとがきなどの節 → 権利表記</strong>。配布シナリオで多い並びで、権利表記は奥付として一番最後に置く。</p>
+    <table>
+      <thead><tr><th>FAQの置き場所の候補</th><th>判断</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>本文の後ろ</strong>（採用）</td>
+          <td>付録として最後に置かれることが多い。セッション中に「あの質問の答え」を探すときも、場所が決まっていれば迷わない。</td>
+        </tr>
+        <tr>
+          <td>表紙（基本情報）の直後</td>
+          <td>本文に入るまでが長くなる。FAQは本文を読んだ後に参照するものが多い。</td>
+        </tr>
+        <tr>
+          <td>本文の好きな場所に記法で置く</td>
+          <td>FAQとして1か所にまとまらない。場面に結び付いた補足は、既存の <code>[TIPS]</code> や <code>[DL]</code>／<code>[KP]</code> で書ける。</td>
+        </tr>
+      </tbody>
+    </table>
+    <ul>
+      <li>書いてあるものだけを出し、何も無ければ出さない。FAQで質問か回答の片方だけのものは「（未入力）」と薄く出す（書き忘れに気づけるように）。見出しだけの節は見出しだけを出す。</li>
+      <li>FAQと節の見出しはシーン見出しと同じ大きさにして、本文とは別の節に見せる（<code>.appendix-heading</code>）。FAQの Q と A は色の付いた丸で見分ける。</li>
+      <li>権利表記は細い線で区切り、小さめの灰色の文字で出す。改行と文字色の記法はそのまま活かす。</li>
+      <li>文は <code>renderInline()</code> を通す（<a href="04_記法設計書.html">04</a> §4 の順序）。FAQの印の丸と文は flex で並べるので、文は内側の要素で1段包む（04 §3.5）。</li>
+      <li>FAQの1件・権利表記の途中でページが切れないようにし、見出しの直後で改ページしないようにする。</li>
+      <li>プレビューに編集のボタンは置かない（プレビューは台本の紙面。<a href="08_シナリオ基本情報設計書.html">08</a> §5 と同じ理由）。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>4. 編集画面と入口</h2>
+    <p>
+      1つのモーダル「📕 巻末」の中を、<strong>タブで「FAQ」と「あとがき・権利表記」に分ける</strong>。
+      ヘッダーの入口は「📕 巻末」1つだけにした。
+    </p>
+    <table>
+      <thead><tr><th>入口</th><th>開くタブ</th></tr></thead>
+      <tbody>
+        <tr><td>ヘッダーの「📕 巻末」（基本情報の隣）</td><td>前に開いていたタブ（最初はFAQ）</td></tr>
+        <tr><td>コマンドパレットの「FAQ」・Alt+A</td><td>FAQ</td></tr>
+        <tr><td>コマンドパレットの「あとがき・権利表記」</td><td>あとがき・権利表記（既定のキーは無い）</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li>
+        <strong>ボタンを1つにまとめたのは、ヘッダーの幅のため。</strong>
+        もう1つボタンを足すと、1280pxで「執筆／場面図」「基本情報」などの名前が消えてアイコンだけになる（<a href="07_操作の入口設計書.html">07</a> §3.6）。
+        FAQ・あとがき・権利表記は、どれも「台本の最後に出るもの」なので1つの画面にまとめても迷わない。
+        FAQを先に独立した画面（「❓ FAQ」）として作ったが、あとがきを足すときにこの形へ改めた。
+      </li>
+      <li>コマンドパレットの操作 <code>faq</code> の ID は変えていない（ショートカット設定の保存キーなので、変えると割り当てが失われる。07 §6）。</li>
+      <li>下部パネルには置かない（幅が無い。07 §3.2）。既定のキーを Alt+F にしなかったのは、ブラウザ（Chrome・Edge など）がメニューを開くキーだから。A は Answer の頭文字。</li>
+      <li>「あとがき・権利表記」タブには、見出しを入れた状態で節を足す近道（あとがき・謝辞・クレジット・更新履歴）を置く。見出しが入っていれば本文の欄から打ち始める。</li>
+      <li>一覧は追加・削除・並べ替えのときだけ作り直し、文字の入力は値を書き換えるだけにする（作り直すとフォーカスと入力途中の文字が失われる）。並べ替え・削除・入力の受け方はFAQと節で共用する（<code>bindListEditor()</code>）。中身のあるものを消すときだけ確認する。</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>5. 権利表記の定型文は持たない</h2>
+    <p>
+      エモクロアTRPG・クトゥルフ神話TRPGには、二次創作の権利表記の文面を定めた公式のガイドラインがある。
+      その文面をアプリに持たせて挿入できるようにする案もあったが、<strong>持たせないことにした</strong>（利用者が選んだ）。
+    </p>
+    <ul>
+      <li>公式の文面は改訂されうる。アプリに持たせると、改訂に追従しない限り古い文面を挿入させることになり、権利表記として誤りになる。</li>
+      <li>ローカルの参考資料（<code>knowledge/</code>）にも公式の文面は無く、確かめられない文面を載せられない。</li>
+    </ul>
+    <p>代わりに、入力欄の説明で「公式ガイドラインにある文面をそのまま貼る」ことを案内している。</p>
+  </section>
+
+  <section>
+    <h2>6. 将来拡張の入り口</h2>
+    <table>
+      <thead><tr><th>やりたいこと</th><th>変える場所</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>FAQを分類ごとにまとめる</td>
+          <td><code>normalizeFaqList()</code> に分類の欄を足し、<code>buildFaqSectionHTML()</code> で分類ごとに小見出しを付ける</td>
+        </tr>
+        <tr>
+          <td>FAQの見出しの文言（「FAQ」「Q&amp;A」「よくある質問」）を選べるようにする</td>
+          <td>シナリオに見出しの文字列を持たせ、<code>buildFaqSectionHTML()</code> の見出しをそれに替える</td>
+        </tr>
+        <tr>
+          <td>FAQと節の並び順を入れ替えられるようにする</td>
+          <td><code>updatePreview()</code> の連結の順を、設定で切り替える</td>
+        </tr>
+        <tr>
+          <td>巻末を独立したページにする</td>
+          <td>印刷用CSSで <code>.scenario-faq</code>（無ければ <code>.scenario-backmatter</code>）に <code>break-before: page</code> を付ける</td>
+        </tr>
+        <tr>
+          <td>権利表記の定型文を挿入できるようにする</td>
+          <td>§5 の判断を見直すこと。持たせるなら、文面の出典と確認した日付を一緒に残し、改訂を追う手順を決めてから</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <nav class="pagenav">
+    <a href="00_INDEX.html">← 目次</a>
+    <a href="08_シナリオ基本情報設計書.html">シナリオ基本情報設計書 →</a>
+  </nav>
+
+  <footer class="pagefoot">
+    最終更新: 2026-10-05（新規作成。FAQ・あとがきなどの節・権利表記の形、台本の最後に出す順、1つの画面にまとめた入口、定型文を持たない理由を記述）
+  </footer>
+
+</div>
+</body>
+</html>

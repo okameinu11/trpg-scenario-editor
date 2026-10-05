@@ -122,7 +122,7 @@
       <thead><tr><th>データ</th><th>置き場所</th><th>理由</th></tr></thead>
       <tbody>
         <tr>
-          <td><strong>シナリオ保存庫</strong><br>本文・タイトル・システム・NPC・場面ツリー・情報・基本情報</td>
+          <td><strong>シナリオ保存庫</strong><br>本文・タイトル・システム・NPC・場面ツリー・情報・基本情報・巻末（FAQ・あとがき・権利表記）</td>
           <td>IndexedDB <code>scenarios</code></td>
           <td>容量の主因。一覧・読込・削除の対象</td>
         </tr>
@@ -169,7 +169,7 @@
     <table>
       <thead><tr><th>ストア</th><th>キー</th><th>値</th></tr></thead>
       <tbody>
-        <tr><td><code>scenarios</code></td><td><code>id</code></td><td><code>{ id, title, content, system, npcs, scenes, infos, basicInfo, updated_at }</code>（<code>infos</code> は2026-10-05 追加。プレイヤーへ渡す情報。記法設計書 §9。<code>basicInfo</code> も同日追加。サムネイル・概要などの基本情報。<a href="08_シナリオ基本情報設計書.html">08</a> §2）</td></tr>
+        <tr><td><code>scenarios</code></td><td><code>id</code></td><td><code>{ id, title, content, system, npcs, scenes, infos, basicInfo, faqs, backMatter, updated_at }</code>（<code>infos</code> は2026-10-05 追加。プレイヤーへ渡す情報。記法設計書 §9。<code>basicInfo</code>・<code>faqs</code>・<code>backMatter</code> も同日追加。サムネイル・概要などの基本情報（<a href="08_シナリオ基本情報設計書.html">08</a> §2）と、巻末のFAQ・あとがきなどの節・権利表記（<a href="09_巻末設計書.html">09</a> §2））</td></tr>
         <tr><td><code>avatars</code></td><td><code>id</code></td><td><code>{ id, blob }</code>（NPCの <code>avatarId</code> と、基本情報の <code>thumbnailId</code> がここを指す）</td></tr>
         <tr><td><code>workspace</code></td><td><code>key</code></td><td><code>{ key, value }</code>（キーは <code>current</code> の1件だけ）</td></tr>
       </tbody>
