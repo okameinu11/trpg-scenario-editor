@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>元に戻す設計書 | TRPGシナリオ執筆エディタ</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="page">
+
+  <header class="hero">
+    <div class="eyebrow">TRPG SCENARIO EDITOR / 設計</div>
+    <h1>元に戻す設計書</h1>
+    <p class="lead">
+      Ctrl+Z（元に戻す）と Ctrl+Y（やり直す）を、<strong>どこで何に効かせるか</strong>と、その仕組みを残す。
+      本文を書き換える処理を足すとき・新しい種類のデータを足すときに読むこと。
+    </p>
+  </header>
+
+  <section>
+    <h2>1. 2段構え</h2>
+    <p>Ctrl+Z を押した場所で、効き方を分ける（2026-10-05 の要望で「すべての操作」を戻せるようにした）。</p>
+    <table>
+      <thead><tr><th>押した場所</th><th>戻るもの</th><th>仕組み</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>本文の入力欄の中</td>
+          <td>本文の入力を細かく（打った文字・記法のボタンで入れたもの・文字色など）</td>
+          <td>ブラウザ標準の取り消し（§2）</td>
+        </tr>
+        <tr>
+          <td>それ以外の入力欄の中（NPCの名前・メモ・情報の本文など）</td>
+          <td>その欄の入力</td>
+          <td>ブラウザ標準の取り消し</td>
+        </tr>
+        <tr>
+          <td><strong>入力欄の外</strong>（モーダルのボタン・場面図・プレビューなど）</td>
+          <td><strong>シナリオ全体を操作の順に</strong>（本文・NPC・情報・基本情報・巻末・場面図・タイトル）。削除・並べ替え・場面カードの移動も戻せる</td>
+          <td>アプリの履歴（§3）</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      コマンドパレットの「元に戻す」「やり直す」はアプリの履歴を戻す。やり直すは Ctrl+Y のほか、Ctrl+Shift+Z でも受け付ける（ほかの操作に割り当てられていなければ）。
+      アプリの履歴で戻したときは、画面の下に「元に戻しました（NPC）」のように、何が変わったかを短く出す。開いていない画面のデータが戻ったときに気づけるようにするため。
+    </p>
+    <table>
+      <thead><tr><th>却下した案</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>本文の入力も含め、すべてをアプリの履歴だけで戻す（ブラウザ標準の取り消しを止める）</td>
+          <td>打った文字を戻す細かさ・日本語入力の変換との兼ね合い・カーソル位置の戻し方を、ブラウザと同じ品質で作り直すことになる。ブラウザ標準のほうが確実で、利用者も慣れている。</td>
+        </tr>
+        <tr>
+          <td>本文以外の入力欄の Ctrl+Z も、アプリの履歴で戻す</td>
+          <td>戻すと欄を描き直すため、入力中の欄からフォーカスが外れる。欄の中では、その欄だけを戻すほうが自然。</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>2. 本文の書き換えは取り消しの記録に残す</h2>
+    <p>
+      <strong>アプリが本文を書き換えるときは、<code>editor.value</code> に直接代入しない。</strong>
+      代入すると、ブラウザがそれまでの取り消しの記録を捨ててしまう。
+      以前は、記法のボタンを押したあと Ctrl+Z が効かず、それより前に打った文字まで戻せなくなっていた。
+    </p>
+    <ul>
+      <li>書き換えは <code>editEditorRange(start, end, text)</code> を通す。<code>document.execCommand('insertText')</code> で差し替えるので、ブラウザの取り消しの記録に1回の操作として残る。</li>
+      <li>本文全体を作り直す場合（情報の題名の変更で参照をまとめて書き換えるなど）は <code>setEditorTextUndoable(newText)</code>。違う部分だけを1回で差し替える。本文の外で操作している最中なら <code>keepFocus</code> を付け、フォーカスと本文の表示位置を動かさない。</li>
+      <li><code>insertAtCursor()</code>・<code>replaceRange()</code> は内部でこれを使う。記法の挿入ボタン・文字色・NPCの挿入・場面図からの見出しの作成も、すべてこの経路を通る。</li>
+      <li><code>execCommand</code> は非推奨の扱いだが、入力欄でブラウザの取り消しの記録に残る書き換えができるのは、今のところこれだけである。使えない環境・本文が隠れている（場面図の表示中など）ときは、従来どおり値を書き換える（取り消しの記録は失われるが、内容は正しくなる）。</li>
+      <li>シナリオを開いた・新しく作ったときは、あえて <code>editor.value</code> に代入する。前のシナリオの入力を戻せてしまわないように、記録を捨てるため。</li>
+    </ul>
+    <div class="callout warn">
+      <strong>本文を書き換える処理を足すときは、<code>editor.value = …</code> と書かず、上の関数を通すこと。</strong>
+      代入すると、その時点から Ctrl+Z が効かなくなる。
+    </div>
+  </section>
+
+  <section>
+    <h2>3. アプリの履歴は「状態の写し」を積む</h2>
+    <p>
+      シナリオ全体（本文・NPC・情報・場面図・基本情報・巻末・タイトル）を1つの写しにして積む（<code>historyStateJSON()</code>）。
+      操作ごとに「何をどう戻すか」を書く方式にしなかったのは、<strong>新しい操作を足すたびに記録の処理を書き忘れる</strong>ため。
+      写しなら、どの操作でも、状態が変わっていれば戻せる。
+    </p>
+    <h3>3.1 いつ積むか</h3>
+    <p>操作の区切りごとに、記録してある状態と今の状態を比べ、違えば記録してあったほうを「戻す」の側へ積む（<code>historyCheck()</code>）。</p>
+    <table>
+      <thead><tr><th>区切り</th><th>扱い</th></tr></thead>
+      <tbody>
+        <tr><td>文字の入力</td><td>打つ手が0.8秒止まったら、ひとまとまりとして積む</td></tr>
+        <tr><td>押す・選ぶ・ドラッグを離す・Enter</td><td>押した処理が終わってから比べる。押す前に打ちかけの入力があれば、先にそれを1件として積む（入力と押した操作を別の1回にするため）</td></tr>
+        <tr><td>自動保存</td><td>画像の読み込みのように、押したあと遅れて状態が変わる操作を拾う</td></tr>
+      </tbody>
+    </table>
+    <ul>
+      <li>戻せるのは100回まで。シナリオを開いた・作った・開いているシナリオを削除したときは、履歴を空にする。</li>
+      <li>戻している最中の書き換えは、新しい操作として積まない（<code>historyApplying</code>）。</li>
+      <li>新しく操作すると、「やり直す」の側は空になる（一般的な取り消しと同じ）。</li>
+    </ul>
+    <h3>3.2 戻すとき</h3>
+    <ul>
+      <li>写しをデータへ戻し、開いている画面（NPC管理・基本情報・巻末・情報一覧・場面図・プレビュー）を描き直す（<code>historyRefreshViews()</code>）。</li>
+      <li>本文も <code>setEditorTextUndoable()</code> で戻す。本文の中で続けて Ctrl+Z しても、記録が食い違わないようにするため。</li>
+      <li>
+        <strong>戻したあと、本文の入力欄にフォーカスを残さない。</strong>
+        本文を書き換えるために一度フォーカスを移すが、元の場所（ページの何も無いところなど）がフォーカスを受け取れないと本文に残る。
+        残ると、次の Ctrl+Z が本文の中の取り消しとして扱われ、いま戻した書き換えを打ち消してしまった（実装中に踏んだ）。
+      </li>
+      <li>画像（立ち絵・サムネイル）は id で写しに入っている。いま表示しているものは使い回し、削除で解放したものだけ保存先から読み直す。</li>
+    </ul>
+    <div class="callout warn">
+      <strong>画像の片付け（<code>pruneAvatars()</code>）は、履歴が指す画像も「使用中」として数える。</strong>
+      数えないと、NPCを削除したあとで別のシナリオを削除したとき、その立ち絵が片付けられ、元に戻してもNPCの立ち絵が消えたままになる。
+      履歴を空にしたあとの片付けでは、もう戻せない画像として消える。
+    </div>
+    <div class="callout">
+      <strong>新しい種類のデータをシナリオに足すときは、<code>historyStateJSON()</code> と <code>historyApply()</code> にも足すこと。</strong>
+      足さないと、そのデータの操作は元に戻せず、ほかの操作を戻したときにも巻き戻らない。
+      画面を描き直す処理も <code>historyRefreshViews()</code> に足す。
+    </div>
+  </section>
+
+  <section>
+    <h2>4. 本文と本文以外にまたがる操作</h2>
+    <p>
+      情報の題名を変えると、本文の <code>[情報:旧題名]</code> も書き換わる。入力欄の外で Ctrl+Z を押すと、題名と本文の参照が一緒に戻る（どちらも同じ写しに入っているため）。
+      一方、本文の中で Ctrl+Z を押すと、本文の参照だけが戻る（題名は新しいまま）。その場合、プレビューに「登録されていません」と出るので気づける。続けて入力欄の外で Ctrl+Z を押せば、題名も戻る。
+    </p>
+  </section>
+
+  <section>
+    <h2>5. 将来拡張の入り口</h2>
+    <table>
+      <thead><tr><th>やりたいこと</th><th>変える場所</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>タブレット向けに、元に戻すボタンを画面に出す</td>
+          <td>今はコマンドパレットの「元に戻す」から使える。削除の直後だけ「元に戻す」付きの通知を出すなら、<code>showAppToast()</code> にボタンを持たせ、<code>historyUndo()</code> を呼ぶ</td>
+        </tr>
+        <tr>
+          <td>戻せる回数を増やす</td>
+          <td><code>HISTORY_LIMIT</code>。写しには本文がまるごと入るので、長い本文では使う記憶域が増える</td>
+        </tr>
+        <tr>
+          <td>シナリオを開き直しても戻せるようにする</td>
+          <td>履歴を作業状態（IndexedDB の <code>workspace</code>）に保存する。容量と、画像の片付けとの兼ね合いを先に決めること</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <nav class="pagenav">
+    <a href="00_INDEX.html">← 目次</a>
+    <a href="07_操作の入口設計書.html">操作の入口設計書 →</a>
+  </nav>
+
+  <footer class="pagefoot">
+    最終更新: 2026-10-06（新規作成。2段構えの取り消し、本文の書き換えを記録に残す方法、状態の写しによる履歴、画像の扱いを記述）
+  </footer>
+
+</div>
+</body>
+</html>

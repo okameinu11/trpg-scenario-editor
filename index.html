@@ -1222,6 +1222,33 @@
     color: var(--text-secondary);
   }
 
+  /* 元に戻した・やり直したことの通知。画面の下の中央に少しだけ出す（モーダルの上にも見えるよう前面に） */
+  .app-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 96px;
+    z-index: 1100;
+    transform: translate(-50%, 8px);
+    max-width: calc(100vw - 32px);
+    padding: 8px 16px;
+    border-radius: 20px;
+    background-color: rgba(15, 23, 42, 0.92);
+    border: 1px solid var(--border-color);
+    color: #f8fafc;
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.18s, transform 0.18s;
+  }
+  .app-toast.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+
   /* パネルのメニュー（場面図・目次）。吹き出しと同じ理由で body 直下に置き、押したボタンの真上に出す */
   .panel-menu {
     position: fixed;
@@ -3659,6 +3686,8 @@
   <div id="panel-tip" class="no-print" role="tooltip"></div>
   <!-- パネルのメニュー（場面図・目次など、1つのボタンにまとめた操作を選ぶ）。togglePanelMenu() が中身を入れて重ねる -->
   <div id="panel-menu" class="panel-menu no-print" role="menu" aria-label="挿入するものを選ぶ" hidden></div>
+  <!-- 元に戻した・やり直したことを知らせる短い通知（showAppToast()） -->
+  <div id="app-toast" class="app-toast no-print" role="status" aria-live="polite"></div>
 
   <!-- シナリオ一覧モーダル -->
   <div id="list-modal" class="modal">
@@ -4519,6 +4548,7 @@
     //               日本語入力の変換前（ひらがなのまま）で打っても当たるようにするため
     //   panel     … false ならパネルに出さない（ヘッダーに既にボタンがあるもの）
     //   panelMenu … PANEL_MENUS のどれか。同じ値の操作はパネルで1つのボタン（メニュー）にまとまる
+    //   nativeInText … 文字を入力する欄の中ではキーを横取りせず、ブラウザ標準の動きに任せる（元に戻す・やり直す）
     //   available … そのシステムで使えるか。false ならパネル・パレット・キー操作のすべてから消える
     //   inModal / inSceneMode … モーダル表示中・場面図表示中にも受け付けるか（既定は受け付けない）
     //   key       … 既定のショートカット。null なら未割り当て
@@ -4625,6 +4655,14 @@
         desc: '保存・PDF出力なども含めて、操作を名前で探して実行する', keywords: 'こまんど けんさく そうさ command',
         key: withCtrl('k'),
         inSceneMode: true, run: () => openCommandPalette() },
+      // 元に戻す・やり直す（docs/10_元に戻す設計書.html）。文字を入力する欄の中ではブラウザ標準の取り消しに任せ、
+      // 欄の外で押したときだけアプリの履歴を戻す（nativeInText）。やり直すは Ctrl+Shift+Z でも受け付ける
+      { id: 'undo', group: 'app', icon: '↶', name: '元に戻す', panel: false,
+        desc: '直前の操作を取り消す（本文などの入力欄の中では、その欄の入力を戻す）', keywords: 'もとにもどす とりけし あんどぅ undo',
+        key: withCtrl('z'), inModal: true, inSceneMode: true, nativeInText: true, run: () => historyUndo() },
+      { id: 'redo', group: 'app', icon: '↷', name: 'やり直す', panel: false,
+        desc: '元に戻した操作をやり直す', keywords: 'やりなおす りどぅ redo',
+        key: withCtrl('y'), inModal: true, inSceneMode: true, nativeInText: true, run: () => historyRedo() },
       // id 'cloud-save' は保存済みのユーザー設定(trpg_shortcuts)との互換のため残している。
       // 保存先はクラウドからローカルへ変わったが、id を変えると既存の割り当てが失われる。
       { id: 'cloud-save', group: 'app', icon: '💾', name: '保存', panel: false,
@@ -5041,6 +5079,8 @@
       // まだ作業状態に書かれていない絵を消してしまう。サムネイルも同じ。
       (currentNpcs || []).forEach(n => { if (n && n.avatarId) used[n.avatarId] = true; });
       markThumb(currentBasicInfo);
+      // 元に戻す履歴が指す画像も残す（削除したNPCを元に戻したとき、立ち絵ごと戻せるように）
+      historyImageIds().forEach(id => { used[id] = true; });
 
       const keys = await idbGetAllKeys(STORE_AVATARS);
       const orphans = keys.filter(k => !used[k]);
@@ -5798,6 +5838,8 @@
         initBackMatterModal();
         initTocLinks();
         initHeaderFit();
+        // 作業状態の復元が済んだあとで始める（復元した状態を、戻る先の起点にする）
+        initHistory();
         renderAssistantPanel();
         window.addEventListener('keydown', handleGlobalKeydown);
       } catch (e) {
@@ -5837,6 +5879,9 @@
         faqs: currentFaqs,
         backMatter: currentBackMatter
       };
+
+      // 画像の読み込みのように、押したあと遅れて変わった状態も、元に戻す履歴に拾う
+      historyNoteSaved();
 
       // 自動保存も容量上限に当たりうる。入力のたびに走る処理なので
       // alert は出さず、状態表示で気づけるようにする。
@@ -6202,6 +6247,8 @@
       currentBackMatter = emptyBackMatter();
 
       applySystemToUI();
+      // 前のシナリオの操作を、新しいシナリオで元に戻せないようにする
+      historyReset();
       saveToLocal();
       updatePreview();
       cancelNewScenario();
@@ -6422,6 +6469,7 @@
 
           // 読み込んだシナリオのシステムに画面を合わせる
           applySystemToUI();
+          historyReset();
 
           saveToLocal();
           updatePreview();
@@ -6456,6 +6504,7 @@
             currentBasicInfo = emptyBasicInfo();
             currentFaqs = [];
             currentBackMatter = emptyBackMatter();
+            historyReset();
             saveToLocal();
             updatePreview();
           }
@@ -9084,7 +9133,8 @@ ${derivedHTML}
 
       setAppMode('write');
       const text = editor.value;
-      editor.value = text + (text && !/\n\n$/.test(text) ? '\n\n' : '') + '# ' + node.title + '\n\n';
+      // 末尾に足す。取り消しの記録に残る書き方で（editEditorRange()）
+      editEditorRange(text.length, text.length, (text && !/\n\n$/.test(text) ? '\n\n' : '') + '# ' + node.title + '\n\n');
       editor.focus();
       editor.setSelectionRange(editor.value.length, editor.value.length);
       handleInput();
@@ -9957,18 +10007,75 @@ ${parseRollResultLines(lines, 1)}            </div>
       handleInput();
     }
 
+    // === 本文の書き換え ===
+    //
+    // アプリが本文を書き換えるときは、必ずここを通す（docs/10_元に戻す設計書.html §2）。
+    // editor.value に直接代入すると、ブラウザがそれまでの取り消しの記録を捨ててしまう。
+    // 以前は記法のボタンを押したあと Ctrl+Z が効かず、それより前に打った文字も戻せなくなっていた。
+    // insertText で書き換えると、ブラウザの取り消しの記録に1回の操作として残る。
+    //
+    // 本文の start〜end を text に差し替える。カーソル（選択範囲）は呼び出し側で決める
+    function editEditorRange(start, end, text) {
+      if (!editor) return;
+      const before = editor.value;
+      const expected = before.substring(0, start) + text + before.substring(end);
+      if (expected === before) return;
+      let ok = false;
+      // 隠れていると（場面図の表示中など）フォーカスできず、insertText が効かない
+      if (editor.offsetParent !== null) {
+        editor.focus();
+        editor.setSelectionRange(start, end);
+        try {
+          ok = document.execCommand(text ? 'insertText' : 'delete', false, text);
+        } catch (e) {
+          ok = false;
+        }
+      }
+      // 使えない環境・効かなかったときは、取り消しの記録をあきらめて内容だけを正しくする
+      if (!ok || editor.value !== expected) editor.value = expected;
+    }
+
+    // 本文を newText にする。違う部分だけを1回で差し替える（取り消しも1回で戻る）。
+    //   sel        … 差し替えたあとの選択範囲 { start, end }。省略すると差し替えた部分の末尾
+    //   keepFocus  … 真なら、書き換える前にフォーカスがあった場所へ戻し、本文の表示位置も保つ
+    //                （情報の題名の変更のように、本文の外で操作している最中に本文を書き換える場合）
+    function setEditorTextUndoable(newText, opts) {
+      if (!editor) return;
+      const options = opts || {};
+      const old = editor.value;
+      if (old === newText) return;
+      const prevActive = document.activeElement;
+      const prevScroll = editor.scrollTop;
+      const prevSel = { start: editor.selectionStart, end: editor.selectionEnd };
+      let s = 0;
+      const max = Math.min(old.length, newText.length);
+      while (s < max && old[s] === newText[s]) s++;
+      let e1 = old.length, e2 = newText.length;
+      while (e1 > s && e2 > s && old[e1 - 1] === newText[e2 - 1]) { e1--; e2--; }
+      editEditorRange(s, e1, newText.substring(s, e2));
+      // 本文の外で操作しているときは、本文のカーソルを動かさない
+      const sel = options.sel || (options.keepFocus ? prevSel : { start: e2, end: e2 });
+      const len = editor.value.length;
+      editor.setSelectionRange(Math.min(sel.start, len), Math.min(sel.end, len));
+      if (options.keepFocus) {
+        editor.scrollTop = prevScroll;
+        if (prevActive !== editor) {
+          if (prevActive && document.contains(prevActive) && prevActive.focus) prevActive.focus();
+          // 元の場所がフォーカスを受け取れない（ページの何も無いところなど）と、本文に残ってしまう。
+          // 残ると、次の Ctrl+Z が本文の中の取り消しとして扱われ、いま戻した書き換えを打ち消してしまう
+          if (document.activeElement === editor) editor.blur();
+        }
+      }
+    }
+
     // カーソル位置へのテキスト挿入
     function insertAtCursor(text) {
       if (!editor) return;
       const startPos = editor.selectionStart;
       const endPos = editor.selectionEnd;
-      const originalText = editor.value;
-
-      editor.value = originalText.substring(0, startPos) + text + originalText.substring(endPos);
-      
+      editEditorRange(startPos, endPos, text);
       const newCursorPos = startPos + text.length;
-      editor.selectionStart = newCursorPos;
-      editor.selectionEnd = newCursorPos;
+      editor.setSelectionRange(newCursorPos, newCursorPos);
       editor.focus();
     }
 
@@ -9979,13 +10086,239 @@ ${parseRollResultLines(lines, 1)}            </div>
     // selStart / selLength は、差し替え後の text の先頭からの位置で指定する。
     function replaceRange(start, end, text, selStart, selLength) {
       if (!editor) return;
-      const originalText = editor.value;
-
-      editor.value = originalText.substring(0, start) + text + originalText.substring(end);
-
-      editor.selectionStart = start + selStart;
-      editor.selectionEnd = start + selStart + selLength;
+      editEditorRange(start, end, text);
+      editor.setSelectionRange(start + selStart, start + selStart + selLength);
       editor.focus();
+    }
+
+    // === 元に戻す・やり直す（Ctrl+Z / Ctrl+Y） ===
+    //
+    // 2段構えにしている（docs/10_元に戻す設計書.html）。
+    //   ・本文の入力欄の中 … ブラウザ標準の取り消し。打った文字を細かく戻せる。
+    //                         アプリの書き換えも editEditorRange() でその記録に残している
+    //   ・それ以外の入力欄 … その欄のブラウザ標準の取り消し（NPCの名前・メモなど）
+    //   ・入力欄の外        … ここの履歴。シナリオ全体（本文・NPC・情報・基本情報・巻末・場面図・タイトル）を
+    //                         操作の順に戻す。削除・並べ替え・場面カードの移動なども戻せる
+    //
+    // 履歴は「状態の写し」を積む。操作ごとに記録の処理を書くと、新しい操作を足すたびに書き忘れが起きるため、
+    // 操作の区切り（押す・選ぶ・ドラッグを離す・打ち終える）ごとに、状態が変わったかを比べて自動で積む。
+    const HISTORY_LIMIT = 100;        // 戻せる回数
+    const HISTORY_TYPING_DELAY = 800; // 打つ手がこれだけ止まったら、ひとまとまりの入力として記録する
+    let historyUndoStack = [];        // 戻す側。{ json, sel }（sel はそのときの本文のカーソル）
+    let historyRedoStack = [];        // やり直す側
+    let historyCurrent = null;        // いまの状態として記録してあるもの
+    let historyApplying = false;      // 戻している最中（その書き換えを新しい操作として記録しない）
+    let historyTimer = null;
+
+    // 比べる・戻すための状態の写し。画像は id だけを持つ（表示用の blob: URL は落とす）
+    function historyStateJSON() {
+      return JSON.stringify({
+        title: scenarioTitle ? scenarioTitle.value : '',
+        content: editor ? editor.value : '',
+        npcs: currentNpcs.map(stripAvatarUrl),
+        infos: currentInfos,
+        scenes: currentScenes,
+        basicInfo: stripBasicInfoUrl(currentBasicInfo),
+        faqs: currentFaqs,
+        backMatter: currentBackMatter
+      });
+    }
+
+    function editorSelection() {
+      return editor ? { start: editor.selectionStart, end: editor.selectionEnd } : null;
+    }
+
+    // シナリオを開いた・作ったときは、前のシナリオの履歴を持ち越さない
+    function historyReset() {
+      clearTimeout(historyTimer);
+      historyTimer = null;
+      historyUndoStack = [];
+      historyRedoStack = [];
+      historyCurrent = { json: historyStateJSON(), sel: editorSelection() };
+    }
+
+    // いまの状態が、記録してある状態と違えば、記録してあったほうを「戻す」の側へ積む
+    function historyCheck() {
+      clearTimeout(historyTimer);
+      historyTimer = null;
+      if (historyApplying || !historyCurrent) return;
+      const json = historyStateJSON();
+      if (json === historyCurrent.json) return;
+      historyUndoStack.push(historyCurrent);
+      if (historyUndoStack.length > HISTORY_LIMIT) historyUndoStack.shift();
+      historyRedoStack = [];
+      historyCurrent = { json: json, sel: editorSelection() };
+    }
+
+    // 自動保存（saveToLocal）からも呼ぶ。画像の読み込みのように、押したあと遅れて状態が変わる操作を拾うため。
+    // 打っている途中（タイマーが動いている）なら、打ち終わりの記録に任せる
+    function historyNoteSaved() {
+      if (!historyTimer) historyCheck();
+    }
+
+    // 画像（立ち絵・サムネイル）は id で持つので、戻した状態の id に表示用URLを付け直す。
+    // いま表示しているものは使い回し、削除などで解放したものだけ保存先から読み直す
+    async function historyAttachImages(urlById) {
+      const need = [];
+      currentNpcs.forEach(n => {
+        n.avatarUrl = '';
+        if (!n.avatarId) return;
+        if (urlById.has(n.avatarId)) n.avatarUrl = urlById.get(n.avatarId);
+        else need.push(n);
+      });
+      const bi = currentBasicInfo;
+      bi.thumbnailUrl = '';
+      let needThumb = false;
+      if (bi.thumbnailId) {
+        if (urlById.has(bi.thumbnailId)) bi.thumbnailUrl = urlById.get(bi.thumbnailId);
+        else needThumb = true;
+      }
+      for (const n of need) {
+        const row = await idbGet(STORE_AVATARS, n.avatarId);
+        if (row && row.blob) n.avatarUrl = makeObjectUrl(row.blob);
+      }
+      if (needThumb) await attachThumbnailUrl(bi);
+    }
+
+    async function historyApply(entry) {
+      historyApplying = true;
+      try {
+        const urlById = new Map();
+        const keep = (id, url) => { if (id && url && objectUrlRegistry.has(url)) urlById.set(id, url); };
+        currentNpcs.forEach(n => keep(n.avatarId, n.avatarUrl));
+        keep(currentBasicInfo.thumbnailId, currentBasicInfo.thumbnailUrl);
+
+        const s = JSON.parse(entry.json);
+        if (scenarioTitle) scenarioTitle.value = s.title;
+        currentNpcs = normalizeNpcList(s.npcs);
+        currentInfos = normalizeInfoList(s.infos);
+        currentScenes = normalizeSceneGraph(s.scenes);
+        currentBasicInfo = normalizeBasicInfo(s.basicInfo);
+        currentFaqs = normalizeFaqList(s.faqs);
+        currentBackMatter = normalizeBackMatter(s.backMatter);
+        // 本文も、ブラウザの取り消しの記録に残る書き方で戻す（本文の中で続けて Ctrl+Z しても食い違わない）
+        if (editor && editor.value !== s.content) {
+          setEditorTextUndoable(s.content, { sel: entry.sel || undefined, keepFocus: true });
+        }
+        await historyAttachImages(urlById);
+        historyRefreshViews();
+        historyCurrent = { json: historyStateJSON(), sel: entry.sel };
+      } finally {
+        historyApplying = false;
+      }
+    }
+
+    // 開いている画面を、戻した状態で描き直す
+    function historyRefreshViews() {
+      if (selectedNpcId && !currentNpcs.some(n => n.id === selectedNpcId)) selectedNpcId = null;
+      if (selectedSceneId && !currentScenes.nodes.some(n => n.id === selectedSceneId)) selectedSceneId = null;
+      const isOpen = m => m && m.classList.contains('active');
+      if (isOpen(npcModal)) {
+        renderNpcList();
+        renderNpcEditor();
+      }
+      if (isOpen(basicInfoModal)) {
+        const t = document.getElementById('bi-title');
+        if (t && scenarioTitle) t.value = scenarioTitle.value;
+        renderBasicInfoThumb();
+        renderBasicInfoItems();
+      }
+      if (isOpen(backMatterModal)) {
+        renderFaqList();
+        renderBackSections();
+        const r = document.getElementById('bm-rights');
+        if (r) r.value = currentBackMatter.rights;
+      }
+      if (isInfoDrawerOpen()) renderInfoDrawer();
+      if (document.body.dataset.mode === 'scene') renderSceneView();
+      updatePreview();
+      saveToLocal();
+    }
+
+    // 何が変わったかを、通知に出す言葉にする
+    function historyChangedAreas(aJson, bJson) {
+      const a = JSON.parse(aJson), b = JSON.parse(bJson);
+      const names = { content: '本文', title: 'タイトル', npcs: 'NPC', infos: '情報', scenes: '場面図', basicInfo: '基本情報', faqs: '巻末', backMatter: '巻末' };
+      const out = [];
+      for (const k in names) {
+        if (JSON.stringify(a[k]) !== JSON.stringify(b[k]) && out.indexOf(names[k]) === -1) out.push(names[k]);
+      }
+      return out.join('・');
+    }
+
+    async function historyStep(from, to, verb) {
+      if (historyApplying) return;
+      historyCheck(); // 打ちかけの入力があれば、先に1件として記録してから戻す
+      if (!from.length) {
+        showAppToast(verb === '元に戻しました' ? 'これ以上は戻せません' : 'やり直せる操作はありません');
+        return;
+      }
+      const entry = from.pop();
+      to.push(historyCurrent);
+      const areas = historyChangedAreas(historyCurrent.json, entry.json);
+      await historyApply(entry);
+      showAppToast(verb + (areas ? '（' + areas + '）' : ''));
+    }
+
+    function historyUndo() {
+      return historyStep(historyUndoStack, historyRedoStack, '元に戻しました');
+    }
+
+    function historyRedo() {
+      return historyStep(historyRedoStack, historyUndoStack, 'やり直しました');
+    }
+
+    // 画像の片付け（pruneAvatars）で、履歴から戻せる画像を消さないよう、履歴が指す画像の id を返す
+    function historyImageIds() {
+      const ids = new Set();
+      historyUndoStack.concat(historyRedoStack).forEach(e => {
+        const s = JSON.parse(e.json);
+        (s.npcs || []).forEach(n => { if (n && n.avatarId) ids.add(n.avatarId); });
+        if (s.basicInfo && s.basicInfo.thumbnailId) ids.add(s.basicInfo.thumbnailId);
+      });
+      return ids;
+    }
+
+    // 文字を入力する欄か。この中の Ctrl+Z はブラウザ標準の取り消しに任せる
+    function isTextField(el) {
+      if (!el) return false;
+      if (el.isContentEditable || el.tagName === 'TEXTAREA') return true;
+      if (el.tagName !== 'INPUT') return false;
+      return /^(text|search|url|email|number|tel|password)$/i.test(el.type || 'text');
+    }
+
+    // 操作の区切りで、状態が変わったかを調べる
+    function initHistory() {
+      historyReset();
+      // 文字の入力は、打つ手が止まってからひとまとまりとして記録する
+      document.addEventListener('input', () => {
+        if (historyApplying) return;
+        clearTimeout(historyTimer);
+        historyTimer = setTimeout(historyCheck, HISTORY_TYPING_DELAY);
+      }, true);
+      // 押す前に、打ちかけの入力を先に1件として記録する（入力と押した操作を別の1回にするため）
+      document.addEventListener('pointerdown', () => { if (historyTimer) historyCheck(); }, true);
+      // 押した・選んだ・ドラッグを離した結果は、その操作の処理が終わってから見る
+      const afterHandlers = () => setTimeout(() => { if (!historyTimer) historyCheck(); }, 0);
+      ['click', 'change', 'pointerup'].forEach(t => document.addEventListener(t, afterHandlers, true));
+      // Enter で追加する欄（NPCの技能など）
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.isComposing) {
+          if (historyTimer) historyCheck();
+          afterHandlers();
+        }
+      }, true);
+    }
+
+    // 画面の下に短い通知を出す（元に戻した・やり直したことを、離れた場所の変化でも気づけるように）
+    let appToastTimer = null;
+    function showAppToast(text) {
+      const el = document.getElementById('app-toast');
+      if (!el) return;
+      el.textContent = text;
+      el.classList.add('show');
+      clearTimeout(appToastTimer);
+      appToastTimer = setTimeout(() => el.classList.remove('show'), 2400);
     }
 
     // === シナリオの基本情報：プレビューの表紙 ===
@@ -11782,7 +12115,8 @@ ${parseRollResultLines(lines, 1)}            </div>
       input.dataset.orig = after;
       if (before && before !== after && editor) {
         const re = new RegExp('\\[情報[:：]\\s*' + before.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*\\]', 'g');
-        editor.value = editor.value.replace(re, infoReference(after));
+        // 取り消しの記録に残る書き方で書き換える。いま操作している情報一覧からフォーカスを奪わない
+        setEditorTextUndoable(editor.value.replace(re, infoReference(after)), { keepFocus: true });
       }
       handleInput();
     }
@@ -12211,15 +12545,24 @@ ${parseRollResultLines(lines, 1)}            </div>
 
       // 4. ショートカットの照合
       // 受け付けない操作は飛ばして、同じキーの別の操作に譲る
+      const inTextField = isTextField(e.target);
       for (const a of ACTIONS) {
         if (!sameShortcut(shortcuts[a.id], { key: e.key, ctrlKey: e.ctrlKey, altKey: e.altKey, shiftKey: e.shiftKey })) {
           continue;
         }
         if (!canRunAction(a, isAnyModalOpen, isSceneMode)) continue;
+        // 元に戻す・やり直すは、文字を入力する欄の中ではブラウザ標準の取り消しに任せる（止めずに素通しする）
+        if (a.nativeInText && inTextField) return;
 
         e.preventDefault();
         runAction(a.id);
-        break;
+        return;
+      }
+
+      // 5. やり直すの別のキー（Ctrl+Shift+Z）。ほかの操作に割り当てられていなければ受け付ける
+      if (e.ctrlKey && e.shiftKey && !e.altKey && String(e.key).toLowerCase() === 'z' && !inTextField) {
+        e.preventDefault();
+        historyRedo();
       }
     }
 

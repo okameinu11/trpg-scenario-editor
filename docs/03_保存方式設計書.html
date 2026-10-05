@@ -314,7 +314,7 @@
         <tr><td><code>API</code></td><td><strong>永続化の唯一の窓口。</strong>UI側はここしか呼ばない</td></tr>
         <tr><td><code>migrateFromLocalStorage()</code></td><td>§5 の移行。起動時に1回だけ</td></tr>
         <tr><td><code>attachAvatarUrls()</code> / <code>attachThumbnailUrl()</code> / <code>releaseObjectUrl()</code></td><td>Blob と <code>blob:</code> URL の相互変換と解放（§3.3）</td></tr>
-        <tr><td><code>pruneAvatars()</code></td><td>どこからも参照されていない画像（立ち絵・サムネイル）を消す（§3.3）</td></tr>
+        <tr><td><code>pruneAvatars()</code></td><td>どこからも参照されていない画像（立ち絵・サムネイル）を消す（§3.3）。元に戻す履歴が指す画像も使用中として残す（<a href="10_元に戻す設計書.html">10</a> §3.2）</td></tr>
       </tbody>
     </table>
     <div class="callout">
