@@ -628,6 +628,51 @@
     break-after: avoid;
     page-break-after: avoid;
   }
+  /* 目次 [目次]。見出し「目次」は巻末の見出しと同じ形（.appendix-heading）。
+     シーン見出し（#）は太字、探索小見出し（##）は字下げして小さく灰色にし、場面のまとまりが見えるようにする */
+  #preview-area .scenario-toc {
+    margin: 8px 0 32px;
+  }
+  #preview-area .toc-list {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+  }
+  #preview-area .toc-item a {
+    color: var(--preview-text) !important;
+    text-decoration: none;
+  }
+  #preview-area .toc-item a:hover {
+    color: #0d9488 !important;
+    text-decoration: underline;
+  }
+  #preview-area .toc-level-1 {
+    margin-top: 6px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1.6;
+  }
+  #preview-area .toc-level-2 {
+    padding-left: 1.6em;
+    font-size: 0.84rem;
+    line-height: 1.6;
+  }
+  #preview-area .toc-level-2 a {
+    color: #475569 !important;
+  }
+  #preview-area .toc-appendix-first {
+    margin-top: 14px;
+  }
+  #preview-area .toc-empty {
+    color: #94a3b8 !important;
+    font-size: 0.85rem;
+  }
+  /* 目次から飛んだとき、見出しがプレビューの上端に貼り付かないよう少し空ける */
+  #preview-area h2.scene-title,
+  #preview-area h3.search-subtitle,
+  #preview-area h2.appendix-heading {
+    scroll-margin-top: 16px;
+  }
   #preview-area .backmatter-section + .backmatter-section {
     margin-top: 32px;
   }
@@ -4233,6 +4278,10 @@
       { id: 'scene-map-insert', group: 'structure', icon: '🗺', name: '場面図を挿入', short: '場面図',
         desc: '本文に [場面図] を挿入する', keywords: 'ばめんずをそうにゅう map', key: withAlt('z'),
         run: () => insertTemplate('scene-map') },
+      // シナリオに1回書けば済むので、幅の尽きたパネルには出さない（docs/07_操作の入口設計書.html §3.2）
+      { id: 'toc-insert', group: 'structure', icon: '🔖', name: '目次を挿入', short: '目次', panel: false,
+        desc: '本文に [目次] を挿入する（見出しの一覧が自動で入る）', keywords: 'もくじ もくじをそうにゅう toc contents',
+        key: null, run: () => insertTemplate('toc') },
 
       { id: 'read', group: 'text', icon: '💬', name: '情景描写', short: '情景',
         desc: '行頭に > を挿入', keywords: 'じょうけいびょうしゃ', key: withAlt('4'),
@@ -5465,6 +5514,7 @@
         initBasicInfoModal();
         initFaqModal();
         initBackMatterModal();
+        initTocLinks();
         initHeaderFit();
         renderAssistantPanel();
         window.addEventListener('keydown', handleGlobalKeydown);
@@ -5524,7 +5574,7 @@
       const markdownText = editor.value;
       // 先頭にシナリオの基本情報（表紙）、末尾に巻末（FAQ → あとがきなど → 権利表記）を置く。
       // どれも本文の記法とは別の入口で書くので、parseMarkdown() には混ぜない
-      previewArea.innerHTML = buildScenarioCoverHTML() + parseMarkdown(markdownText)
+      previewArea.innerHTML = buildScenarioCoverHTML() + parseMarkdown(markdownText, appendixTocEntries())
         + buildFaqSectionHTML() + buildBackMatterHTML();
       // 情報一覧は本文の参照（どの場面で使っているか）から組み立てるので、本文が変わったら追従させる
       refreshInfoDrawer();
@@ -8765,30 +8815,99 @@ ${derivedHTML}
     }
 
     // === カスタムMarkdownパーサ ===
-    function parseMarkdown(text) {
+    // === 目次 [目次] ===
+    //
+    // 本文の見出し（# と ##）と巻末の見出しから、目次を自動で作る（docs/04_記法設計書.html §10）。
+    // 書いた場所に出す記法にしたのは、書かなければ今までの台本が変わらないようにするため。
+    // 紙ではページ番号を出せない（ブラウザの印刷に、見出しが何ページ目かを知る手段が無い）ので、
+    // 項目は見出しへのリンクにする。プレビューでは押すとその見出しへ移り、PDFでもリンクとして残る。
+    const TOC_TAG_RE = /^\[目次\]$/;
+
+    // blocks は parseMarkdown() が切った段落。見出しの段落を順に拾い、id を振る
+    function collectTocHeadings(blocks) {
+      return blocks.filter(b => b.startsWith('#')).map((b, i) => {
+        const level = b.startsWith('##') ? 2 : 1;
+        return { level: level, raw: b.replace(level === 2 ? /^##\s*/ : /^#\s*/, ''), id: 'toc-h-' + i };
+      });
+    }
+
+    // 巻末の見出し（FAQ・あとがきなどの節）。権利表記は奥付なので載せない。
+    // id は buildFaqSectionHTML() / buildBackMatterHTML() が見出しに付けるものと揃える
+    function appendixTocEntries() {
+      const list = [];
+      if (currentFaqs.some(f => f.question.trim() || f.answer.trim())) {
+        list.push({ level: 1, raw: 'FAQ', id: 'toc-faq', appendix: true });
+      }
+      currentBackMatter.sections.forEach((sec, i) => {
+        const heading = sec.heading.trim();
+        if (heading) list.push({ level: 1, raw: heading, id: 'toc-bm-' + i, appendix: true });
+      });
+      return list;
+    }
+
+    function buildTocHTML(entries) {
+      let appendixStarted = false;
+      const items = entries.map(e => {
+        // 目次は見出しの文字だけを出す。文字色の記法は外し、複数行の見出しは1行にまとめる
+        const label = stripColorNotation(e.raw).replace(/\s*\n\s*/g, ' ').trim() || '（無題）';
+        // 巻末の最初の項目の上だけ少し空けて、本文の見出しと分ける
+        const first = e.appendix && !appendixStarted;
+        if (e.appendix) appendixStarted = true;
+        return `<li class="toc-item toc-level-${e.level}${first ? ' toc-appendix-first' : ''}">`
+          + `<a href="#${e.id}" data-toc-target="${e.id}">${escapeHTML(label)}</a></li>`;
+      }).join('');
+      return `<nav class="scenario-toc" aria-label="目次"><h2 class="appendix-heading">目次</h2>`
+        + (items
+            ? `<ol class="toc-list">${items}</ol>`
+            : '<p class="toc-empty no-print">見出しがまだありません。行頭に # や ## を付けた段落が、ここに並びます。</p>')
+        + `</nav>\n`;
+    }
+
+    // 目次の項目を押したら、プレビューの中をその見出しまでスクロールする。
+    // リンク本来の動き（URLの # を書き換えて飛ぶ）は止める。アドレスに # が残り、再読み込みのたびに飛ぶのを避けるため。
+    // PDFでは href がそのままリンクとして使われる
+    function initTocLinks() {
+      if (!previewArea) return;
+      previewArea.addEventListener('click', e => {
+        const link = e.target.closest('a[data-toc-target]');
+        if (!link) return;
+        e.preventDefault();
+        const target = document.getElementById(link.dataset.tocTarget);
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
+
+    // appendixToc … 目次の後ろに足す巻末の項目（appendixTocEntries()）。本文の外で描くものなので呼び出し側から渡す
+    function parseMarkdown(text, appendixToc) {
       if (!text.trim()) return '<p style="color: #94a3b8; font-style: italic;">テキストを入力するとここにプレビューが表示されます。</p>';
 
       const normalizedText = text.replace(/\r\n/g, '\n');
-      const blocks = normalizedText.split(/\n{2,}/);
+      const blocks = normalizedText.split(/\n{2,}/).map(b => b.trim()).filter(Boolean);
+      // 目次 [目次] はふつう見出しより前に書くので、描き始める前に見出しを拾っておく。
+      // 見出しの id は拾った順の番号で、下の描画でも同じ順に使う（同じ blocks を同じ条件で見るので一致する）
+      const headings = collectTocHeadings(blocks);
+      let headingIndex = 0;
       let html = '';
       // いまの場面（# 見出しから次の # 見出しまで）で、サイドビューにカードを出したNPCの id
       let sideCardShown = new Set();
 
-      for (let block of blocks) {
-        block = block.trim();
-        if (!block) continue;
-
+      for (const block of blocks) {
         // 1. シーン見出し (レベル1: #) ＆ 個別探索用小見出し (レベル2: ##)
         if (block.startsWith('#')) {
-          if (block.startsWith('##')) {
-            const subtitle = block.replace(/^##\s*/, '');
-            html += `<h3 class="search-subtitle">${renderInline(subtitle)}</h3>\n`;
+          const h = headings[headingIndex++];
+          if (h.level === 2) {
+            html += `<h3 class="search-subtitle" id="${h.id}">${renderInline(h.raw)}</h3>\n`;
           } else {
-            const title = block.replace(/^#\s*/, '');
-            html += `<h2 class="scene-title">${renderInline(title)}</h2>\n`;
+            html += `<h2 class="scene-title" id="${h.id}">${renderInline(h.raw)}</h2>\n`;
             // 場面が変わったら、サイドビューのNPCカードをまた出せるようにする
             sideCardShown = new Set();
           }
+          continue;
+        }
+
+        // 目次 [目次]。場面図と同じく、段組みの外に出す全幅のブロック（docs/04_記法設計書.html §10）
+        if (TOC_TAG_RE.test(block)) {
+          html += buildTocHTML(headings.concat(appendixToc || []));
           continue;
         }
 
@@ -8852,6 +8971,11 @@ ${derivedHTML}
       // 「&」を含む場面名で入口ごとに結果が変わってしまう。
       if (html.startsWith('[場面図')) {
         return '<div class="scene-map-note">🗺 場面図は、前後に空行を入れて、'
+          + 'その行だけの段落として書いてください。</div>';
+      }
+      // 目次も同じ（段組みの外に出すため parseMarkdown() が処理する）
+      if (html.startsWith('[目次]')) {
+        return '<div class="scene-map-note">🔖 目次は、前後に空行を入れて、'
           + 'その行だけの段落として書いてください。</div>';
       }
 
@@ -9340,6 +9464,9 @@ ${parseRollResultLines(lines, 1)}            </div>
         case 'scene-map':
           template = '\n\n[場面図]\n\n';
           break;
+        case 'toc':
+          template = '\n\n[目次]\n\n';
+          break;
       }
 
       insertAtCursor(template);
@@ -9777,7 +9904,8 @@ ${parseRollResultLines(lines, 1)}            </div>
       const row = (kind, mark, text) => `<div class="faq-row faq-${kind}"><span class="faq-mark">${mark}</span>`
         + `<div class="faq-text">${text ? renderInline(text) : '<span class="faq-empty">（未入力）</span>'}</div></div>`;
       return `\n<section class="scenario-faq">`
-        + `<h2 class="appendix-heading">FAQ</h2>`
+        // id は目次のリンク先（appendixTocEntries() と揃える）
+        + `<h2 class="appendix-heading" id="toc-faq">FAQ</h2>`
         + items.map(f => `<div class="faq-item">`
             + row('q', 'Q', f.question.trim())
             + row('a', 'A', f.answer.trim())
@@ -9788,12 +9916,13 @@ ${parseRollResultLines(lines, 1)}            </div>
     // あとがきなどの節と、権利表記（一番最後）
     function buildBackMatterHTML() {
       const bm = currentBackMatter;
-      let html = bm.sections.map(sec => {
+      let html = bm.sections.map((sec, i) => {
         const heading = sec.heading.trim();
         const body = sec.body.trim();
         if (!heading && !body) return '';
+        // id は目次のリンク先（appendixTocEntries() と揃える。番号は空の節も数えた並びの位置）
         return `<section class="backmatter-section">`
-          + (heading ? `<h2 class="appendix-heading">${escapeHTML(heading)}</h2>` : '')
+          + (heading ? `<h2 class="appendix-heading" id="toc-bm-${i}">${escapeHTML(heading)}</h2>` : '')
           + (body ? `<div class="backmatter-text">${renderInline(body)}</div>` : '')
           + `</section>`;
       }).join('');
