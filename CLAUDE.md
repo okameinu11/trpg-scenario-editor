@@ -74,6 +74,8 @@ perl scripts/devenv/setup.pl --version           # devenv の版
 2. `insertTemplate()` または専用モーダル — 記法を組み立ててカーソル位置に入れる
 3. `ACTIONS` に1行 — 下部パネルのボタン・コマンドパレットの候補・ショートカットキー・設定画面の名前は、すべてこの表から作られる（書く項目は `docs/07_操作の入口設計書.html` §6）
 
+足した記法をサンプルシナリオにも使うのは、別の作業として `sample-scenario-maintain` スキルの「追従」で行う（`scripts/sample-kit/kit.js` の `FEATURES` に足すまで、点検で「どの機能にも対応しない操作」として出続ける）。
+
 **アプリが本文を書き換えるときは `editor.value` に代入せず、`editEditorRange()` / `setEditorTextUndoable()` を通すこと。** 代入するとブラウザの取り消しの記録が捨てられ、Ctrl+Z が効かなくなる（`docs/10_元に戻す設計書.html` §2）。
 
 **プレビュー用HTMLの組み立ては「エスケープ → 装飾 → 改行」の順序で固定されている。** この3段は `decorate()` / `renderInline()` に閉じ込めてあり、呼び出し側で手書きしないこと（順序が崩れるとタグが本文に出るか、改行が消える）。
@@ -251,6 +253,8 @@ Google Apps Script + スプレッドシートによるクラウド保存から�
 GitHub Pages（publicリポジトリ）での公開を予定している。**一度公開すると検索エンジンのキャッシュや第三者のフォークに残り、非公開に戻しても取り消せない。**
 
 `knowledge/` はTRPGルールブック由来の資料を含むため、2026-08-31 に `.gitignore` で除外した（初回コミット前に除外したので、履歴にも残っていない）。
+
+`samples/`（サンプルシナリオ）も 2026-10-07 に除外した。この端末で機能の見本・動作確認に使うもので、clone した環境には無い。共通の決まりと道具は `scripts/sample-kit/README.md`、新規作成は `.claude/skills/sample-scenario-write/`、追従・点検は `.claude/skills/sample-scenario-maintain/` にある。
 
 **リモートへの接続と公開は `guardedCommands` が実行前に遮断する。**解除して進める前に、`knowledge/` 以外に公開したくないものが無いかをユーザーと確認すること。
 
