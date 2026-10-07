@@ -52,7 +52,7 @@ perl scripts/devenv/setup.pl --version           # devenv の版
 
 | キー | 役割 |
 |---|---|
-| `trpg_shortcuts` / `trpg_custom_tiers` / `trpg_my_palette` / `trpg_basic_info_templates` | ショートカットキーの割当、判定ブロックの自由枠、マイパレット（自分で登録した色）、基本情報のテンプレート |
+| `trpg_shortcuts` / `trpg_custom_tiers` / `trpg_my_palette` / `trpg_basic_info_templates` / `trpg_layout` | ショートカットキーの割当、判定ブロックの自由枠、マイパレット（自分で登録した色）、基本情報のテンプレート、本文とプレビューの並べ方 |
 | `trpg_storage_migrated` | IndexedDBへの移行が済んだ印。旧キーからの移行は起動時に1回だけ走る |
 
 ### 保存の2系統
@@ -76,7 +76,7 @@ perl scripts/devenv/setup.pl --version           # devenv の版
 
 足した記法をサンプルシナリオにも使うのは、別の作業として `sample-scenario-maintain` スキルの「追従」で行う（`scripts/sample-kit/kit.js` の `FEATURES` に足すまで、点検で「どの機能にも対応しない操作」として出続ける）。
 
-**アプリが本文を書き換えるときは `editor.value` に代入せず、`editEditorRange()` / `setEditorTextUndoable()` を通すこと。** 代入するとブラウザの取り消しの記録が捨てられ、Ctrl+Z が効かなくなる（`docs/10_元に戻す設計書.html` §2）。
+**アプリが本文を書き換えるときは `editor.value` に代入せず、`editEditorRange()` / `setEditorTextUndoable()` を通すこと。** 代入するとブラウザの取り消しの記録が捨てられ、Ctrl+Z が効かなくなる（`docs/10_元に戻す設計書.html` §2）。カーソル位置を見て記法を入れる処理は、`editor` ではなく `insertionTarget()` の欄から位置を読む（プレビューの「原文の小窓」を開いているあいだはそちらに入れるため。`docs/11_プレビュー連携設計書.html` §4.4）。
 
 **プレビュー用HTMLの組み立ては「エスケープ → 装飾 → 改行」の順序で固定されている。** この3段は `decorate()` / `renderInline()` に閉じ込めてあり、呼び出し側で手書きしないこと（順序が崩れるとタグが本文に出るか、改行が消える）。
 

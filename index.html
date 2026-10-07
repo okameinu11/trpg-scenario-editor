@@ -263,12 +263,16 @@
     position: relative;
   }
   
-  /* 左側: エディタセクション */
+  /* 左側: エディタセクション。
+     幅は境界のドラッグで変わる（--editor-ratio。.workspace に JS が置く。docs/11_プレビュー連携設計書.html §2） */
   .editor-section {
-    flex: 1;
+    flex: 0 0 calc(var(--editor-ratio, 0.5) * 100%);
+    min-width: 0;
+    min-height: 0;
     display: flex;
     flex-direction: column;
-    border-right: 1px solid var(--border-color);
+    position: relative; /* 原文へ飛んだ先を示す帯（.editor-flash）の基準 */
+    overflow: hidden;   /* 帯が欄の外（縦画面では上のプレビュー）へはみ出さないように */
     background-color: var(--bg-app);
   }
   .editor-textarea {
@@ -287,7 +291,9 @@
 
   /* 右側: プレビューセクション */
   .preview-section {
-    flex: 1;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 0;
     background-color: #ffffff; /* プレビュー側全体の背景を白一色に統一 */
     display: flex;
     flex-direction: column;
@@ -299,6 +305,106 @@
     min-height: 100%;
     box-sizing: border-box;
     padding: 40px;
+    /* プレビューだけを表示すると横幅が画面いっぱいになり、1行が長すぎて読みにくい。
+       紙面の幅に上限を付けて中央に置く（docs/11_プレビュー連携設計書.html §2.3） */
+    width: 100%;
+    max-width: 1080px;
+    margin: 0 auto;
+  }
+
+  /* === 本文とプレビューの境界（docs/11_プレビュー連携設計書.html §2） ===
+     並べる（both）・プレビューだけ（preview）・本文だけ（editor）を body[data-layout] で出し分ける。
+     隠すのは display: none。本文の欄を幅0で残す案は、モーダルを閉じたときなどに
+     見えない本文へフォーカスが戻り、打った文字が見えないまま本文に入るので採らなかった（§2.2） */
+  .pane-splitter {
+    flex: 0 0 8px;
+    position: relative;
+    z-index: 5;
+    box-sizing: border-box;
+    cursor: col-resize;
+    touch-action: none; /* タッチでドラッグしたときに画面ごとスクロールしないように */
+    background-color: var(--bg-card);
+    border-left: 1px solid var(--border-color);
+    border-right: 1px solid var(--border-color);
+    outline: none;
+  }
+  .pane-splitter:hover,
+  .pane-splitter.dragging,
+  .pane-splitter:focus-visible {
+    background-color: var(--accent-color);
+  }
+  /* 隠すボタンは境界の高さの真ん中に置き、プレビュー側の余白（40px）へはみ出させる。
+     本文側へはみ出すと、本文の欄のスクロールバーに重なる */
+  .pane-toggles {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  /* 片方を隠しているときは、境界の帯の中に収める */
+  body[data-layout="preview"] .pane-toggles,
+  body[data-layout="editor"] .pane-toggles {
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+  .pane-toggle {
+    width: 22px;
+    height: 44px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .pane-toggle:hover {
+    background-color: var(--bg-input);
+    color: var(--text-primary);
+    border-color: var(--accent-color);
+  }
+  /* 矢印は「境界をその向きへ動かす」向き。◀ で本文が縮んでプレビューが広がる */
+  .pane-toggle-preview::before { content: '◀'; }
+  .pane-toggle-editor::before { content: '▶'; }
+  /* タッチでは押す場所の下限 44px を守る（docs/01_要件定義書.html §5）。
+     境界も広げ、プレビュー側へのはみ出しを紙面の余白（40px）に収める */
+  @media (pointer: coarse) {
+    .pane-splitter { flex-basis: 14px; }
+    .pane-toggle { width: 44px; }
+  }
+  body.pane-resizing,
+  body.pane-resizing * {
+    cursor: col-resize !important;
+    user-select: none !important;
+  }
+
+  body[data-layout="preview"] .editor-section { display: none; }
+  body[data-layout="editor"] .preview-section { display: none; }
+  body[data-layout="editor"] .editor-section { flex: 1 1 0; }
+  /* 片方を隠しているあいだ、境界はボタン1つ分の帯になる（ドラッグはできない。ボタンで戻す） */
+  body[data-layout="preview"] .pane-splitter,
+  body[data-layout="editor"] .pane-splitter {
+    flex-basis: 28px;
+    cursor: default;
+  }
+  body[data-layout="preview"] .pane-splitter:hover,
+  body[data-layout="editor"] .pane-splitter:hover {
+    background-color: var(--bg-card);
+  }
+  body[data-layout="preview"] .pane-toggle-preview,
+  body[data-layout="editor"] .pane-toggle-editor {
+    display: none;
+  }
+  @media (pointer: coarse) {
+    body[data-layout="preview"] .pane-splitter,
+    body[data-layout="editor"] .pane-splitter { flex-basis: 44px; }
   }
 
   /* === プレビュー内のHTMLスタイル定義 === */
@@ -516,6 +622,113 @@
   @keyframes info-flash {
     0% { box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.6); }
     100% { box-shadow: 0 0 0 4px rgba(59, 130, 246, 0); }
+  }
+
+  /* === プレビューから原文へ（docs/11_プレビュー連携設計書.html §3） ===
+     ダブルクリックで原文を開ける範囲を、マウスを乗せたときだけ薄い枠で示す。
+     入れ子（本文の段の中のNPCカードなど）では、いちばん内側だけに出す（外側にも出すと枠が重なる） */
+  @media (hover: hover) {
+    #preview-area [data-src]:hover:not(:has([data-src]:hover, [data-origin]:hover)),
+    #preview-area [data-origin]:hover:not(:has([data-src]:hover, [data-origin]:hover)) {
+      outline: 1px dashed rgba(59, 130, 246, 0.45);
+      outline-offset: 3px;
+    }
+  }
+  /* 飛んだ先の段落を、本文の欄の上で一瞬光らせる帯（flashEditorRange()） */
+  .editor-flash {
+    position: absolute;
+    left: 0;
+    right: 0;
+    pointer-events: none;
+    opacity: 0;
+    background-color: rgba(59, 130, 246, 0.18);
+    border-left: 3px solid var(--accent-color);
+  }
+  .editor-flash.flash {
+    animation: editor-flash 1.6s ease-out;
+  }
+  @keyframes editor-flash {
+    0%, 40% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  /* 原文の小窓で書き換えたあと、描き直した段落を一瞬光らせる */
+  #preview-area [data-src].flash {
+    animation: info-flash 1.2s ease-out;
+  }
+
+  /* === 原文の小窓（docs/11_プレビュー連携設計書.html §4） ===
+     プレビューだけの表示でダブルクリックした段落の下に開く。中身は原文（記法のまま）なので、
+     紙面の書体ではなく本文の欄と同じ見た目にして、別物だと分かるようにする */
+  #preview-area .src-editor {
+    margin: 4px 0 20px;
+    border: 1px solid var(--accent-color) !important;
+    border-radius: 8px;
+    background-color: var(--bg-card) !important;
+    color: var(--text-primary) !important;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.25);
+    overflow: hidden;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+  }
+  #preview-area .src-editor.attention {
+    animation: info-flash 1.2s ease-out;
+  }
+  #preview-area .src-editor-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 12px;
+    padding: 6px 12px;
+    font-size: 0.78rem;
+    color: var(--text-secondary) !important;
+    border-bottom: 1px solid var(--border-color);
+  }
+  #preview-area .src-editor-head strong {
+    color: var(--text-primary) !important;
+  }
+  #preview-area .src-editor-input {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 4.8em;
+    max-height: 60vh;
+    resize: vertical;
+    margin: 0;
+    padding: 12px 14px;
+    border: none;
+    outline: none;
+    background-color: var(--bg-app);
+    color: var(--text-primary);
+    font-family: 'Consolas', 'Courier New', Courier, monospace;
+    font-size: 0.95rem;
+    line-height: 1.6;
+  }
+  #preview-area .src-editor-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 8px 12px;
+    border-top: 1px solid var(--border-color);
+  }
+  #preview-area .src-editor-actions .btn {
+    min-height: 36px;
+  }
+  @media (pointer: coarse) {
+    #preview-area .src-editor-actions .btn { min-height: 44px; }
+  }
+  /* 小窓で書き換えている段落（描いたもの）を示す。マウスを乗せたときの点線の枠より優先する */
+  #preview-area .src-editing {
+    outline: 2px solid rgba(59, 130, 246, 0.55) !important;
+    outline-offset: 3px !important;
+  }
+  /* プレビューだけの表示で本文を書き換える一瞬だけ、本文の欄を画面の外に出す（editEditorRange()） */
+  body[data-layout="preview"].editor-offstage .editor-section {
+    display: flex;
+    position: fixed;
+    left: -10000px;
+    top: 0;
+    width: 600px;
+    height: 400px;
   }
   /* 公開対象のバッジ。「全員」は緑、誰かに限った情報は琥珀色、未設定は赤で目立たせる
      （秘匿のつもりの情報を全員に送る事故を防ぐため） */
@@ -3048,14 +3261,42 @@
     .workspace {
       flex-direction: column-reverse; /* 縦画面時は入力欄が下になるようリバース */
     }
-    .editor-section {
+    /* 高さの割合は横画面と同じ --editor-ratio（flex-basis が縦向きに効く） */
+    /* 境界は横向きの帯になり、ボタンも横に並ぶ。上がプレビュー・下が本文なので、
+       ▼ で本文が縮んでプレビューが広がる */
+    .pane-splitter {
+      flex-basis: 8px;
+      cursor: row-resize;
+      border-left: none;
       border-right: none;
-      border-top: 1px solid var(--border-color); /* プレビューとの境界線を上に */
-      border-bottom: none;
-      height: 50%;
+      border-top: 1px solid var(--border-color);
+      border-bottom: 1px solid var(--border-color);
     }
-    .preview-section {
-      height: 50%;
+    .pane-toggles {
+      flex-direction: row;
+      top: auto;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+    body[data-layout="preview"] .pane-toggles,
+    body[data-layout="editor"] .pane-toggles {
+      top: 50%;
+      bottom: auto;
+    }
+    .pane-toggle {
+      width: 44px;
+      height: 22px;
+    }
+    .pane-toggle-preview::before { content: '▼'; }
+    .pane-toggle-editor::before { content: '▲'; }
+    body.pane-resizing,
+    body.pane-resizing * {
+      cursor: row-resize !important;
+    }
+    @media (pointer: coarse) {
+      .pane-splitter { flex-basis: 14px; }
+      .pane-toggle { height: 44px; }
     }
     #preview-area .row {
       grid-template-columns: 1fr;
@@ -3142,6 +3383,9 @@
       box-shadow: none !important;
       padding: 0 !important;
       background-color: #ffffff !important;
+      /* 画面で付けた幅の上限は紙には要らない（用紙の幅いっぱいに組む） */
+      max-width: none !important;
+      margin: 0 !important;
     }
     #preview-area .row {
       display: grid !important;
@@ -3643,6 +3887,18 @@
     </aside>
     <!-- 公開対象の候補（「全員」と、このシナリオで使った対象）。renderInfoDrawer() が作り直す -->
     <datalist id="info-target-options"></datalist>
+
+    <!-- 本文とプレビューの境界。ドラッグで幅を変え、ボタンで片方を隠す。
+         ヘッダーと下部パネルは幅が尽きているので、切り替えの入口はここに置く（docs/11_プレビュー連携設計書.html §2）。
+         ボタンの矢印は CSS が描く（縦画面では上下に並ぶので、向きが変わる） -->
+    <div class="pane-splitter no-print" id="pane-splitter" role="separator" aria-orientation="vertical"
+         tabindex="0" aria-valuemin="20" aria-valuemax="80" aria-valuenow="50"
+         aria-label="本文とプレビューの境界（ドラッグ・矢印キーで幅を変える。ダブルクリックで半々に戻す）">
+      <div class="pane-toggles">
+        <button type="button" class="pane-toggle pane-toggle-preview" data-pane-step="-1"></button>
+        <button type="button" class="pane-toggle pane-toggle-editor" data-pane-step="1"></button>
+      </div>
+    </div>
 
     <!-- 右側：プレビュー（台本の紙面だけを置く。操作のボタンは下部パネルに置く） -->
     <section class="preview-section">
@@ -4673,6 +4929,16 @@
         desc: '執筆と場面図を切り替える', keywords: 'ばめんず しっぴつ きりかえ map', key: withAlt('m'),
         inSceneMode: true,
         run: () => setAppMode(document.body.dataset.mode === 'scene' ? 'write' : 'scene') },
+      // 本文とプレビューの並べ方。画面の上の入口は境界のボタン（docs/11_プレビュー連携設計書.html §2）。
+      // 場面図の表示中は本文もプレビューも隠れているので受け付けない
+      { id: 'layout-preview', group: 'app', icon: '📖', name: 'プレビューを広げる', panel: false,
+        desc: '本文を隠してプレビューだけを表示する（もう一度で並べる表示に戻す）',
+        keywords: 'ぷれびゅーをひろげる ぷれびゅーだけ ぜんがめん かくだい よむ ならべる preview wide fullscreen',
+        key: withAlt('p'), run: () => togglePaneLayout('preview') },
+      { id: 'layout-editor', group: 'app', icon: '📝', name: '本文を広げる', panel: false,
+        desc: 'プレビューを隠して本文だけを表示する（もう一度で並べる表示に戻す）',
+        keywords: 'ほんぶんをひろげる ほんぶんだけ しっぴつ ならべる editor wide',
+        key: null, run: () => togglePaneLayout('editor') },
       { id: 'list', group: 'app', icon: '📂', name: 'シナリオ一覧', panel: false,
         desc: '保存したシナリオの一覧を開く', keywords: 'しなりおいちらん', key: null,
         inSceneMode: true, run: () => openListModal() },
@@ -5713,6 +5979,9 @@
 
         // ヘッダーのバージョン表記は RELEASE_NOTES の先頭から描く
         renderVersionTag();
+        // 本文とプレビューの並べ方は、作業状態の読み込みを待たずに戻す（読み込みのあいだ半々の画面が見えないように）
+        loadPaneLayout();
+        initPaneSplitter();
 
         // 復元が済むまで打ち込めないようにする。
         // 待たずに開けると、先に打った内容が復元データで上書きされてしまう。
@@ -5837,6 +6106,7 @@
         initFaqModal();
         initBackMatterModal();
         initTocLinks();
+        initPreviewToSource();
         initHeaderFit();
         // 作業状態の復元が済んだあとで始める（復元した状態を、戻る先の起点にする）
         initHistory();
@@ -5898,11 +6168,18 @@
 
     function updatePreview() {
       if (!previewArea || !editor) return;
+      // 原文の小窓を開いているあいだは描き直さない（小窓ごと消えて書きかけが失われる）。閉じたときに描く
+      if (srcEdit) {
+        previewPending = true;
+        return;
+      }
       const markdownText = editor.value;
       // 先頭にシナリオの基本情報（表紙）、末尾に巻末（FAQ → あとがきなど → 権利表記）を置く。
       // どれも本文の記法とは別の入口で書くので、parseMarkdown() には混ぜない
       previewArea.innerHTML = buildScenarioCoverHTML() + parseMarkdown(markdownText, appendixTocEntries())
         + buildFaqSectionHTML() + buildBackMatterHTML();
+      // プレビューの data-src（原文での位置）がどの本文に対するものかを覚えておく（initPreviewToSource()）
+      previewRenderedText = markdownText;
       // 情報一覧は本文の参照（どの場面で使っているか）から組み立てるので、本文が変わったら追従させる
       refreshInfoDrawer();
     }
@@ -5914,6 +6191,8 @@
     // 紙面のレイアウトは @media print のCSSが担うため、ここは
     // 「画面で見えている内容と印刷される内容を一致させる」ことだけを受け持つ。
     function triggerPrint() {
+      // 原文の小窓の書き換えは、確定してから印刷する（書いたものが紙に出ないのは驚かれる）
+      if (srcEdit && !commitSourceEditor()) return;
       // モーダルは印刷CSSで非表示になるが、開いたまま印刷すると
       // 戻ってきたときに操作不能に見えるので先に閉じる
       // （NPC管理は閉じる際に保存とプレビュー更新も行う）。
@@ -5933,6 +6212,8 @@
     // 「自動保存されているのに一覧に出ない」という誤解を生む。
     function saveScenarioToStore() {
       if (isSaving || !editor || !scenarioTitle) return;
+      // 原文の小窓の書き換えは、確定してから保存する（保存したつもりで小窓の中身だけ残るのを防ぐ）
+      if (srcEdit && !commitSourceEditor()) return;
       isSaving = true;
       if (btnSave) {
         btnSave.disabled = true;
@@ -6231,6 +6512,7 @@
       currentScenarioId = generateUUID();
       currentSystemId = normalizeSystemId(systemId);
       scenarioTitle.value = '無題のシナリオ';
+      discardSourceEditor(); // 前のシナリオの原文の小窓を残さない
       editor.value = '';
       releaseNpcUrls(currentNpcs);
       currentNpcs = [];
@@ -6449,6 +6731,7 @@
           currentScenarioId = res.id;
           currentSystemId = normalizeSystemId(res.system);
           scenarioTitle.value = res.title || '無題のシナリオ';
+          discardSourceEditor(); // 前のシナリオの原文の小窓を残さない
           editor.value = res.content || '';
           
           // API.loadScenario() が normalizeNpc() を通して返すため、ここでの再変換は不要。
@@ -6493,6 +6776,7 @@
           if (currentScenarioId === id) {
             currentScenarioId = generateUUID();
             scenarioTitle.value = '無題のシナリオ';
+            discardSourceEditor(); // 消したシナリオの原文の小窓を残さない
             editor.value = '';
             releaseNpcUrls(currentNpcs);
             currentNpcs = [];
@@ -6879,11 +7163,11 @@
     // 色を付けた直後は「囲みの内側」だけが選ばれている。そのまま別の色を押すと
     // {赤:{青:…}} という入れ子ができてしまい、記法として解釈できず
     // 波括弧が本文に出る。囲み直す前にここで範囲を広げておく。
-    function expandOverColorNotation(startPos, endPos) {
+    function expandOverColorNotation(field, startPos, endPos) {
       const asIs = { start: startPos, end: endPos };
-      if (!editor) return asIs;
+      if (!field) return asIs;
 
-      const text = editor.value;
+      const text = field.value;
       if (text.charAt(endPos) !== '}') return asIs;
 
       const opener = text.substring(0, startPos).match(/\{[^{}:：\n]{1,16}[:：]$/);
@@ -6897,12 +7181,14 @@
     }
 
     // 選択範囲を {色:…} で囲む。すでに色が付いていれば付け替える。
+    // 原文の小窓を開いていれば、そちらの選択範囲に付ける（insertionTarget()）
     function applyColor(colorKey) {
-      if (!editor) return;
-      const range = expandOverColorNotation(editor.selectionStart, editor.selectionEnd);
+      const field = insertionTarget();
+      if (!field) return;
+      const range = expandOverColorNotation(field, field.selectionStart, field.selectionEnd);
       const opener = '{' + colorKey + ':';
       // 選択の内側にある色記法も剥がす（複数の色をまたいで選んだ場合）
-      const body = stripColorNotation(editor.value.substring(range.start, range.end));
+      const body = stripColorNotation(field.value.substring(range.start, range.end));
 
       // 何も選んでいなければ body は空。囲みだけ入れてカーソルを中に置く
       replaceRange(range.start, range.end, opener + body + '}', opener.length, body.length);
@@ -6922,15 +7208,16 @@
     // 選択範囲から色を外す。付けた直後（囲みの内側だけが選ばれている状態）でも
     // 外せるよう、applyColor() と同じく囲みまで範囲を広げてから処理する。
     function stripColor() {
-      if (!editor) return;
-      const range = expandOverColorNotation(editor.selectionStart, editor.selectionEnd);
+      const field = insertionTarget();
+      if (!field) return;
+      const range = expandOverColorNotation(field, field.selectionStart, field.selectionEnd);
       if (range.start === range.end) {
         closeColorModal();
-        editor.focus();
+        field.focus();
         return;
       }
 
-      const stripped = stripColorNotation(editor.value.substring(range.start, range.end));
+      const stripped = stripColorNotation(field.value.substring(range.start, range.end));
       replaceRange(range.start, range.end, stripped, 0, stripped.length);
       closeColorModal();
       handleInput();
@@ -8034,7 +8321,8 @@ ${derivedHTML}
       const cleanNote = String(note || '').replace(/\]/g, '')
         .split(/\r?\n/).map(line => line.trim()).filter(Boolean).join('\n');
       const prefix = `\n\n[セリフ:${name}${cleanNote ? '/' + cleanNote : ''}] 「`;
-      replaceRange(editor.selectionStart, editor.selectionEnd, prefix + '」\n', prefix.length, 0);
+      const field = insertionTarget(); // 原文の小窓を開いていればそちら
+      replaceRange(field.selectionStart, field.selectionEnd, prefix + '」\n', prefix.length, 0);
     }
 
     // ===== 場面図モード =====
@@ -8051,6 +8339,8 @@ ${derivedHTML}
     function setAppMode(mode) {
       const next = (mode === 'scene') ? 'scene' : 'write';
       if (document.body.dataset.mode === next) return;
+      // 原文の小窓は執筆の画面のプレビューにある。場面図へ移る前に確定する（docs/11_プレビュー連携設計書.html §4.5）
+      if (srcEdit && !commitSourceEditor()) return;
 
       // 幅や高さを測る処理より先に属性を変える。display:none の要素は
       // clientWidth が 0 になり、そこで測ると桁違いの値が出る。
@@ -9121,6 +9411,7 @@ ${derivedHTML}
       }
 
       setAppMode('write'); // 測る前に表示しておく（幅が0だと位置を計算できない）
+      revealEditorPane();  // プレビューだけの表示でも同じ理由で本文を出す
       editor.focus();
       editor.setSelectionRange(hit[0].start, hit[0].end);
       editor.scrollTop = Math.max(0, textareaOffsetTop(editor, hit[0].start) - editor.clientHeight * 0.25);
@@ -9132,6 +9423,7 @@ ${derivedHTML}
       if (!node.title) { alert('先に見出しの名前を入力してください。'); return; }
 
       setAppMode('write');
+      revealEditorPane();
       const text = editor.value;
       // 末尾に足す。取り消しの記録に残る書き方で（editEditorRange()）
       editEditorRange(text.length, text.length, (text && !/\n\n$/.test(text) ? '\n\n' : '') + '# ' + node.title + '\n\n');
@@ -9377,12 +9669,552 @@ ${derivedHTML}
       });
     }
 
+    // === 本文とプレビューの並べ方 ===
+    //
+    // 並べる（both）・プレビューだけ（preview）・本文だけ（editor）の3つと、並べたときの本文の幅の割合。
+    // この端末の設定として localStorage に持つ（docs/11_プレビュー連携設計書.html §2）。
+    // 入口は境界のボタンとドラッグ、コマンドパレット・ショートカット（ACTIONS の layout-preview / layout-editor）
+    const LAYOUT_KEY = 'trpg_layout';
+    const LAYOUT_ORDER = ['preview', 'both', 'editor']; // 境界のボタンで1段ずつ動く順
+    const LAYOUT_RATIO_MIN = 0.2;
+    const LAYOUT_RATIO_MAX = 0.8;
+    let paneLayout = { mode: 'both', ratio: 0.5 };
+    // 隠すと表示位置が先頭に戻ってしまう（display: none でスクロールの状態が捨てられる）ので、隠す前に覚えておく
+    const paneScroll = { editor: 0, preview: 0 };
+
+    function clampLayoutRatio(r) {
+      return Math.min(LAYOUT_RATIO_MAX, Math.max(LAYOUT_RATIO_MIN, r));
+    }
+
+    function loadPaneLayout() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(LAYOUT_KEY) || 'null');
+        if (saved && typeof saved === 'object') {
+          if (LAYOUT_ORDER.indexOf(saved.mode) !== -1) paneLayout.mode = saved.mode;
+          const r = Number(saved.ratio);
+          if (isFinite(r) && r > 0) paneLayout.ratio = clampLayoutRatio(r);
+        }
+      } catch (e) {
+        // 壊れていれば既定（半々で並べる）のまま
+      }
+      applyPaneLayout();
+    }
+
+    // 表示の好みでしかないので、保存できなくても知らせない（次に開いたとき既定に戻るだけ）
+    function savePaneLayout() {
+      try {
+        writeSetting(LAYOUT_KEY, JSON.stringify(paneLayout));
+      } catch (e) {
+        console.warn('表示の設定を保存できませんでした:', e);
+      }
+    }
+
+    function applyPaneLayout() {
+      document.body.dataset.layout = paneLayout.mode;
+      const workspace = document.querySelector('.workspace');
+      if (workspace) workspace.style.setProperty('--editor-ratio', paneLayout.ratio);
+      const splitter = document.getElementById('pane-splitter');
+      if (splitter) splitter.setAttribute('aria-valuenow', String(Math.round(paneLayout.ratio * 100)));
+      // ボタンの名前は、押すとどうなるかで書く（同じボタンでも、隠している側を戻すときは名前が変わる）
+      const names = {
+        preview: paneLayout.mode === 'editor' ? 'プレビューも表示する' : 'プレビューを広げる（本文を隠す）',
+        editor: paneLayout.mode === 'preview' ? '本文も表示する' : '本文を広げる（プレビューを隠す）'
+      };
+      document.querySelectorAll('.pane-toggle').forEach(btn => {
+        const label = btn.classList.contains('pane-toggle-preview') ? names.preview : names.editor;
+        btn.title = label;
+        btn.setAttribute('aria-label', label);
+      });
+    }
+
+    function setPaneLayout(mode) {
+      if (LAYOUT_ORDER.indexOf(mode) === -1 || mode === paneLayout.mode) return;
+      // 原文の小窓はプレビューだけの表示で開くもの。表示を切り替えるときは確定して閉じる（§4.5）
+      if (srcEdit && !commitSourceEditor()) return;
+      const prev = paneLayout.mode;
+      if (prev !== 'preview' && editor) paneScroll.editor = editor.scrollTop;
+      const previewSection = document.querySelector('.preview-section');
+      if (prev !== 'editor' && previewSection) paneScroll.preview = previewSection.scrollTop;
+
+      paneLayout.mode = mode;
+      applyPaneLayout();
+      savePaneLayout();
+
+      if (mode !== 'preview' && prev === 'preview' && editor) editor.scrollTop = paneScroll.editor;
+      if (mode !== 'editor' && prev === 'editor' && previewSection) previewSection.scrollTop = paneScroll.preview;
+      // 隠した本文にフォーカスを残さない（残ると、打った文字が見えないまま本文に入る）
+      if (mode === 'preview' && editor && document.activeElement === editor) editor.blur();
+    }
+
+    // パレット・ショートカットから。同じものをもう一度選ぶと、並べる表示に戻す
+    function togglePaneLayout(mode) {
+      setPaneLayout(paneLayout.mode === mode ? 'both' : mode);
+    }
+
+    // 境界のボタン。dir = -1 でプレビュー側へ広げる、1 で本文側へ広げる
+    function stepPaneLayout(dir) {
+      const i = LAYOUT_ORDER.indexOf(paneLayout.mode) + dir;
+      if (i >= 0 && i < LAYOUT_ORDER.length) setPaneLayout(LAYOUT_ORDER[i]);
+    }
+
+    // 本文の欄が隠れていれば、並べる表示に戻す。
+    // カーソル位置へ記法を入れる操作から呼ぶ（見えない本文に入ると、どこに入ったか分からないため）
+    function revealEditorPane() {
+      if (paneLayout.mode === 'preview') setPaneLayout('both');
+    }
+    function revealPreviewPane() {
+      if (paneLayout.mode === 'editor') setPaneLayout('both');
+    }
+
+    // 境界のドラッグ。縦画面（上がプレビュー・下が本文）では上下に動かす
+    function paneRatioFromPointer(e) {
+      const workspace = document.querySelector('.workspace');
+      const r = workspace.getBoundingClientRect();
+      const vertical = getComputedStyle(workspace).flexDirection.indexOf('column') === 0;
+      const ratio = vertical ? (r.bottom - e.clientY) / r.height : (e.clientX - r.left) / r.width;
+      return clampLayoutRatio(ratio);
+    }
+
+    function initPaneSplitter() {
+      const splitter = document.getElementById('pane-splitter');
+      if (!splitter) return;
+
+      splitter.addEventListener('click', e => {
+        const btn = e.target.closest('[data-pane-step]');
+        if (btn) stepPaneLayout(Number(btn.dataset.paneStep));
+      });
+
+      splitter.addEventListener('pointerdown', e => {
+        if (e.button !== 0 || e.target.closest('button') || paneLayout.mode !== 'both') return;
+        e.preventDefault(); // 文字の選択が始まらないように
+        splitter.setPointerCapture(e.pointerId);
+        splitter.classList.add('dragging');
+        document.body.classList.add('pane-resizing');
+        const move = ev => {
+          paneLayout.ratio = paneRatioFromPointer(ev);
+          applyPaneLayout();
+        };
+        const end = () => {
+          splitter.removeEventListener('pointermove', move);
+          splitter.removeEventListener('pointerup', end);
+          splitter.removeEventListener('pointercancel', end);
+          splitter.classList.remove('dragging');
+          document.body.classList.remove('pane-resizing');
+          savePaneLayout();
+        };
+        splitter.addEventListener('pointermove', move);
+        splitter.addEventListener('pointerup', end);
+        splitter.addEventListener('pointercancel', end);
+      });
+
+      // ダブルクリックで半々に戻す
+      splitter.addEventListener('dblclick', e => {
+        if (e.target.closest('button') || paneLayout.mode !== 'both') return;
+        paneLayout.ratio = 0.5;
+        applyPaneLayout();
+        savePaneLayout();
+      });
+
+      // フォーカスしているときは矢印キーでも動かせる（縦画面では上下の矢印）
+      splitter.addEventListener('keydown', e => {
+        if (e.target !== splitter || paneLayout.mode !== 'both') return;
+        const vertical = getComputedStyle(splitter.parentElement).flexDirection.indexOf('column') === 0;
+        const delta = vertical
+          ? { ArrowUp: 0.05, ArrowDown: -0.05 }[e.key]
+          : { ArrowLeft: -0.05, ArrowRight: 0.05 }[e.key];
+        if (!delta) return;
+        e.preventDefault();
+        paneLayout.ratio = clampLayoutRatio(paneLayout.ratio + delta);
+        applyPaneLayout();
+        savePaneLayout();
+      });
+    }
+
+    // === プレビューから原文へ（docs/11_プレビュー連携設計書.html §3） ===
+    //
+    // プレビューをダブルクリックすると、その文章を書いた場所を開く。
+    //   本文から描いたもの（data-src）   … 本文の欄のその位置へカーソルを移し、段落を一瞬光らせる。
+    //                                       プレビューだけの表示なら、その場に原文の小窓を開く（§4）
+    //   本文の外で書いたもの（data-origin） … NPC管理・情報一覧・基本情報・巻末の、その欄を開く
+    // 1回のクリックにしなかったのは、文章の選択・コピーと目次のリンクに使われているため（§3.3）
+
+    // 本文の外で書いたものの出どころ。kind は npc / info / cover / faq / bm / rights
+    function originAttrs(kind, id, field) {
+      return ` data-origin="${kind}"`
+        + (id ? ` data-origin-id="${escapeHTML(String(id))}"` : '')
+        + (field ? ` data-origin-field="${field}"` : '');
+    }
+
+    function parseSrcRange(value) {
+      const m = /^(\d+)-(\d+)$/.exec(value || '');
+      return m ? { start: Number(m[1]), end: Number(m[2]) } : null;
+    }
+
+    // 最後にプレビューを描いたときの本文。data-src はこの本文での位置なので、
+    // 打った直後（デバウンス待ちでプレビューがまだ古い）にダブルクリックされたら、描き直してから引く
+    let previewRenderedText = null;
+
+    function flushPreview() {
+      clearTimeout(debounceTimer);
+      saveToLocal();
+      updatePreview();
+    }
+
+    function caretFromPoint(x, y) {
+      if (document.caretPositionFromPoint) {
+        const p = document.caretPositionFromPoint(x, y);
+        if (p && p.offsetNode) return { node: p.offsetNode, offset: p.offset };
+      }
+      if (document.caretRangeFromPoint) {
+        const r = document.caretRangeFromPoint(x, y);
+        if (r) return { node: r.startContainer, offset: r.startOffset };
+      }
+      return null;
+    }
+
+    // クリックした文字が、原文の range の中のどこにあるかを推し量る。
+    //
+    // プレビューの文字は記法を外して組み直したものなので、位置を計算では引けない。
+    // クリックした所の前後の数文字を原文から探す。長い手がかりから順に試し、1か所にだけ見つかったものを採る。
+    // どれも複数か所に見つかるなら最初のもの、どこにも無ければ null（呼ぶ側が段の先頭にする）。
+    // 判定ブロックの結果の名前（「成功」など記法から組み立てた文字）は原文に無いので、null になる
+    function locateClickInSource(text, range, caret) {
+      if (!caret || !caret.node || caret.node.nodeType !== Node.TEXT_NODE) return null;
+      const data = caret.node.data;
+      const at = Math.min(caret.offset, data.length);
+      const segment = text.substring(range.start, range.end);
+      let fallback = null;
+      for (const [before, after] of [[10, 10], [5, 5], [0, 6], [6, 0], [0, 3], [3, 0]]) {
+        const from = Math.max(0, at - before);
+        const needle = data.substring(from, Math.min(data.length, at + after));
+        if (needle.trim().length < 2) continue;
+        const idx = segment.indexOf(needle);
+        if (idx === -1) continue;
+        const pos = range.start + idx + (at - from);
+        if (segment.indexOf(needle, idx + 1) === -1) return pos;
+        if (fallback === null) fallback = pos;
+      }
+      return fallback;
+    }
+
+    // 本文の欄で、その段落の pos へカーソルを移す
+    function jumpToSource(range, pos) {
+      if (!editor) return;
+      revealEditorPane();
+      editor.focus({ preventScroll: true });
+      editor.setSelectionRange(pos, pos);
+      // 段落の頭が欄の上から1/4あたりに来るようにする。段落が長くてカーソルが欄から外れるなら、カーソルの行に合わせる
+      const height = editor.clientHeight;
+      const caretTop = textareaOffsetTop(editor, pos);
+      let scroll = textareaOffsetTop(editor, range.start) - height * 0.25;
+      if (caretTop - scroll > height * 0.75) scroll = caretTop - height * 0.4;
+      editor.scrollTop = Math.max(0, scroll);
+      flashEditorRange(range.start, range.end);
+    }
+
+    // 本文の start〜end の段落の上に帯を重ね、一瞬光らせる（textarea の中の文字には色を付けられないため）
+    function flashEditorRange(start, end) {
+      const section = editor && editor.parentElement;
+      if (!section) return;
+      let band = section.querySelector('.editor-flash');
+      if (!band) {
+        band = document.createElement('div');
+        band.className = 'editor-flash no-print';
+        band.setAttribute('aria-hidden', 'true');
+        section.appendChild(band);
+        // 光っているあいだに本文をスクロールしても、帯が段落に付いていくようにする
+        editor.addEventListener('scroll', () => {
+          band.style.top = (editor.offsetTop + Number(band.dataset.top || 0) - editor.scrollTop) + 'px';
+        });
+      }
+      const lineHeight = parseFloat(getComputedStyle(editor).lineHeight) || 24;
+      const top = textareaOffsetTop(editor, start);
+      band.dataset.top = top;
+      band.style.top = (editor.offsetTop + top - editor.scrollTop) + 'px';
+      band.style.height = (textareaOffsetTop(editor, end) + lineHeight - top) + 'px';
+      band.classList.remove('flash');
+      void band.offsetWidth; // アニメーションをやり直すため
+      band.classList.add('flash');
+    }
+
+    // 本文の外で書いたもの（data-origin）を、書いた画面で開く
+    function openPreviewOrigin(el) {
+      const kind = el.dataset.origin;
+      const id = el.dataset.originId;
+      const field = el.dataset.originField;
+      if (kind === 'npc') {
+        if (id) selectedNpcId = id;
+        openNpcModal();
+      } else if (kind === 'info') {
+        infoEditingId = id;
+        toggleInfoDrawer(true, false);
+        const item = infoDrawerList && infoDrawerList.querySelector(`.info-item[data-info-id="${CSS.escape(id)}"]`);
+        if (item) item.scrollIntoView({ block: 'nearest' });
+      } else if (kind === 'cover') {
+        openBasicInfoModal();
+      } else if (kind === 'faq' || kind === 'bm' || kind === 'rights') {
+        openBackMatterModal(kind === 'faq' ? 'faq' : 'after');
+        const selector = kind === 'rights' ? '#bm-rights'
+          : (id && field) ? `[data-${kind}-id="${CSS.escape(id)}"][data-${kind}-field="${field}"]` : null;
+        const input = selector && backMatterModal && backMatterModal.querySelector(selector);
+        if (input) {
+          input.scrollIntoView({ block: 'center' });
+          input.focus();
+        }
+      }
+    }
+
+    function initPreviewToSource() {
+      if (!previewArea) return;
+      previewArea.addEventListener('dblclick', e => {
+        // ボタン・リンク・原文の小窓の中は、それぞれ本来の動きに任せる
+        if (e.target.closest('button, a, input, textarea, select, .src-editor')) return;
+        let target = e.target;
+        if (editor && previewRenderedText !== editor.value) {
+          flushPreview();
+          target = document.elementFromPoint(e.clientX, e.clientY) || target;
+        }
+        const el = target.closest && target.closest('[data-origin], [data-src]');
+        if (!el || !previewArea.contains(el)) return;
+        // ダブルクリックで選ばれた語の選択は残さない（開いた先の操作の邪魔になる）
+        const sel = window.getSelection();
+        const caret = caretFromPoint(e.clientX, e.clientY);
+        if (sel) sel.removeAllRanges();
+
+        if (el.dataset.origin) {
+          openPreviewOrigin(el);
+          return;
+        }
+        const range = parseSrcRange(el.dataset.src);
+        if (!range || !editor) return;
+        const part = parseSrcRange(el.dataset.part) || range;
+        const pos = locateClickInSource(editor.value, part, caret);
+        // 本文の欄が見えていれば、そこへ飛ぶ。プレビューだけの表示では、飛ぶ先が隠れているので
+        // 画面を切り替えずに、その場に原文の小窓を開く（§4）
+        if (paneLayout.mode === 'preview') openSourceEditor(el, range, pos);
+        else jumpToSource(range, pos === null ? part.start : pos);
+      });
+    }
+
+    // === 原文の小窓（docs/11_プレビュー連携設計書.html §4） ===
+    //
+    // プレビューだけの表示でダブルクリックした段落の原文（記法のまま）を、その段落のすぐ下に開いて書き換える。
+    // プレビューのHTMLを直接書き換える形（WYSIWYG）にしなかったのは、プレビューは記法から組み立てたもので、
+    // 書き換えた結果を記法に戻す変換が要るため（不完全だと原文を壊し、しかも見た目では気づけない。§4.1）。
+    // ここでは原文の文字列をそのまま差し替えるので、記法に戻す変換は要らない。
+    //
+    // 開いているあいだはプレビューを描き直さない（描き直すと小窓ごと消え、書きかけが失われる）。
+    // 描き直しを頼まれたら覚えておき、閉じたときに描く（updatePreview()）
+    let srcEdit = null;          // { start, end, original, panel, input, anchors }
+    let previewPending = false;  // 小窓を開いているあいだに描き直しを頼まれた
+
+    function openSourceEditor(el, range, pos) {
+      if (srcEdit) {
+        // 同じ段落なら、開いている小窓へ戻るだけ
+        if (srcEdit.start === range.start && srcEdit.end === range.end) {
+          focusSourceEditor(pos);
+          return;
+        }
+        // 書きかけがあれば、黙って捨てたり確定したりしない。開いている小窓を示して止める
+        if (srcEdit.input.value !== srcEdit.original) {
+          srcEdit.panel.classList.remove('attention');
+          void srcEdit.panel.offsetWidth; // アニメーションをやり直すため
+          srcEdit.panel.classList.add('attention');
+          srcEdit.panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          return;
+        }
+        closeSourceEditor();
+        // 閉じたときに描き直していれば、ダブルクリックした要素はもう無い。同じ段落を引き直す
+        if (!el.isConnected) {
+          el = previewArea.querySelector(`[data-src="${range.start}-${range.end}"]`);
+          if (!el) return;
+        }
+      }
+
+      const anchors = Array.from(previewArea.querySelectorAll(`[data-src="${range.start}-${range.end}"]`));
+      // 小窓は、その段落を描いた最後の要素の行（見出し・段組みの行・全幅のブロック）のすぐ下に入れる
+      let host = anchors[anchors.length - 1] || el;
+      while (host.parentElement && host.parentElement !== previewArea) host = host.parentElement;
+
+      const panel = document.createElement('div');
+      panel.className = 'src-editor no-print';
+      panel.setAttribute('role', 'group');
+      panel.setAttribute('aria-label', '原文を編集');
+      panel.innerHTML = '<div class="src-editor-head"><strong>✎ 原文を編集</strong>'
+        + '<span>記法のまま書き換えます。Ctrl+Enter で確定・Esc で取り消し</span></div>'
+        + '<textarea class="src-editor-input" spellcheck="false" aria-label="この段落の原文"></textarea>'
+        + '<div class="src-editor-actions">'
+        + '<button type="button" class="btn btn-small" data-src-act="open" title="並べる表示に戻し、本文の欄のこの段落へ移る（書き換えは確定する）">本文で開く</button>'
+        + '<button type="button" class="btn btn-small" data-src-act="cancel">取り消す</button>'
+        + '<button type="button" class="btn btn-small btn-primary" data-src-act="commit">確定</button>'
+        + '</div>';
+      host.after(panel);
+      anchors.forEach(a => a.classList.add('src-editing'));
+
+      const input = panel.querySelector('textarea');
+      const original = editor.value.substring(range.start, range.end);
+      input.value = original;
+      srcEdit = { start: range.start, end: range.end, original: original, panel: panel, input: input, anchors: anchors };
+
+      // 中身に合わせて高さを伸ばす（上限は CSS の max-height。超えたら小窓の中でスクロール）
+      const fit = () => {
+        input.style.height = 'auto';
+        input.style.height = input.scrollHeight + 'px';
+      };
+      input.addEventListener('input', fit);
+      input.addEventListener('keydown', e => {
+        if (e.isComposing || e.keyCode === 229) return; // 日本語入力の確定の Enter・Esc は拾わない
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          commitSourceEditor();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          cancelSourceEditor();
+        }
+      });
+      panel.addEventListener('click', e => {
+        const btn = e.target.closest('[data-src-act]');
+        if (!btn) return;
+        const act = btn.dataset.srcAct;
+        if (act === 'commit') commitSourceEditor();
+        else if (act === 'cancel') cancelSourceEditor();
+        else if (act === 'open') openSourceInEditor();
+      });
+      fit();
+      focusSourceEditor(pos);
+    }
+
+    function focusSourceEditor(pos) {
+      if (!srcEdit) return;
+      const input = srcEdit.input;
+      input.focus({ preventScroll: true });
+      if (typeof pos === 'number') {
+        const at = Math.max(0, Math.min(input.value.length, pos - srcEdit.start));
+        input.setSelectionRange(at, at);
+      }
+      srcEdit.panel.scrollIntoView({ block: 'nearest' });
+    }
+
+    // 小窓を閉じる。render を false にすると、頼まれていた描き直しをしない（呼ぶ側がすぐ描き直す場合）
+    function closeSourceEditor(render = true) {
+      if (!srcEdit) return;
+      srcEdit.panel.remove();
+      srcEdit.anchors.forEach(a => a.classList.remove('src-editing'));
+      srcEdit = null;
+      const pending = previewPending;
+      previewPending = false;
+      if (render && pending) updatePreview();
+    }
+
+    // 小窓で開いた段落が、いまの本文のどこにあるか。開いているあいだに本文が変わった
+    // （元に戻す・情報の題名の変更など）ときは、同じ文の段落を探し直す。1か所に決まらなければ -1
+    function locateSourceEditorBlock(s) {
+      if (editor.value.substring(s.start, s.end) === s.original) return s.start;
+      const idx = editor.value.indexOf(s.original);
+      return (idx !== -1 && editor.value.indexOf(s.original, idx + 1) === -1) ? idx : -1;
+    }
+
+    // 書き換えを本文へ反映して閉じる。戻り値は書き換えたあとの段落の範囲 { start, end }。
+    // 反映できなかった（書き換える場所が分からない）ときは null を返し、小窓は開いたまま残す
+    function commitSourceEditor() {
+      if (!srcEdit) return null;
+      const s = srcEdit;
+      const value = s.input.value;
+      const start = locateSourceEditorBlock(s);
+      if (value === s.original) {
+        closeSourceEditor();
+        return start === -1 ? { start: s.start, end: s.end } : { start: start, end: start + value.length };
+      }
+      if (start === -1) {
+        alert('この段落を開いたあとで本文が変わったため、書き換える場所を特定できませんでした。\n\n'
+          + '小窓の内容をコピーしてから「取り消す」で閉じ、もう一度ダブルクリックで開き直してください。');
+        return null;
+      }
+      // 取り消しの記録に残る書き方で差し替える（本文の欄が隠れていても。editEditorRange()）
+      editEditorRange(start, start + s.original.length, value);
+      editor.setSelectionRange(start + value.length, start + value.length);
+      closeSourceEditor(false);
+      flushPreview();
+      // 描き直した段落を一瞬光らせる（書き換えで段落が分かれた・消えたときは、先頭の位置から始まるものだけ）
+      previewArea.querySelectorAll(`[data-src^="${start}-"]`).forEach(a => {
+        a.classList.remove('flash');
+        void a.offsetWidth;
+        a.classList.add('flash');
+      });
+      return { start: start, end: start + value.length };
+    }
+
+    function cancelSourceEditor() {
+      if (!srcEdit) return;
+      if (srcEdit.input.value !== srcEdit.original && !confirm('この段落の書き換えを捨てて閉じますか？')) {
+        srcEdit.input.focus();
+        return;
+      }
+      closeSourceEditor();
+    }
+
+    // 書き換えを確定して並べる表示に戻し、本文の欄のその段落（小窓のカーソルの位置）へ移る
+    function openSourceInEditor() {
+      if (!srcEdit) return;
+      const caret = srcEdit.input.selectionStart;
+      const range = commitSourceEditor();
+      if (!range) return;
+      jumpToSource(range, Math.min(range.start + caret, range.end));
+    }
+
+    // シナリオを開き直した・作った・消したときは、前のシナリオの小窓を確定せずに捨てる
+    // （「上書きされますがよろしいですか」の確認を通ってきている。呼ぶ側がすぐ描き直す）
+    function discardSourceEditor() {
+      closeSourceEditor(false);
+    }
+
+    // 本文を段落（空行＝\n が2つ以上で区切ったまとまり）に切り、原文での位置も返す。
+    // [{ text, start, end }]。text は前後の空白を除いたもので、start〜end はその text が原文にある範囲。
+    // 切り方は以前の text.split(/\n{2,}/).map(b => b.trim()).filter(Boolean) と同じで、同じ段落が同じ順に並ぶ
+    function splitSourceBlocks(text) {
+      const out = [];
+      const push = (from, to) => {
+        const raw = text.substring(from, to);
+        const body = raw.trim();
+        if (!body) return;
+        const start = from + raw.indexOf(body);
+        out.push({ text: body, start: start, end: start + body.length });
+      };
+      const re = /\n{2,}/g;
+      let last = 0;
+      let m;
+      while ((m = re.exec(text))) {
+        push(last, m.index);
+        last = m.index + m[0].length;
+      }
+      push(last, text.length);
+      return out;
+    }
+
+    // 描いた要素に付ける、原文での範囲（docs/11_プレビュー連携設計書.html §3.1）。
+    //   data-src  … その段落の全体。原文の小窓で書き換える単位
+    //   data-part … >> で分かれる段落の、その段だけの範囲。原文へ飛ぶとき、クリックした文字を探す範囲を絞る
+    function srcAttrs(block, part) {
+      return ` data-src="${block.start}-${block.end}"`
+        + (part ? ` data-part="${part.start}-${part.end}"` : '');
+    }
+
+    // HTML の先頭のタグに属性を書き足す。包む要素を足さないのは、右の段の
+    // 「.side-content > * + *」のような子の並びを見るCSSを崩さないため
+    function withSrcAttrs(html, attrs) {
+      return html ? html.replace(/^(\s*<[a-zA-Z][\w-]*)/, '$1' + attrs) : html;
+    }
+
     // appendixToc … 目次の後ろに足す巻末の項目（appendixTocEntries()）。本文の外で描くものなので呼び出し側から渡す
     function parseMarkdown(text, appendixToc) {
       if (!text.trim()) return '<p style="color: #94a3b8; font-style: italic;">テキストを入力するとここにプレビューが表示されます。</p>';
 
       const normalizedText = text.replace(/\r\n/g, '\n');
-      const blocks = normalizedText.split(/\n{2,}/).map(b => b.trim()).filter(Boolean);
+      // 段落ごとに、原文のどこからどこまでかも持つ。描いた要素に data-src として付け、
+      // プレビューから原文へ飛ぶ・原文の小窓で書き換えるときに使う（docs/11_プレビュー連携設計書.html §3）
+      const sourceBlocks = splitSourceBlocks(normalizedText);
+      const blocks = sourceBlocks.map(b => b.text);
       // 目次 [目次] はふつう見出しより前に書くので、描き始める前に見出しを拾っておく。
       // 見出しの id は拾った順の番号で、下の描画でも同じ順に使う（同じ blocks を同じ条件で見るので一致する）
       const headings = collectTocHeadings(blocks);
@@ -9412,14 +10244,17 @@ ${derivedHTML}
       };
       const pushFullWidth = html => out.push(html);
 
-      for (const block of blocks) {
+      for (const sb of sourceBlocks) {
+        const block = sb.text;
+        const src = srcAttrs(sb);
+
         // 1. シーン見出し (レベル1: #) ＆ 個別探索用小見出し (レベル2: ##)
         if (block.startsWith('#')) {
           const h = headings[headingIndex++];
           if (h.level === 2) {
-            pushHeading(`<h3 class="search-subtitle" id="${h.id}">${renderInline(h.raw)}</h3>\n`);
+            pushHeading(`<h3 class="search-subtitle" id="${h.id}"${src}>${renderInline(h.raw)}</h3>\n`);
           } else {
-            pushHeading(`<h2 class="scene-title" id="${h.id}">${renderInline(h.raw)}</h2>\n`);
+            pushHeading(`<h2 class="scene-title" id="${h.id}"${src}>${renderInline(h.raw)}</h2>\n`);
             // 場面が変わったら、サイドビューのNPCカードをまた出せるようにする
             sideCardShown = new Set();
           }
@@ -9428,7 +10263,7 @@ ${derivedHTML}
 
         // 目次 [目次]。場面図と同じく、段組みの外に出す全幅のブロック（docs/04_記法設計書.html §10）
         if (TOC_TAG_RE.test(block)) {
-          pushFullWidth(buildTocHTML(headings.concat(appendixToc || [])));
+          pushFullWidth(withSrcAttrs(buildTocHTML(headings.concat(appendixToc || [])), src));
           continue;
         }
 
@@ -9444,18 +10279,23 @@ ${derivedHTML}
         // 入口でもできるようにすると、& を含む名前で結果が食い違う。
         const sceneMapMatch = block.match(/^\[場面図(?:\s*[:：]\s*([^\]\n]+))?\]$/);
         if (sceneMapMatch) {
-          pushFullWidth(buildSceneMapBlockHTML(sceneMapMatch[1] ? sceneMapMatch[1].trim() : null));
+          pushFullWidth(withSrcAttrs(buildSceneMapBlockHTML(sceneMapMatch[1] ? sceneMapMatch[1].trim() : null), src));
           continue;
         }
 
         // 3. 段落 (メインカラム・サイドカラムに分解)
         let mainText = '';
         let sideText = '';
+        // >> で分かれる段落では、本文の段と右の段のそれぞれが原文のどこかも持つ（原文へ飛ぶとき、探す範囲を段に絞る）
+        let mainSrc = src;
+        let sideSrc = src;
 
         const splitIndex = block.indexOf('>>');
         if (splitIndex !== -1) {
           mainText = block.substring(0, splitIndex).trim();
           sideText = block.substring(splitIndex + 2).trim();
+          mainSrc = srcAttrs(sb, { start: sb.start, end: sb.start + splitIndex });
+          sideSrc = srcAttrs(sb, { start: sb.start + splitIndex + 2, end: sb.end });
         } else {
           mainText = block;
         }
@@ -9463,7 +10303,7 @@ ${derivedHTML}
         const mainHTML = parseElement(mainText, 'main');
         // サイドビューの小さなNPCカードは、場面ごと・NPCごとに最初の1回だけ出す（resolveSideNpcCard）
         const sideCard = resolveSideNpcCard(mainText, sideText, sideCardShown);
-        const sideHTML = sideCard !== null ? sideCard : parseElement(sideText, 'side');
+        const sideHTML = withSrcAttrs(sideCard !== null ? sideCard : parseElement(sideText, 'side'), sideSrc);
 
         if (!mainText) {
           // 右の段だけの段落。同じ章の前の本文の段落があればその右に積み、
@@ -9474,7 +10314,7 @@ ${derivedHTML}
           continue;
         }
         // 先に書かれた右の段（pendingSides）が上、この段落自身の右の段が下
-        sectionRow = { main: mainHTML, sides: pendingSides.concat(sideHTML ? [sideHTML] : []) };
+        sectionRow = { main: mainHTML, mainSrc: mainSrc, sides: pendingSides.concat(sideHTML ? [sideHTML] : []) };
         out.push(sectionRow);
         pendingSides = [];
       }
@@ -9482,7 +10322,7 @@ ${derivedHTML}
 
       return out.map(item => typeof item === 'string' ? item : `
 <div class="row">
-  <div class="main-content">
+  <div class="main-content"${item.mainSrc || ''}>
     ${item.main}
   </div>
   <div class="side-content">
@@ -9756,7 +10596,7 @@ ${parseRollResultLines(lines, 1)}            </div>
           + `<button type="button" class="info-action no-print" data-create-info="${escapedTitle}">＋ 登録する</button></div>`;
       }
       const body = (info.body || '').trim();
-      return `<div class="info-block" data-info-id="${escapeHTML(info.id)}">`
+      return `<div class="info-block" data-info-id="${escapeHTML(info.id)}"${originAttrs('info', info.id)}>`
         + `<div class="info-head">`
         + `<span class="info-title">📄 ${escapeHTML(info.title.trim())}</span>`
         + infoTargetBadgeHTML(info.target)
@@ -9882,10 +10722,13 @@ ${parseRollResultLines(lines, 1)}            </div>
             + `</div>`).join('')
         : '―';
 
+      // カードの中身はNPC管理で書いたもの。プレビューでダブルクリックするとNPC管理を開く（originAttrs()）
+      const origin = originAttrs('npc', npc.id);
+
       // 簡易版NPCカード表示 (セリフ用サイドカラム等に最適)
       if (isMini) {
         return `
-          <div class="npc-card mini" style="padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1 !important; background-color: #f8fafc !important; margin-bottom: 12px; font-size: 0.8rem;">
+          <div class="npc-card mini"${origin} style="padding: 8px 12px; border-radius: 6px; border: 1px solid #cbd5e1 !important; background-color: #f8fafc !important; margin-bottom: 12px; font-size: 0.8rem;">
             <div class="npc-card-header" style="margin-bottom: 0; border-bottom: none; padding-bottom: 0; gap: 8px;">
               <div class="npc-card-avatar" style="width: 32px; height: 32px; border-radius: 4px; ${avatarStyle}"></div>
               <div class="npc-card-meta" style="overflow: hidden;">
@@ -9923,7 +10766,7 @@ ${parseRollResultLines(lines, 1)}            </div>
         : '';
 
       return `
-        <div class="npc-card">
+        <div class="npc-card"${origin}>
           <div class="npc-card-header">
             <div class="npc-card-avatar" style="${avatarStyle}"></div>
             <div class="npc-card-meta">
@@ -10017,14 +10860,33 @@ ${parseRollResultLines(lines, 1)}            </div>
     // 本文の start〜end を text に差し替える。カーソル（選択範囲）は呼び出し側で決める
     function editEditorRange(start, end, text) {
       if (!editor) return;
-      const before = editor.value;
+      // プレビューだけの表示では本文の欄が隠れていて、フォーカスできない。原文の小窓の確定などで書き換えるあいだだけ、
+      // 欄を画面の外に出して取り消しの記録に残す（docs/11_プレビュー連携設計書.html §4.3）。
+      // 書き換えて隠し直すまでのあいだに描画は挟まらないので、画面には現れない
+      const borrowed = editor.offsetParent === null
+        && document.body.dataset.mode === 'write' && paneLayout.mode === 'preview';
+      if (borrowed) document.body.classList.add('editor-offstage');
+      try {
+        replaceFieldText(editor, start, end, text, borrowed);
+      } finally {
+        if (borrowed) {
+          editor.blur(); // 隠し直す本文にフォーカスを残さない（打った文字が見えないまま本文に入る）
+          document.body.classList.remove('editor-offstage');
+        }
+      }
+    }
+
+    // 入力欄 field の start〜end を text に差し替える。ブラウザの取り消しの記録に1回の操作として残す。
+    // 本文の欄は editEditorRange() から呼ぶ。原文の小窓（docs/11 §4）にもこれで記法を入れる
+    function replaceFieldText(field, start, end, text, preventScroll) {
+      const before = field.value;
       const expected = before.substring(0, start) + text + before.substring(end);
       if (expected === before) return;
       let ok = false;
       // 隠れていると（場面図の表示中など）フォーカスできず、insertText が効かない
-      if (editor.offsetParent !== null) {
-        editor.focus();
-        editor.setSelectionRange(start, end);
+      if (field.offsetParent !== null) {
+        field.focus(preventScroll ? { preventScroll: true } : undefined);
+        field.setSelectionRange(start, end);
         try {
           ok = document.execCommand(text ? 'insertText' : 'delete', false, text);
         } catch (e) {
@@ -10032,7 +10894,18 @@ ${parseRollResultLines(lines, 1)}            </div>
         }
       }
       // 使えない環境・効かなかったときは、取り消しの記録をあきらめて内容だけを正しくする
-      if (!ok || editor.value !== expected) editor.value = expected;
+      if (!ok || field.value !== expected) field.value = expected;
+    }
+
+    // 記法を入れる先。原文の小窓を開いているあいだはそちら（docs/11_プレビュー連携設計書.html §4.4）、
+    // それ以外は本文の欄。カーソル位置を見て記法を入れる処理は、本文の欄を直接見ずにこれを使う
+    function insertionTarget() {
+      return srcEdit ? srcEdit.input : editor;
+    }
+
+    function editFieldRange(field, start, end, text) {
+      if (field === editor) editEditorRange(start, end, text);
+      else replaceFieldText(field, start, end, text);
     }
 
     // 本文を newText にする。違う部分だけを1回で差し替える（取り消しも1回で戻る）。
@@ -10068,15 +10941,18 @@ ${parseRollResultLines(lines, 1)}            </div>
       }
     }
 
-    // カーソル位置へのテキスト挿入
+    // カーソル位置へのテキスト挿入（原文の小窓を開いていればそちらへ。insertionTarget()）
     function insertAtCursor(text) {
-      if (!editor) return;
-      const startPos = editor.selectionStart;
-      const endPos = editor.selectionEnd;
-      editEditorRange(startPos, endPos, text);
+      const field = insertionTarget();
+      if (!field) return;
+      // 見えない本文に入ると、どこに入ったか分からない
+      if (field === editor) revealEditorPane();
+      const startPos = field.selectionStart;
+      const endPos = field.selectionEnd;
+      editFieldRange(field, startPos, endPos, text);
       const newCursorPos = startPos + text.length;
-      editor.setSelectionRange(newCursorPos, newCursorPos);
-      editor.focus();
+      field.setSelectionRange(newCursorPos, newCursorPos);
+      field.focus();
     }
 
     // 指定した範囲を差し替えたうえで、差し替えた文字列の一部を選び直す。
@@ -10084,11 +10960,14 @@ ${parseRollResultLines(lines, 1)}            </div>
     // insertAtCursor() は「選択範囲を置換してカーソルを末尾へ置く」ので、
     // 選択した文字を記法で囲む用途（文字色）には使えない。
     // selStart / selLength は、差し替え後の text の先頭からの位置で指定する。
+    // start / end は insertionTarget() の欄での位置（呼ぶ側も同じ欄から測ること）
     function replaceRange(start, end, text, selStart, selLength) {
-      if (!editor) return;
-      editEditorRange(start, end, text);
-      editor.setSelectionRange(start + selStart, start + selStart + selLength);
-      editor.focus();
+      const field = insertionTarget();
+      if (!field) return;
+      if (field === editor) revealEditorPane();
+      editFieldRange(field, start, end, text);
+      field.setSelectionRange(start + selStart, start + selStart + selLength);
+      field.focus();
     }
 
     // === 元に戻す・やり直す（Ctrl+Z / Ctrl+Y） ===
@@ -10335,7 +11214,7 @@ ${parseRollResultLines(lines, 1)}            </div>
       const itemsHTML = basicInfoItemsHTML(bi.items);
       if (!title && !bi.thumbnailUrl && !itemsHTML) return '';
 
-      return `<header class="scenario-cover">`
+      return `<header class="scenario-cover"${originAttrs('cover')}>`
         + (bi.thumbnailUrl
             ? `<div class="cover-thumb"><img src="${escapeHTML(bi.thumbnailUrl)}" alt="シナリオのサムネイル"></div>`
             : '')
@@ -10976,14 +11855,15 @@ ${parseRollResultLines(lines, 1)}            </div>
       const items = currentFaqs.filter(f => f.question.trim() || f.answer.trim());
       if (!items.length) return '';
       // 印の丸と文を flex で並べるので、文は内側の要素で1段包む（文字色の <span> で文が割れないように。記法設計書 §3.5）
-      const row = (kind, mark, text) => `<div class="faq-row faq-${kind}"><span class="faq-mark">${mark}</span>`
+      // 行ごとに、巻末の画面のどの欄で書いたものかを付ける（ダブルクリックでその欄を開く）
+      const row = (kind, mark, text, origin) => `<div class="faq-row faq-${kind}"${origin}><span class="faq-mark">${mark}</span>`
         + `<div class="faq-text">${text ? renderInline(text) : '<span class="faq-empty">（未入力）</span>'}</div></div>`;
-      return `\n<section class="scenario-faq">`
+      return `\n<section class="scenario-faq"${originAttrs('faq')}>`
         // id は目次のリンク先（appendixTocEntries() と揃える）
         + `<h2 class="appendix-heading" id="toc-faq">FAQ</h2>`
         + items.map(f => `<div class="faq-item">`
-            + row('q', 'Q', f.question.trim())
-            + row('a', 'A', f.answer.trim())
+            + row('q', 'Q', f.question.trim(), originAttrs('faq', f.id, 'question'))
+            + row('a', 'A', f.answer.trim(), originAttrs('faq', f.id, 'answer'))
             + `</div>`).join('')
         + `</section>\n`;
     }
@@ -10997,12 +11877,12 @@ ${parseRollResultLines(lines, 1)}            </div>
         if (!heading && !body) return '';
         // id は目次のリンク先（appendixTocEntries() と揃える。番号は空の節も数えた並びの位置）
         return `<section class="backmatter-section">`
-          + (heading ? `<h2 class="appendix-heading" id="toc-bm-${i}">${escapeHTML(heading)}</h2>` : '')
-          + (body ? `<div class="backmatter-text">${renderInline(body)}</div>` : '')
+          + (heading ? `<h2 class="appendix-heading" id="toc-bm-${i}"${originAttrs('bm', sec.id, 'heading')}>${escapeHTML(heading)}</h2>` : '')
+          + (body ? `<div class="backmatter-text"${originAttrs('bm', sec.id, 'body')}>${renderInline(body)}</div>` : '')
           + `</section>`;
       }).join('');
       const rights = bm.rights.trim();
-      if (rights) html += `<footer class="scenario-rights">${renderInline(rights)}</footer>`;
+      if (rights) html += `<footer class="scenario-rights"${originAttrs('rights')}>${renderInline(rights)}</footer>`;
       return html ? `\n<div class="scenario-backmatter">${html}</div>\n` : '';
     }
 
@@ -12153,6 +13033,7 @@ ${parseRollResultLines(lines, 1)}            </div>
       if (!previewArea) return;
       const block = previewArea.querySelector(`.info-block[data-info-id="${id}"]`);
       if (!block) return;
+      revealPreviewPane(); // 本文だけの表示ではプレビューが隠れていて、移動しても見えない
       block.scrollIntoView({ behavior: 'smooth', block: 'center' });
       block.classList.remove('flash');
       void block.offsetWidth;  // アニメーションをやり直すため
