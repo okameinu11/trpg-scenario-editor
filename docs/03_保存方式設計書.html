@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>保存方式設計書 | TRPGシナリオ執筆エディタ</title>
+<title>保存方式設計書 | Kotro</title>
 <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
 <div class="page">
 
   <header class="hero">
-    <div class="eyebrow">TRPG SCENARIO EDITOR / 設計</div>
+    <div class="eyebrow">KOTRO / 設計</div>
     <h1>保存方式設計書</h1>
     <p class="lead">データをどこに、どの形で置くかを定める。保存に関わる変更を入れる前に、必ずこの文書を読むこと。</p>
   </header>
@@ -159,6 +159,12 @@
     <h3>3.2 オブジェクトストア</h3>
     <p>DB名 <code>trpg_scenario_editor</code>、バージョン1。</p>
     <div class="callout warn">
+      <strong>アプリ名を Kotro に改めた（2026-10-07）が、DB名は旧名のまま変えない。</strong>
+      IndexedDB はDB名ごとに別の保存領域になるため、名前を変えると利用者の既存のシナリオが
+      「消えたように見える」。名前をそろえる利点は見た目だけで、移し替えの処理と失敗時の危険に見合わない。
+      §4 の書き出し形式名（<code>trpg-scenario-editor</code>）と、localStorage の <code>trpg_</code> で始まるキーも同じ扱いとする。
+    </div>
+    <div class="callout warn">
       <strong>ストアを追加してバージョンを上げるときは、先に <code>idbOpen()</code> に
       <code>onblocked</code> を足すこと。</strong>
       現在は未実装で、この状態で版を上げると、アプリを別のタブでも開いている利用者は
@@ -225,6 +231,7 @@
     <p>
       端末間のデータ移動は引き続きJSONで行う。
       <strong>ファイルの形式は変えない</strong>（<code>format: "trpg-scenario-editor"</code> / <code>version: 1</code>）。
+      読み込み時はこの形式名が一致しないファイルを弾くため、アプリ名（Kotro）に合わせて変えると書き出し済みのファイルが読めなくなる（§3.2）。
     </p>
     <div class="callout">
       <strong>JSONの中では、画像は従来どおり base64 の data URL で持つ。</strong>

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TRPGシナリオエディタ</title>
+<title>Kotro - TRPGシナリオエディタ</title>
 <!-- Google Fonts: Inter & Noto Serif JP (明朝体用 - オンライン時に適用) -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -4393,7 +4393,7 @@
   <div id="release-modal" class="modal">
     <div class="modal-content" style="max-width: 640px;">
       <div class="modal-header">
-        <h3>📜 リリースノート</h3>
+        <h3>📜 Kotro リリースノート</h3>
         <button class="btn-close" onclick="closeReleaseModal()">&times;</button>
       </div>
       <div class="modal-body" style="gap: 0;">
@@ -5013,6 +5013,7 @@
     //
     // シナリオ本体・立ち絵・作業状態は IndexedDB に置く。設定だけ localStorage に残す。
     // 理由と検討した代替案は docs/03_保存方式設計書.html にある。
+    // DB名はアプリ名（Kotro）に合わせて変えないこと。変えると既存の保存データが見えなくなる（同 §3.2）。
     const DB_NAME = 'trpg_scenario_editor';
     const DB_VERSION = 1;
     const STORE_SCENARIOS = 'scenarios';
@@ -5142,6 +5143,7 @@
     function idbDelete(store, key) {
       return idbRun([store], 'readwrite', tx => { tx.objectStore(store).delete(key); });
     }
+    // 形式名もアプリ名（Kotro）に合わせて変えないこと。変えると書き出し済みのファイルが読めなくなる（docs/03_保存方式設計書.html §4）。
     const EXPORT_FORMAT = 'trpg-scenario-editor';
     const EXPORT_VERSION = 1;
 

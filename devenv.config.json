@@ -2,7 +2,7 @@
   "//": "開発環境基盤(devenv)の設定。ルールを変更したら CLAUDE.md の表を貼り直すこと（perl scripts/devenv/check-doc-sync.pl --summary）。",
 
   "project": {
-    "name": "TRPGシナリオ執筆エディタ",
+    "name": "Kotro（TRPGシナリオ執筆エディタ）",
     "language": "ja"
   },
 

@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## プロジェクト概要
 
-**TRPGシナリオ執筆エディタ** — エモクロアTRPG向けに、シナリオ本文・技能判定・共鳴判定・NPCデータをひとつの画面で書けるエディタ。書いたそばからプレビューに反映され、そのままPDF出力できる。
+**Kotro（コトロ）** — TRPGシナリオ執筆エディタ。エモクロアTRPG向けに、シナリオ本文・技能判定・共鳴判定・NPCデータをひとつの画面で書けるエディタ。書いたそばからプレビューに反映され、そのままPDF出力できる。
 
 技術スタック: 素のHTML + CSS + JavaScript（フレームワーク・ビルドツール・パッケージマネージャを一切使わない単一ファイル構成）。外部依存は Google Fonts のCSS1本のみ。
 
