@@ -665,7 +665,7 @@
         <tr><td><strong>共鳴判定</strong></td><td><code>[共鳴:強度/上昇/感情]</code></td><td><code>&lt;div class="resonance-box"&gt;</code></td><td>背景薄赤、左に赤太線、「🌀 共鳴判定…」自動付与</td></tr>
         <tr><td><strong>SANチェック</strong><br>（2026-09-01 追加）</td><td><code>[SAN:成功/失敗]</code></td><td><code>&lt;div class="roll-box san-box"&gt;</code></td><td>技能判定と同じ骨格で色は赤系。ヘッダに減少値のバッジ。詳細は 4.4</td></tr>
         <tr><td><strong>文字色</strong>（インライン）<br>（2026-09-01 追加）</td><td><code>{赤:テキスト}</code> / <code>{#88ccff:テキスト}</code></td><td><code>&lt;span class="ic-red"&gt;</code> / <code>&lt;span style="color:…"&gt;</code></td><td>文中の一部だけを着色。ほぼすべてのブロックの中で使える。詳細は 4.3</td></tr>
-        <tr><td><strong>TIPS・補足</strong>（右）</td><td><code>&gt;&gt; 💡</code> または <code>&gt;&gt; [TIPS]</code></td><td><code>&lt;div class="side-note"&gt;</code></td><td>背景薄緑、上に緑太線、「💡 TIPS/補足」自動付与。空行のあとに <code>&gt;&gt;</code> だけの段落を書いても、同じ章の直前の本文の段落の右に並ぶ（2026-10-05 追加。詳細は <a href="04_記法設計書.html">記法設計書 §11</a>）</td></tr>
+        <tr><td><strong>TIPS・補足</strong>（右）</td><td><code>&gt;&gt; 💡</code> または <code>&gt;&gt; [TIPS]</code></td><td><code>&lt;div class="side-note"&gt;</code></td><td>背景薄緑、上に緑太線、「💡 TIPS/補足」自動付与。空行のあとに <code>&gt;&gt;</code> だけの段落を書いても、同じ章の直前の本文の段落の右に並ぶ（2026-10-06 追加。詳細は <a href="04_記法設計書.html">記法設計書 §11</a>）</td></tr>
         <tr><td><strong>通常文章</strong>（右）</td><td><code>&gt;&gt;</code> の後ろに記述</td><td><code>&lt;p&gt;</code></td><td>右側カラム用の通常文章</td></tr>
         <tr><td><strong>小さなNPCカード</strong>（右）<br>（2026-10-05 規則追加）</td><td><code>&gt;&gt; [NPC:名前]</code>（<code>[セリフ:NPC名]</code> の段落では自動）</td><td><code>&lt;div class="npc-card mini"&gt;</code></td><td>アイコン・名前・年齢/性別/職業。<strong>同じNPCのカードは場面（<code>#</code> 見出しの区切り）ごとに最初の1回だけ出す</strong>。2回目以降は右の段を空ける。詳細は <a href="04_記法設計書.html">記法設計書 §8.6</a></td></tr>
         <tr><td><strong>場面図</strong><br>（2026-09-08 追加）</td><td><code>[場面図]</code> / <code>[場面図:場面名]</code>（前後に空行が要る）</td><td><code>&lt;div class="scene-map-block"&gt;</code> の中にSVG</td><td>場面ツリーを図として出す。段組みの外に出る全幅のブロック。詳細は 4.5</td></tr>
@@ -921,7 +921,7 @@
 
   <footer class="pagefoot">
     最終更新: 2026-10-06（元に戻す・やり直すの追加に伴い §2.13 を新設。設計判断は 10_元に戻す設計書 へ分離）<br>
-    2026-10-05（右の段だけの段落を本文の段落の横に並べるようにしたことを §4.1 に追記）<br>
+    2026-10-06（右の段だけの段落を本文の段落の横に並べるようにしたことを §4.1 に追記）<br>
     2026-10-05（目次の挿入を下部パネルのメニューから行えるようにしたことを §4.1 に追記）<br>
     2026-10-05（基本情報の小見出しとテンプレートの追加に伴い §2.11 に追記）<br>
     2026-10-05（マイパレットの追加に伴い §2.4・§4.3 に追記）<br>
