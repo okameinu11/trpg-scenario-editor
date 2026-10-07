@@ -34,7 +34,12 @@ async (page) => {
   const run = async (name, fn) => {
     if (out.failed) return;
     try { out[name] = await fn(); }
-    catch (e) { out[name] = { error: String((e && e.message) || e) }; out.failed = name; }
+    catch (e) {
+      let msg = String((e && e.message) || e);
+      // ブラウザの状態がおかしくなると、ダウンロードのたびにページが閉じる。開き直すと直る（README §4）
+      if (/has been closed/.test(msg)) msg += '（browser_close で閉じてから browser_navigate で開き直し、もう一度実行する）';
+      out[name] = { error: msg }; out.failed = name;
+    }
   };
   const finish = () => { out.console = page.__kitLog.slice(); return out; };
   // 画面より背の高い要素は見切れるので、撮る前に画面の高さを要素に合わせる（撮り終えたら 800 に戻す）

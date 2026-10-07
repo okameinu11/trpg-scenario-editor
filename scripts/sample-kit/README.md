@@ -78,7 +78,7 @@ samples/                      ← .gitignore 済み。この端末だけに置�
 | `roundtrip` | 書き出したJSONだけで読み込み直し、プレビューが完全に一致するか、立ち絵とサムネイルが戻るかを見る（export の後に） |
 | `pdf` | `samples/<slug>/<slug>.pdf` を作り、ページ数と目次のリンク数を数える |
 | `shots` | `samples/<slug>/shots/` に要所のスクリーンショットを撮る（表紙・目次・場面図・セリフ・NPCカード・判定・共鳴/SAN・情報・TIPS・FAQ・巻末・場面ツリー） |
-| `section` | `&shot=<見出しの題名>`（繰り返し可）の場面だけを `shots/section-<題名>.png` に撮る。直した場面を確かめるときに使う |
+| `section` | `&shot=<見出しの題名>`（繰り返し可）の場面だけを `shots/section-<題名>.png` に撮る。直した場面を確かめるときに使う。対象は本文の見出しと巻末の見出し（表紙の見出しは `01-cover` に写る） |
 | `try` | `samples/<slug>/try.md` に書いた断片を、そのサンプルのNPC・情報のまま描き、行の組み方（`layout`）と問題（`problems`）を返し、`shots/try.png` に撮る。**原本を変えずに案の見え方を確かめる**ときに使う。描いたあとプレビューは元に戻る。build 済みであること |
 | `system` | `&system=<id>` のシステム定義（技能名・成功段階・感情・SANの既定など）を返す。kit は不要 |
 | `force` | lint のエラーを無視して続ける（原因を見たいときだけ） |
@@ -86,6 +86,7 @@ samples/                      ← .gitignore 済み。この端末だけに置�
 - 書いている途中は `lint,build,verify`、仕上げは `lint,build,verify,diff,export,roundtrip,pdf,shots`。
 - `verify` に `&detail=1` を付けると、網羅の全行（使った数つき）が返る。
 - 書き出しのたびに `.playwright-mcp/` にも同じJSONが自動で保存される。gitignore 済みで害は無い。
+- `export` や `pdf` が「Target page, context or browser has been closed」で落ちるときは、ブラウザの状態がおかしくなっている（ダウンロードのたびにページが閉じる）。`browser_close` で閉じてから開き直すと直る。サブエージェントがブラウザを使ったあとに起きやすい。
 - 道具が動かない・判定がおかしいときは、道具を直してよい（`kit.js` はアプリの関数を直接呼ぶので、アプリの変更で壊れうる）。直したら報告に書く。
 - 道具の結果は長いので、読むべき所を決めて読む: `lint.errors` → `verify.problems` → `verify.coverage.unused` → `verify.drift` → `diff.same` → `roundtrip.samePreview`。
 - `verify.drift` の見方:
