@@ -84,6 +84,7 @@ samples/                      ← .gitignore 済み。この端末だけに置�
 | `force` | lint のエラーを無視して続ける（原因を見たいときだけ） |
 
 - 書いている途中は `lint,build,verify`、仕上げは `lint,build,verify,diff,export,roundtrip,pdf,shots`。
+- 章ごとに書き足している途中の lint では、まだ書いていない場面の「同じ題名の # 見出しが本文にありません」（エラー）と、まだ参照していない情報の警告が出る。それ以外が0件なら先へ進んでよい。途中で見た目を確かめたいときは `force` を付けて build する。
 - `verify` に `&detail=1` を付けると、網羅の全行（使った数つき）が返る。
 - 書き出しのたびに `.playwright-mcp/` にも同じJSONが自動で保存される。gitignore 済みで害は無い。
 - `export` や `pdf` が「Target page, context or browser has been closed」で落ちるときは、ブラウザの状態がおかしくなっている（ダウンロードのたびにページが閉じる）。`browser_close` で閉じてから開き直すと直る。サブエージェントがブラウザを使ったあとに起きやすい。

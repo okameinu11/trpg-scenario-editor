@@ -665,7 +665,8 @@ window.SampleKit = (function () {
     const drift = {
       appVersion: RELEASE_NOTES[0].version,
       builtWith: builtWith || '(記録なし)',
-      newerReleases: RELEASE_NOTES.filter(r => !builtWith || cmpVer(r.version, builtWith) > 0).map(r => ({
+      // builtWith の無い原本（書いている途中の新規）は、全リリースを並べても読みようがないので出さない
+      newerReleases: !builtWith ? '(meta.builtWith が未設定。新規なら仕上げで build.appVersion を入れる)' : RELEASE_NOTES.filter(r => cmpVer(r.version, builtWith) > 0).map(r => ({
         version: r.version, date: r.date,
         items: [].concat(...arr(r.sections).map(s => arr(s.items).map(it => '[' + s.title + '] ' + it)))
       })),
