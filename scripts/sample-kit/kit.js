@@ -731,14 +731,17 @@ window.SampleKit = (function () {
       return g.getImageData(0, 0, c.width, c.height).data;
     };
     const pa = pixels(ia), pb = pixels(ib);
-    let changed = 0, maxDelta = 0;
+    let changed = 0, maxDelta = 0, sum = 0;
     for (let i = 0; i < pa.length; i += 4) {
       const d = Math.max(Math.abs(pa[i] - pb[i]), Math.abs(pa[i + 1] - pb[i + 1]), Math.abs(pa[i + 2] - pb[i + 2]));
       if (d) changed++;
       if (d > maxDelta) maxDelta = d;
+      sum += d;
     }
-    const ratio = changed / (pa.length / 4);
-    return { same: maxDelta <= 8 && ratio < 0.01, exact: false, changedPixels: changed, maxDelta: maxDelta };
+    // 揺れは文字の縁などに散らばり、画素全体の平均ではごく小さい（実測で0.2未満）。
+    // 色や頭文字を変えたときは平均が桁違いに大きくなるので、平均で見分ける
+    const meanDelta = sum / (pa.length / 4);
+    return { same: meanDelta < 1 && maxDelta <= 48, exact: false, changedPixels: changed, maxDelta: maxDelta, meanDelta: Math.round(meanDelta * 100) / 100 };
   }
 
   async function diffWithFile(slug) {
@@ -770,7 +773,7 @@ window.SampleKit = (function () {
       changedFields: changed,
       contentFirstDiff: contentAt,
       imagesChanged: images.filter(x => !x.same),
-      imagesWobbled: images.filter(x => x.same && !x.exact).map(x => x.name + '（' + x.changedPixels + '画素・最大' + x.maxDelta + '階調）')
+      imagesWobbled: images.filter(x => x.same && !x.exact).map(x => x.name + '（' + x.changedPixels + '画素・最大' + x.maxDelta + '階調・平均' + x.meanDelta + '）')
     };
   }
 
