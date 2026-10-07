@@ -15,12 +15,13 @@ async (page) => {
   page.__kitLog = [];
   if (!page.__kitHooked) {
     page.__kitHooked = true;
-    page.on('pageerror', e => { if (page.__kitLog) page.__kitLog.push('pageerror: ' + e.message); });
+    page.on('pageerror', e => { if (page.__kitLog) page.__kitLog.push({ text: 'pageerror: ' + e.message, url: '' }); });
     page.on('console', m => {
       const t = m.type();
+      const url = m.location().url || '';
       // favicon.ico（アプリに無い）と thumb.js（任意のファイル）の 404 は、誤りではないので数えない
-      if (/(favicon\.ico|\/thumb\.js)/.test((m.location().url || '') + ' ' + m.text())) return;
-      if ((t === 'error' || t === 'warning') && page.__kitLog) page.__kitLog.push(t + ': ' + m.text());
+      if (/(favicon\.ico|\/thumb\.js)/.test(url + ' ' + m.text())) return;
+      if ((t === 'error' || t === 'warning') && page.__kitLog) page.__kitLog.push({ text: t + ': ' + m.text(), url: url });
     });
   }
 
@@ -41,7 +42,12 @@ async (page) => {
       out[name] = { error: msg }; out.failed = name;
     }
   };
-  const finish = () => { out.console = page.__kitLog.slice(); return out; };
+  const finish = () => {
+    // 新規のサンプルでは、diff が探す完成品のJSONがまだ無い。その 404 は誤りではないので外す
+    const noFile = out.diff && out.diff.exists === false && slug ? '/samples/' + encodeURIComponent(slug) + '.json' : null;
+    out.console = page.__kitLog.filter(e => !(noFile && e.url.indexOf(noFile) !== -1)).map(e => e.text);
+    return out;
+  };
   // 画面より背の高い要素は見切れるので、撮る前に画面の高さを要素に合わせる（撮り終えたら 800 に戻す）
   const fitHeight = async h => page.setViewportSize({ width: 1280, height: Math.min(6000, Math.max(800, Math.ceil(h) + 320)) });
   const shotsDir = 'samples/' + slug + '/shots/';
