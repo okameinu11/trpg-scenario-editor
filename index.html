@@ -91,16 +91,21 @@
     max-height: 2.7em;
     overflow: hidden;
   }
+  /* アプリの名前。飾りであって入口ではないので、押せそうな見た目（枠・指のカーソル）にしない */
   .app-logo {
-    font-size: 1.25rem;
+    font-size: 1.3rem;
     font-weight: 700;
+    letter-spacing: 0.02em;
     background: linear-gradient(135deg, #60a5fa, #a78bfa);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
+    cursor: default;
+    user-select: none;
+  }
+  /* 名前と版番号は「Kotro v1.14.0」のひとかたまりに見せる */
+  .header-left > .app-logo + .version-tag-btn {
+    margin-left: -6px;
   }
   .version-tag {
     font-size: 0.7rem;
@@ -3754,25 +3759,33 @@
   }
 
   /* ヘッダーは要素が多く、幅が足りないと左側が右側のボタンの下に潜り込む。
-     どこまで詰めるかは fitHeader() が実際の幅を測って決め、header-compact-1〜4 を順に足していく
+     どこまで詰めるかは fitHeader() が実際の幅を測って決め、header-compact-1〜6 を順に足していく
      （決め打ちの画面幅ではシステム名の長さやボタンの数の違いに追従できない。docs/07 §3.6）。
-     1: ショートカット設定の名前 → 2: 執筆/場面図・基本情報/巻末 の名前 → 3: 残りの名前と余白 → 4: 一覧の文字 */
+     1: ショートカット設定の名前 → 2:「シナリオ一覧」を「一覧」に → 3: アプリの名前と左側の間隔
+     → 4: 執筆/場面図・基本情報/巻末 の名前 → 5: 残りの名前と余白 → 6: 一覧の文字 */
+  /* fitHeader() が測っているあいだだけ付く。途中の幅を測らないよう、余白などの transition を止める */
+  .header-measuring,
+  .header-measuring * { transition: none !important; }
   .header-compact-1 .header-btn-label-wide { display: none; }
-  .header-compact-2 .mode-tab-label,
-  .header-compact-2 .header-btn-label-sub { display: none; }
-  .header-compact-2 .mode-tab { padding: 5px 9px; }
-  .header-compact-3 .header-btn-label { display: none; }
-  header.control-header.header-compact-3 { padding: 10px 12px; }
+  .header-compact-2 .header-list-prefix { display: none; }
+  /* アプリの名前は飾りなので、入口の名前より先に譲る（ブラウザのタブ名には残る） */
+  .header-compact-3 .app-logo { display: none; }
+  .header-compact-3 .app-logo + .version-tag-btn { margin-left: 0; }
   .header-compact-3 .header-left { gap: 8px; }
-  .header-compact-3 .btn-header-sub,
-  .header-compact-3 .header-actions .btn { padding: 8px 10px; }
-  .header-compact-3 .header-actions { gap: 6px; }
+  .header-compact-4 .mode-tab-label,
+  .header-compact-4 .header-btn-label-sub { display: none; }
+  .header-compact-4 .mode-tab { padding: 5px 9px; }
+  .header-compact-5 .header-btn-label { display: none; }
+  header.control-header.header-compact-5 { padding: 10px 12px; }
+  .header-compact-5 .btn-header-sub,
+  .header-compact-5 .header-actions .btn { padding: 8px 10px; }
+  .header-compact-5 .header-actions { gap: 6px; }
   /* ここまで狭いと保存状態にも縮んでもらう（はみ出た行は隠れる） */
-  .header-compact-3 .header-left > .save-status { flex-shrink: 1; }
-  .header-compact-4 .app-logo-label { display: none; }
+  .header-compact-5 .header-left > .save-status { flex-shrink: 1; }
+  .header-compact-6 .header-list-label { display: none; }
   /* それでも収まらない狭い画面（768px未満）では、左側を横スクロールにして右側のボタンの下に潜らせない
      （下部パネルと同じく、最後の手段。スクロールバーは隠し、指でずらせる） */
-  .header-compact-4 .header-left {
+  .header-compact-6 .header-left {
     overflow-x: auto;
     scrollbar-width: none;
   }
@@ -3835,17 +3848,19 @@
   <!-- ヘッダー -->
   <header class="control-header">
     <div class="header-left">
-      <div class="app-logo" onclick="openListModal()" title="シナリオ一覧を表示">
-        <span>📂</span> <span class="app-logo-label">一覧</span>
-      </div>
+      <!-- アプリの名前。押しても何も起きない（以前はここが一覧の入口を兼ねていたが、ロゴの見た目では押せると気づけなかった。
+           docs/07_操作の入口設計書.html §3.6）。版番号はリリースノートの入口で、名前と並べて「Kotro v1.14.0」と読ませる -->
+      <span class="app-logo" title="Kotro（コトロ）— TRPGシナリオエディタ">Kotro</span>
+      <button type="button" class="version-tag version-tag-btn" id="version-tag"
+              onclick="openReleaseModal()" title="リリースノートを表示"></button>
+      <button type="button" class="btn btn-header-sub" onclick="openListModal()"
+              title="シナリオ一覧（保存したシナリオを開く・新規作成・読み込み・書き出し）">📂 <span class="header-list-label"><span class="header-list-prefix">シナリオ</span>一覧</span></button>
       <div class="mode-tabs">
         <button type="button" class="mode-tab" data-target-mode="write"
                 onclick="setAppMode('write')" title="本文を書く">✍ <span class="mode-tab-label">執筆</span></button>
         <button type="button" class="mode-tab" data-target-mode="scene"
                 onclick="setAppMode('scene')" title="場面を樹形図で並べて整理する">🗺 <span class="mode-tab-label">場面図</span></button>
       </div>
-      <button type="button" class="version-tag version-tag-btn" id="version-tag"
-              onclick="openReleaseModal()" title="リリースノートを表示"></button>
       <span class="version-tag" id="system-badge" title="このシナリオのゲームシステム（作成時に固定）">エモクロア</span>
       <input type="text" id="scenario-title" class="scenario-title-input" value="無題のシナリオ" placeholder="シナリオタイトルを入力">
       <!-- タイトルの続き（サムネイル・概要など）を書く入口なので、タイトル欄の隣に置く。
@@ -12274,7 +12289,7 @@ ${parseRollResultLines(lines, 1)}            </div>
     // 左側（タイトル欄など）は min-width: 0 で縮むため、はみ出してもヘッダー自体の幅は変わらず、
     // 右側のボタンの下に潜り込むだけになる。そのため .header-left の中ではみ出していないかを見る。
     // タイトル欄は最後に縮む部分なので、収まっていても狭すぎる（HEADER_TITLE_COMFORT 未満）なら次の段へ進む。
-    const HEADER_COMPACT_LEVELS = 4;
+    const HEADER_COMPACT_LEVELS = 6;
     // タイトル欄の幅（枠込み）の下限の目安。170px で全角10文字ほどが見える。
     // 1280px（タブレット横向き・ノートPCで多い幅）で、執筆/場面図・基本情報/巻末 の名前を残せる値にしてある
     const HEADER_TITLE_COMFORT = 170;
@@ -12283,13 +12298,20 @@ ${parseRollResultLines(lines, 1)}            </div>
       const header = document.querySelector('header.control-header');
       if (!header || !header.clientWidth) return;
       const left = header.querySelector('.header-left');
-      for (let level = 0; level <= HEADER_COMPACT_LEVELS; level++) {
-        for (let k = 1; k <= HEADER_COMPACT_LEVELS; k++) {
-          header.classList.toggle('header-compact-' + k, k <= level);
+      // ボタンは余白を transition で動かすので、段を切り替えた直前の幅のまま測ってしまい、
+      // 直前の段によって結果が1段ずれる。測るあいだだけ transition を止める
+      header.classList.add('header-measuring');
+      try {
+        for (let level = 0; level <= HEADER_COMPACT_LEVELS; level++) {
+          for (let k = 1; k <= HEADER_COMPACT_LEVELS; k++) {
+            header.classList.toggle('header-compact-' + k, k <= level);
+          }
+          const fits = left.scrollWidth <= left.clientWidth;
+          const roomy = !scenarioTitle || scenarioTitle.getBoundingClientRect().width >= HEADER_TITLE_COMFORT;
+          if (fits && roomy) return;
         }
-        const fits = left.scrollWidth <= left.clientWidth;
-        const roomy = !scenarioTitle || scenarioTitle.getBoundingClientRect().width >= HEADER_TITLE_COMFORT;
-        if (fits && roomy) return;
+      } finally {
+        header.classList.remove('header-measuring');
       }
     }
 
