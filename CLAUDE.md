@@ -52,7 +52,7 @@ perl scripts/devenv/setup.pl --version           # devenv の版
 
 | キー | 役割 |
 |---|---|
-| `trpg_shortcuts` / `trpg_custom_tiers` / `trpg_my_palette` / `trpg_basic_info_templates` / `trpg_layout` | ショートカットキーの割当、判定ブロックの自由枠、マイパレット（自分で登録した色）、基本情報のテンプレート、本文とプレビューの並べ方 |
+| `trpg_shortcuts` / `trpg_custom_tiers` / `trpg_my_palette` / `trpg_basic_info_templates` / `trpg_layout` | ショートカットキーの割当、判定ブロックの自由枠、マイパレット（自分で登録した色）、基本情報のテンプレート、本文とプレビューの並べ方とスクロールの連動 |
 | `trpg_storage_migrated` | IndexedDBへの移行が済んだ印。旧キーからの移行は起動時に1回だけ走る |
 
 ### 保存の2系統

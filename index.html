@@ -378,11 +378,22 @@
   /* 矢印は「境界をその向きへ動かす」向き。◀ で本文が縮んでプレビューが広がる */
   .pane-toggle-preview::before { content: '◀'; }
   .pane-toggle-editor::before { content: '▶'; }
+  /* スクロールの連動の入切。入のときは押された色、切のときは鎖に斜線（docs/11_プレビュー連携設計書.html §5） */
+  .pane-sync { height: 32px; }
+  .pane-sync[aria-pressed="true"] {
+    color: var(--accent-color);
+    border-color: var(--accent-color);
+  }
+  .pane-sync[aria-pressed="true"] .pane-sync-off { display: none; }
+  /* 連動するのは並べているときだけなので、片方を隠しているあいだは出さない */
+  body[data-layout="preview"] .pane-sync,
+  body[data-layout="editor"] .pane-sync { display: none; }
   /* タッチでは押す場所の下限 44px を守る（docs/01_要件定義書.html §5）。
      境界も広げ、プレビュー側へのはみ出しを紙面の余白（40px）に収める */
   @media (pointer: coarse) {
     .pane-splitter { flex-basis: 14px; }
     .pane-toggle { width: 44px; }
+    .pane-sync { height: 44px; }
   }
   body.pane-resizing,
   body.pane-resizing * {
@@ -3911,6 +3922,17 @@
          aria-label="本文とプレビューの境界（ドラッグ・矢印キーで幅を変える。ダブルクリックで半々に戻す）">
       <div class="pane-toggles">
         <button type="button" class="pane-toggle pane-toggle-preview" data-pane-step="-1"></button>
+        <!-- スクロールの連動の入切（docs/11_プレビュー連携設計書.html §5）。両方に関わる操作なので境界に置く。
+             名前と押した状態は applyPaneLayout() が書く。切のときは鎖に斜線を引く -->
+        <button type="button" class="pane-toggle pane-sync" id="pane-sync" aria-pressed="true" aria-label="スクロールの連動">
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+            <g fill="none" stroke="currentColor" stroke-width="1.6" transform="rotate(-45 8 8)">
+              <rect x="1.2" y="5.4" width="7.6" height="5.2" rx="2.6"/>
+              <rect x="7.2" y="5.4" width="7.6" height="5.2" rx="2.6"/>
+            </g>
+            <line class="pane-sync-off" x1="2.5" y1="2.5" x2="13.5" y2="13.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </button>
         <button type="button" class="pane-toggle pane-toggle-editor" data-pane-step="1"></button>
       </div>
     </div>
@@ -4954,6 +4976,11 @@
         desc: 'プレビューを隠して本文だけを表示する（もう一度で並べる表示に戻す）',
         keywords: 'ほんぶんをひろげる ほんぶんだけ しっぴつ ならべる editor wide',
         key: null, run: () => togglePaneLayout('editor') },
+      // 画面の上の入口は境界の鎖のボタン（docs/11_プレビュー連携設計書.html §5）
+      { id: 'scroll-sync', group: 'app', icon: '🔗', name: 'スクロールの連動', panel: false,
+        desc: '並べて表示しているとき、本文とプレビューが同じ場所を見せるようにする・やめる',
+        keywords: 'すくろーるのれんどう どうき れんどう ついじゅう ならべる sync scroll',
+        key: null, run: () => toggleScrollSync() },
       { id: 'list', group: 'app', icon: '📂', name: 'シナリオ一覧', panel: false,
         desc: '保存したシナリオの一覧を開く', keywords: 'しなりおいちらん', key: null,
         inSceneMode: true, run: () => openListModal() },
@@ -6124,6 +6151,7 @@
         initBackMatterModal();
         initTocLinks();
         initPreviewToSource();
+        initScrollSync();
         initHeaderFit();
         // 作業状態の復元が済んだあとで始める（復元した状態を、戻る先の起点にする）
         initHistory();
@@ -6197,6 +6225,9 @@
         + buildFaqSectionHTML() + buildBackMatterHTML();
       // プレビューの data-src（原文での位置）がどの本文に対するものかを覚えておく（initPreviewToSource()）
       previewRenderedText = markdownText;
+      // 段落の高さが変わったので、スクロールの連動の対応づけを作り直し、最後に動かした側に合わせ直す
+      previewRenderSeq++;
+      scheduleScrollSync();
       // 情報一覧は本文の参照（どの場面で使っているか）から組み立てるので、本文が変わったら追従させる
       refreshInfoDrawer();
     }
@@ -9393,10 +9424,16 @@ ${derivedHTML}
     // ほとんどの段落が折り返され、論理的な行数と見た目の行数が一致しないためである。
     // 同じ字送りで組んだ隠し要素に本文の先頭部分を流し込み、実測する。
     function textareaOffsetTop(el, pos) {
+      return textareaOffsetTops(el, [pos])[0];
+    }
+
+    // 複数の文字位置をまとめて測る（positions は小さい順）。隠し要素に本文を1回だけ流し込み、
+    // 測りたい位置ごとに目印を挟むので、1つずつ測るより桁違いに速い（スクロールの連動で段落の数だけ測る）
+    function textareaOffsetTops(el, positions) {
       const mirror = document.getElementById('editor-mirror');
       // 幅が0のまま測ると1文字ごとに折り返され、桁違いの値になる。
       // 呼ぶ側が先に執筆モードへ戻していること。
-      if (!mirror || !el || !el.clientWidth) return 0;
+      if (!mirror || !el || !el.clientWidth) return positions.map(() => 0);
 
       const cs = getComputedStyle(el);
       ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing', 'lineHeight',
@@ -9405,13 +9442,24 @@ ${derivedHTML}
       ].forEach(k => { mirror.style[k] = cs[k]; });
       mirror.style.width = el.clientWidth + 'px';
 
-      mirror.textContent = el.value.slice(0, pos);
-      const marker = document.createElement('span');
-      marker.textContent = '​';
-      mirror.appendChild(marker);
-      const top = marker.offsetTop;
+      const text = el.value;
+      const frag = document.createDocumentFragment();
+      const markers = [];
+      let from = 0;
+      positions.forEach(pos => {
+        const to = Math.max(from, Math.min(pos, text.length));
+        frag.appendChild(document.createTextNode(text.slice(from, to)));
+        const marker = document.createElement('span');
+        marker.textContent = '​';
+        frag.appendChild(marker);
+        markers.push(marker);
+        from = to;
+      });
       mirror.textContent = '';
-      return top;
+      mirror.appendChild(frag);
+      const tops = markers.map(m => m.offsetTop);
+      mirror.textContent = '';
+      return tops;
     }
 
     function jumpToScene(id) {
@@ -9695,7 +9743,8 @@ ${derivedHTML}
     const LAYOUT_ORDER = ['preview', 'both', 'editor']; // 境界のボタンで1段ずつ動く順
     const LAYOUT_RATIO_MIN = 0.2;
     const LAYOUT_RATIO_MAX = 0.8;
-    let paneLayout = { mode: 'both', ratio: 0.5 };
+    // sync: 並べたときに本文とプレビューのスクロールを連動させるか（§5 の連動。既定で入れる）
+    let paneLayout = { mode: 'both', ratio: 0.5, sync: true };
     // 隠すと表示位置が先頭に戻ってしまう（display: none でスクロールの状態が捨てられる）ので、隠す前に覚えておく
     const paneScroll = { editor: 0, preview: 0 };
 
@@ -9710,6 +9759,7 @@ ${derivedHTML}
           if (LAYOUT_ORDER.indexOf(saved.mode) !== -1) paneLayout.mode = saved.mode;
           const r = Number(saved.ratio);
           if (isFinite(r) && r > 0) paneLayout.ratio = clampLayoutRatio(r);
+          if (typeof saved.sync === 'boolean') paneLayout.sync = saved.sync;
         }
       } catch (e) {
         // 壊れていれば既定（半々で並べる）のまま
@@ -9737,11 +9787,18 @@ ${derivedHTML}
         preview: paneLayout.mode === 'editor' ? 'プレビューも表示する' : 'プレビューを広げる（本文を隠す）',
         editor: paneLayout.mode === 'preview' ? '本文も表示する' : '本文を広げる（プレビューを隠す）'
       };
-      document.querySelectorAll('.pane-toggle').forEach(btn => {
+      document.querySelectorAll('.pane-toggle[data-pane-step]').forEach(btn => {
         const label = btn.classList.contains('pane-toggle-preview') ? names.preview : names.editor;
         btn.title = label;
         btn.setAttribute('aria-label', label);
       });
+      const syncBtn = document.getElementById('pane-sync');
+      if (syncBtn) {
+        syncBtn.setAttribute('aria-pressed', String(paneLayout.sync));
+        syncBtn.title = paneLayout.sync
+          ? 'スクロールの連動：入（本文とプレビューが同じ場所を見せる。押すと切る）'
+          : 'スクロールの連動：切（押すと、本文とプレビューが同じ場所を見せるようにする）';
+      }
     }
 
     function setPaneLayout(mode) {
@@ -9757,8 +9814,13 @@ ${derivedHTML}
       applyPaneLayout();
       savePaneLayout();
 
-      if (mode !== 'preview' && prev === 'preview' && editor) editor.scrollTop = paneScroll.editor;
-      if (mode !== 'editor' && prev === 'editor' && previewSection) previewSection.scrollTop = paneScroll.preview;
+      if (mode !== 'preview' && prev === 'preview' && editor) setPaneScrollQuietly('editor', paneScroll.editor);
+      if (mode !== 'editor' && prev === 'editor' && previewSection) setPaneScrollQuietly('preview', paneScroll.preview);
+      // 並べる表示に戻したら、それまで見えていた側に合わせる（利用者が読んでいたのはそちら）
+      if (mode === 'both') {
+        syncSource = prev === 'preview' ? 'preview' : 'editor';
+        syncScrollFrom(syncSource);
+      }
       // 隠した本文にフォーカスを残さない（残ると、打った文字が見えないまま本文に入る）
       if (mode === 'preview' && editor && document.activeElement === editor) editor.blur();
     }
@@ -9799,6 +9861,7 @@ ${derivedHTML}
       splitter.addEventListener('click', e => {
         const btn = e.target.closest('[data-pane-step]');
         if (btn) stepPaneLayout(Number(btn.dataset.paneStep));
+        if (e.target.closest('#pane-sync')) toggleScrollSync();
       });
 
       splitter.addEventListener('pointerdown', e => {
@@ -9845,6 +9908,158 @@ ${derivedHTML}
         applyPaneLayout();
         savePaneLayout();
       });
+    }
+
+    // === 本文とプレビューのスクロールの連動（docs/11_プレビュー連携設計書.html §5） ===
+    //
+    // 並べる表示で片方をスクロールすると、もう片方も同じ場所を見せる。
+    // 対応づけの目印は、プレビューの要素に書いてある原文での位置（data-src。§3.1）。
+    // 段落ごとに「本文の欄でその段落が上端に来る位置」と「プレビューで同じ段落が上端に来る位置」の組を作り、
+    // 組と組のあいだは比例で埋める。全体の割合だけで合わせないのは、本文の1行がプレビューでは
+    // NPCカードや判定の箱になるなど、両者の高さの比が段落ごとに大きく違い、途中で大きくずれるため。
+    // 表紙・巻末は本文に無いので組を作らない。本文の先頭はプレビューの本文の始まり（表紙の後ろ）に、
+    // 本文の末尾はプレビューの本文の終わり（巻末の前）に合わせる。表紙・巻末はプレビューを動かしたときだけ見え、
+    // そのあいだ本文は端で止まる（末尾に書き足しているときに、プレビューが巻末を見せてしまわないように）。
+    const SYNC_EDITOR_INSET = 20;  // 段落の頭を、本文の欄の上端からこれだけ下に見せる（欄の padding と同じ）
+    const SYNC_PREVIEW_INSET = 24; // プレビューでの同じ値（紙面の余白より少し狭くし、見出しの上の余白を見せる）
+    let syncMap = null;        // { key, points: [{ editor, preview }] }。points は両方とも増えていく scrollTop の組
+    let syncFrame = 0;
+    let syncSource = 'editor'; // 最後に利用者が動かした側。描き直しや大きさの変化のあとは、こちらに合わせ直す
+    // こちらから動かした値。その分の scroll は利用者の操作ではないので、逆向きに合わせ返さない
+    const syncExpect = { editor: null, preview: null };
+    let previewRenderSeq = 0;  // プレビューを描き直した回数（対応づけを作り直すかの判定に使う）
+
+    function paneScroller(side) {
+      return side === 'editor' ? editor : document.querySelector('.preview-section');
+    }
+
+    function scrollSyncActive() {
+      return paneLayout.sync && paneLayout.mode === 'both' && document.body.dataset.mode !== 'scene'
+        && !!editor && !!previewArea && editor.clientWidth > 0;
+    }
+
+    // こちらからスクロールさせる。この変化で起きる scroll は、利用者の操作として扱わない
+    function setPaneScrollQuietly(side, top) {
+      const el = paneScroller(side);
+      if (!el) return;
+      el.scrollTop = top;
+      syncExpect[side] = el.scrollTop; // 端で止まった後の値を覚える
+    }
+
+    function scrollSyncKey(scroller) {
+      return [editor.value.length, previewRenderSeq, editor.clientWidth, editor.clientHeight, editor.scrollHeight,
+        scroller.clientWidth, scroller.clientHeight, scroller.scrollHeight].join(',');
+    }
+
+    function buildScrollSyncMap(scroller) {
+      const editorMax = Math.max(0, editor.scrollHeight - editor.clientHeight);
+      const previewMax = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+      // 段落ごとに、プレビューで最初に現れる要素の高さ（右の段の要素も同じ段落の data-src を持つ）
+      const origin = scroller.getBoundingClientRect().top - scroller.scrollTop;
+      const previewTop = new Map();
+      let bodyTop = Infinity, bodyBottom = 0;
+      previewArea.querySelectorAll('[data-src]').forEach(el => {
+        const range = parseSrcRange(el.dataset.src);
+        if (!range || !el.getClientRects().length) return;
+        const rect = el.getBoundingClientRect();
+        bodyTop = Math.min(bodyTop, rect.top - origin);
+        bodyBottom = Math.max(bodyBottom, rect.bottom - origin);
+        if (!previewTop.has(range.start)) previewTop.set(range.start, rect.top - origin);
+      });
+      // 本文の先頭・末尾に合わせるプレビューの位置。本文が無ければ紙面の先頭
+      const clampPreview = v => Math.min(previewMax, Math.max(0, v));
+      const previewStart = previewTop.size ? clampPreview(bodyTop - SYNC_PREVIEW_INSET) : 0;
+      const previewEnd = previewTop.size
+        ? Math.max(previewStart, clampPreview(bodyBottom + SYNC_PREVIEW_INSET - scroller.clientHeight)) : 0;
+
+      const starts = Array.from(previewTop.keys()).sort((a, b) => a - b);
+      const editorTops = textareaOffsetTops(editor, starts);
+      const points = [{ editor: 0, preview: previewStart }];
+      starts.forEach((start, i) => {
+        const e = editorTops[i] - SYNC_EDITOR_INSET;
+        const p = previewTop.get(start) - SYNC_PREVIEW_INSET;
+        const last = points[points.length - 1];
+        // 両方とも先へ進む組だけを使う。空行のあとの >> だけの段落は、プレビューでは前の段落の横に戻るので外れる。
+        // 上端まで送れない末尾の段落も外し、最後の組（両方の末尾）に任せる
+        if (e > last.editor + 1 && p > last.preview + 1 && e < editorMax && p < previewEnd) {
+          points.push({ editor: e, preview: p });
+        }
+      });
+      points.push({ editor: editorMax, preview: previewEnd });
+      return { key: scrollSyncKey(scroller), points: points };
+    }
+
+    // 組の表で、from 側の scrollTop を to 側の scrollTop に置き換える
+    function mapPaneScroll(points, from, to, value) {
+      if (value <= points[0][from]) return points[0][to];
+      for (let i = 1; i < points.length; i++) {
+        const a = points[i - 1], b = points[i];
+        if (value <= b[from]) {
+          const span = b[from] - a[from];
+          return span > 0 ? a[to] + (b[to] - a[to]) * (value - a[from]) / span : b[to];
+        }
+      }
+      return points[points.length - 1][to];
+    }
+
+    // side 側の今の位置に、もう片方を合わせる
+    function syncScrollFrom(side) {
+      if (!scrollSyncActive()) return;
+      // 打った直後でプレビューがまだ古い本文のもの（data-src の位置がずれている）なら合わせない。描き直したあとに合わせる
+      if (previewRenderedText !== editor.value) return;
+      const scroller = paneScroller('preview');
+      if (!syncMap || syncMap.key !== scrollSyncKey(scroller)) syncMap = buildScrollSyncMap(scroller);
+      const other = side === 'editor' ? 'preview' : 'editor';
+      const target = Math.round(mapPaneScroll(syncMap.points, side, other, paneScroller(side).scrollTop));
+      if (Math.abs(paneScroller(other).scrollTop - target) >= 1) setPaneScrollQuietly(other, target);
+    }
+
+    // 描き直し・大きさの変化のあとで、最後に動かした側に合わせ直す（次の描画の前にまとめて1回）
+    function scheduleScrollSync() {
+      if (syncFrame) return;
+      syncFrame = requestAnimationFrame(() => {
+        syncFrame = 0;
+        syncScrollFrom(syncSource);
+      });
+    }
+
+    function onPaneScroll(side) {
+      const expected = syncExpect[side];
+      if (expected !== null) {
+        syncExpect[side] = null;
+        if (Math.abs(paneScroller(side).scrollTop - expected) <= 1) return; // こちらから動かした分
+      }
+      syncSource = side;
+      if (scrollSyncActive()) scheduleScrollSync();
+    }
+
+    function setScrollSync(on) {
+      paneLayout.sync = !!on;
+      applyPaneLayout();
+      savePaneLayout();
+      // 入れたら、最後に動かした側に合わせる
+      if (paneLayout.sync) syncScrollFrom(syncSource);
+    }
+
+    // 境界のボタン・コマンドパレットから
+    function toggleScrollSync() {
+      setScrollSync(!paneLayout.sync);
+      showAppToast(paneLayout.sync ? 'スクロールの連動：入' : 'スクロールの連動：切');
+    }
+
+    function initScrollSync() {
+      const scroller = paneScroller('preview');
+      if (!editor || !scroller || !previewArea) return;
+      editor.addEventListener('scroll', () => onPaneScroll('editor'), { passive: true });
+      scroller.addEventListener('scroll', () => onPaneScroll('preview'), { passive: true });
+      // 打っているあいだは本文が基準。描き直したあと、プレビューのほうを本文に合わせる
+      editor.addEventListener('input', () => { syncSource = 'editor'; });
+      // 画面の大きさ・境界の位置が変わった、プレビューの画像が読み込まれて高さが変わった、など
+      if (window.ResizeObserver) {
+        const ro = new ResizeObserver(() => scheduleScrollSync());
+        ro.observe(editor);
+        ro.observe(previewArea);
+      }
     }
 
     // === プレビューから原文へ（docs/11_プレビュー連携設計書.html §3） ===
@@ -9920,9 +10135,20 @@ ${derivedHTML}
       revealEditorPane();
       editor.focus({ preventScroll: true });
       editor.setSelectionRange(pos, pos);
-      // 段落の頭が欄の上から1/4あたりに来るようにする。段落が長くてカーソルが欄から外れるなら、カーソルの行に合わせる
       const height = editor.clientHeight;
       const caretTop = textareaOffsetTop(editor, pos);
+      // スクロールを連動しているときは、プレビューを動かさず本文をそれに合わせる
+      // （プレビューが動くと、いまダブルクリックした場所を見失う）。合わせた位置でカーソルが欄に入っていればそれでよい
+      if (scrollSyncActive()) {
+        syncSource = 'preview';
+        syncScrollFrom('preview');
+        const lineHeight = parseFloat(getComputedStyle(editor).lineHeight) || 24;
+        if (caretTop >= editor.scrollTop && caretTop + lineHeight <= editor.scrollTop + height) {
+          flashEditorRange(range.start, range.end);
+          return;
+        }
+      }
+      // 段落の頭が欄の上から1/4あたりに来るようにする。段落が長くてカーソルが欄から外れるなら、カーソルの行に合わせる
       let scroll = textareaOffsetTop(editor, range.start) - height * 0.25;
       if (caretTop - scroll > height * 0.75) scroll = caretTop - height * 0.4;
       editor.scrollTop = Math.max(0, scroll);
