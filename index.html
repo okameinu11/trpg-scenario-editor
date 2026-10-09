@@ -1037,12 +1037,21 @@
     margin-bottom: 16px;
   }
   #preview-area .search-title {
+    /* 右端にコピーボタン（情報ブロックと同じ .info-action）を置く */
+    display: flex;
+    align-items: center;
+    gap: 10px;
     color: #0f766e !important;
     font-weight: 700;
     font-size: 0.9rem;
     margin-bottom: 8px;
     border-bottom: 1px dashed #99f6e4;
     padding-bottom: 4px;
+  }
+  /* 文は内側の要素で1段包む。flex の箱に直接載せると、文の途中で割れて並ぶ（記法設計書 §3.5） */
+  #preview-area .search-title-text {
+    flex: 1;
+    min-width: 0;
   }
   /* 縦並びの一覧。以前は横並びのタグ（丸い薬みたいな形）だったが、
      項目が「机の引き出しの中を調べる」のような文になると1行に収まらず、
@@ -10615,9 +10624,11 @@ ${derivedHTML}
           const headerLine = lines[0];
           
           let areaName = 'このエリア';
+          let namedArea = '';  // コピーの見出しに使う。名前を書いていなければ「【探索可能箇所】」だけにする
           const headerMatch = headerLine.match(/^\[(?:探索|調査)(?::\s*([^\]]+))?\]/);
           if (headerMatch && headerMatch[1]) {
             areaName = headerMatch[1].trim();
+            namedArea = areaName;
           }
 
           let itemsHTML = '';
@@ -10634,9 +10645,10 @@ ${derivedHTML}
             itemsHTML += `<span class="search-item">${decorate(line)}</span>`;
           }
 
+          // コピーボタンは情報（[情報:題名]）と同じ扱い。プレイヤーに「調べられる場所」をチャットで示すため（docs/04_記法設計書.html §9.4）
           return `
           <div class="search-box">
-            <div class="search-title">🔍 探索可能箇所：${areaName}</div>
+            <div class="search-title"><span class="search-title-text">🔍 探索可能箇所：${areaName}</span><button type="button" class="info-action no-print" data-copy-search="${namedArea}" title="【探索可能箇所：エリア名】＋項目をコピー">📋 コピー</button></div>
             <div class="search-list">
               ${itemsHTML}
             </div>
@@ -13073,10 +13085,9 @@ ${parseRollResultLines(lines, 1)}            </div>
       return ok;
     }
 
-    function copyInfo(id, button) {
-      const info = findInfoById(id);
-      if (!info) return;
-      copyTextToClipboard(infoCopyText(info)).then(ok => {
+    // コピーして、押したボタンに結果を1.5秒出す（情報・探索一覧で共通）
+    function copyWithFeedback(text, button) {
+      copyTextToClipboard(text).then(ok => {
         if (!button) return;
         const original = button.dataset.label || button.textContent;
         button.dataset.label = original;
@@ -13088,6 +13099,24 @@ ${parseRollResultLines(lines, 1)}            </div>
           button.classList.remove('copied');
         }, 1500);
       });
+    }
+
+    function copyInfo(id, button) {
+      const info = findInfoById(id);
+      if (!info) return;
+      copyWithFeedback(infoCopyText(info), button);
+    }
+
+    // 探索可能箇所一覧（[探索:エリア名]）のコピー。「【探索可能箇所：エリア名】」の行＋項目を「・」付きで1行ずつ。
+    // 項目は描いた文字（textContent）から取るので、文字色の記法はもう外れている（docs/04_記法設計書.html §9.4）
+    function copySearchList(button) {
+      const box = button.closest('.search-box');
+      if (!box) return;
+      const area = (button.dataset.copySearch || '').trim();
+      const items = Array.from(box.querySelectorAll('.search-item'))
+        .map(el => el.textContent.trim()).filter(Boolean).map(t => '・' + t);
+      const text = (area ? `【探索可能箇所：${area}】` : '【探索可能箇所】') + (items.length ? '\n' + items.join('\n') : '');
+      copyWithFeedback(text, button);
     }
 
     // [情報:題名] を本文のカーソル位置に入れる（段落として独立させる）
@@ -13429,6 +13458,8 @@ ${parseRollResultLines(lines, 1)}            </div>
           if (!btn) return;
           if (btn.dataset.copyInfo) {
             copyInfo(btn.dataset.copyInfo, btn);
+          } else if (btn.dataset.copySearch !== undefined) {
+            copySearchList(btn);
           } else if (btn.dataset.createInfo !== undefined) {
             const info = createInfo(btn.dataset.createInfo);
             infoEditingId = info.id;

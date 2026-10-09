@@ -682,7 +682,7 @@
         <tr><td><strong>NPCのセリフ</strong><br>（2026-10-05 追加）</td><td>行頭に <code>[セリフ:NPC名]</code>、続けて発言（次の行からでも可）。備考を付けるときは <code>[セリフ:NPC名/備考]</code></td><td><code>&lt;div class="npc-speech"&gt;</code></td><td>左にNPCのアイコン（立ち絵。無ければ名前の1文字目）、上にNPC名。名前と発言はそのNPCの色（NPC管理の基本タブで設定）。箱や枠線は付けず、セリフが続くあいだは段落の間隔を詰める。フォント明朝。備考（読み上げ方などのト書き）は名前と発言の間に灰色の小さな文字で出す（改行できる。ただし空行は書けない）。未登録の名前でも発言は出し、「未登録のNPC」の印を付ける。<strong>その場面（<code>#</code> 見出しの区切り）で初めて話すときだけ</strong>、サイドビューに小さなNPCカードを添える。設計は <a href="04_記法設計書.html">記法設計書 §8</a></td></tr>
         <tr><td><strong>プレイヤーへ渡す情報</strong><br>（2026-10-05 追加）</td><td>行頭に <code>[情報:題名]</code>（中身は情報一覧に登録する）</td><td><code>&lt;div class="info-block"&gt;</code></td><td>白地に細い枠の「配布資料」の見た目。見出し行に題名・公開対象のバッジ（全員＝緑／それ以外＝琥珀／未設定＝赤）・コピーボタン。本文は明朝。コピーは「【題名】」＋本文で、ボタンは印刷に出さない。未登録の題名は「登録されていません」と出し、その場で登録できる。詳細は 2.10 と <a href="04_記法設計書.html">記法設計書 §9</a></td></tr>
         <tr><td><strong>GM向け情報</strong><br>（DL情報／KP情報）</td><td>行頭に <code>[DL]</code> または <code>[KP]</code></td><td><code>&lt;div class="dl-info"&gt;</code></td><td>背景薄黄、黄色境界線、角丸。見出しはシステムに追従（「📋 DL情報」／「📋 KP情報」）</td></tr>
-        <tr><td><strong>探索可能箇所一覧</strong></td><td><code>[探索:エリア名]</code> または <code>[調査:…]</code> の次行から <code>-</code> で1項目ずつ</td><td><code>&lt;div class="search-box"&gt;</code> ＋ <code>&lt;span class="search-item"&gt;</code></td><td>背景薄ティール。項目は<strong>1項目1行の縦並び</strong>で、左に <code>▶</code> の目印が付く</td></tr>
+        <tr><td><strong>探索可能箇所一覧</strong></td><td><code>[探索:エリア名]</code> または <code>[調査:…]</code> の次行から <code>-</code> で1項目ずつ</td><td><code>&lt;div class="search-box"&gt;</code> ＋ <code>&lt;span class="search-item"&gt;</code></td><td>背景薄ティール。項目は<strong>1項目1行の縦並び</strong>で、左に <code>▶</code> の目印が付く。見出し行の右端にコピーボタン（「【探索可能箇所：エリア名】」＋「・項目」。印刷には出さない。2026-10-09 追加。<a href="04_記法設計書.html">記法設計書</a> §9.4）</td></tr>
         <tr><td><strong>共鳴判定</strong></td><td><code>[共鳴:強度/上昇/感情]</code></td><td><code>&lt;div class="resonance-box"&gt;</code></td><td>背景薄赤、左に赤太線、「🌀 共鳴判定…」自動付与</td></tr>
         <tr><td><strong>SANチェック</strong><br>（2026-09-01 追加）</td><td><code>[SAN:成功/失敗]</code></td><td><code>&lt;div class="roll-box san-box"&gt;</code></td><td>技能判定と同じ骨格で色は赤系。ヘッダに減少値のバッジ。詳細は 4.4</td></tr>
         <tr><td><strong>文字色</strong>（インライン）<br>（2026-09-01 追加）</td><td><code>{赤:テキスト}</code> / <code>{#88ccff:テキスト}</code></td><td><code>&lt;span class="ic-red"&gt;</code> / <code>&lt;span style="color:…"&gt;</code></td><td>文中の一部だけを着色。ほぼすべてのブロックの中で使える。詳細は 4.3</td></tr>
@@ -941,7 +941,8 @@
   </nav>
 
   <footer class="pagefoot">
-    最終更新: 2026-10-09（§2.14 に本文とプレビューのスクロールの連動を追加）<br>
+    最終更新: 2026-10-09（§4.1 の探索可能箇所一覧にコピーボタンを追記）<br>
+    2026-10-09（§2.14 に本文とプレビューのスクロールの連動を追加）<br>
     2026-10-09（ヘッダーの左上にアプリの名前を出し、一覧の入口を「📂 シナリオ一覧」ボタンにしたことを冒頭と §3.1 の画面図に反映）<br>
     2026-10-07（プレビューの広さと原文への行き来の追加に伴い §2.14 を新設。設計判断は 11_プレビュー連携設計書 へ分離）<br>
     2026-10-06（元に戻す・やり直すの追加に伴い §2.13 を新設。設計判断は 10_元に戻す設計書 へ分離）<br>
