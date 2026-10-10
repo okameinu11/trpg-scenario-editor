@@ -3588,10 +3588,21 @@
     flex-wrap: wrap;
   }
   .scene-toolbar .btn { height: auto; padding: 7px 12px; font-size: 0.82rem; }
+  .scene-toolbar .btn[aria-pressed="true"] {
+    background-color: rgba(59, 130, 246, 0.18);
+    border-color: var(--accent-color);
+  }
   .scene-viewport {
     flex: 1;
     overflow: auto;
     position: relative;
+  }
+  /* グリッドスナップが入のときの格子の点。カードの左上が点に乗る。
+     図の倍率に合わせて点の間隔を applySceneScale() が変え、local で図と一緒にスクロールさせる */
+  .scene-viewport.snap-on {
+    background-image: radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.3) 1px, transparent 1.5px);
+    background-size: 20px 20px;
+    background-attachment: local;
   }
   .scene-canvas-wrap { position: relative; }
   .scene-canvas {
@@ -3609,8 +3620,12 @@
     padding: 6px 8px;
     font-size: 0.82rem;
   }
+  /* 操作の説明は、ボタンの並びの残りの幅に収める（幅が足りなければ説明の中で折り返す）。
+     固定の幅で置くと、ボタンを足したときに説明だけが2段目へ落ち、ツールバーが1段ぶん高くなる */
   .scene-hint {
-    margin-left: auto;
+    flex: 1 1 0;
+    min-width: 200px;
+    text-align: right;
     color: var(--text-secondary);
     font-size: 0.76rem;
   }
@@ -3645,7 +3660,7 @@
     /* 大きさは固定する。内容によって伸び縮みすると、計算した座標と実寸がずれ、
        段の間隔が狂ったり、線の端点が浮いたりする（JS側の SCENE_CARD_W / _H と同じ値）。 */
     width: 180px;
-    height: 72px;
+    height: 80px;
     overflow: hidden;
     background-color: var(--bg-card);
     border: 1px solid var(--border-color);
@@ -3689,13 +3704,15 @@
   .scene-node-meta {
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin-top: 6px;
-    /* 折り返させない。折り返すとカードの高さが変わってしまう */
-    flex-wrap: nowrap;
-    overflow: hidden;
+    gap: 2px 6px;
+    margin-top: 4px;
+    /* タグが1行に入りきらなければ2行目へ回す。カードの高さは変えられないので、
+       収まらないカードだけ題名を1行に詰め、それでも収まらなければ種別の名前を省く（fitSceneCards()） */
+    flex-wrap: wrap;
   }
   .scene-node-meta > * { flex-shrink: 0; }
+  .scene-node.fit-1 .scene-node-title { -webkit-line-clamp: 1; }
+  .scene-node.fit-2 .scene-node-kind { display: none; }
   .scene-kind-dot {
     width: 8px;
     height: 8px;
@@ -3705,6 +3722,7 @@
   .scene-node-kind { font-size: 0.68rem; color: var(--text-secondary); }
   .scene-badge {
     font-size: 0.64rem;
+    line-height: 1.35;
     padding: 1px 5px;
     border-radius: 4px;
     background-color: rgba(245, 158, 11, 0.18);
@@ -3989,6 +4007,15 @@
           <option value="0.75">75%</option>
           <option value="0.5">50%</option>
           <option value="fit">全体に合わせる</option>
+        </select>
+        <!-- 格子に合わせるかはこの端末の好み（trpg_scene_view）。線の形はシナリオごとに保存し、本文の [場面図] にも使う
+             （docs/06_場面ツリー設計書.html §8.2・§8.7） -->
+        <button type="button" class="btn" id="scene-snap-toggle" aria-pressed="true" onclick="toggleSceneSnap()"
+                title="カードを動かすとき、20pxの格子に合わせる（押すたびに入／切）">▦ グリッド</button>
+        <select id="scene-edge-style" onchange="setSceneEdgeStyle(this.value)"
+                title="場面をつなぐ線の形。シナリオごとに保存し、本文の [場面図] にも使う">
+          <option value="curve">線：曲線</option>
+          <option value="orthogonal">線：直角</option>
         </select>
         <span class="scene-hint">カードを <kbd>Ctrl</kbd>＋ドラッグでつなぐ／そのままドラッグで移動</span>
       </div>
@@ -4816,10 +4843,17 @@
 
     // カードの大きさと間隔。画面の樹形図と [場面図] のSVGで同じ値を使う。
     // 別々に持つと、レイアウト計算とHTMLの実寸がずれてエッジの端点が浮く。
+    // どれも格子（SCENE_GRID）の倍数にしてある。自動配置の位置も格子に乗るので、
+    // 格子に合わせて手で動かしたカードと、自動で並んだカードの縁が揃う（docs/06_場面ツリー設計書.html §8.7）
+    const SCENE_GRID = 20;
     const SCENE_CARD_W = 180;
-    const SCENE_CARD_H = 72;
+    const SCENE_CARD_H = 80;
     const SCENE_GAP_X = 40;
     const SCENE_GAP_Y = 80;
+    const SCENE_MARGIN = 20;       // 図の外周の余白
+    const SCENE_VIRTUAL_W = 20;    // 段を2つ以上またぐ接続の経由点が、段の中で取る幅
+    // 場面をつなぐ線の形。シナリオごとに currentScenes.edgeStyle に持ち、[場面図] の出力にも使う。先頭が既定
+    const SCENE_EDGE_STYLES = ['curve', 'orthogonal'];
 
     // 2. グローバルステート
     let currentScenarioId = generateUUID();
@@ -5714,7 +5748,9 @@
         });
       });
 
-      return { nodes: nodes, edges: dropCyclicEdges(nodes, edges) };
+      // 線の形（docs/06_場面ツリー設計書.html §8.2）。知らない値は既定の曲線に倒す
+      const edgeStyle = SCENE_EDGE_STYLES.indexOf(raw.edgeStyle) !== -1 ? raw.edgeStyle : SCENE_EDGE_STYLES[0];
+      return { nodes: nodes, edges: dropCyclicEdges(nodes, edges), edgeStyle: edgeStyle };
     }
 
     // 閉路を作っている接続を捨てる。
@@ -6064,6 +6100,7 @@
         // 本文とプレビューの並べ方は、作業状態の読み込みを待たずに戻す（読み込みのあいだ半々の画面が見えないように）
         loadPaneLayout();
         initPaneSplitter();
+        loadSceneView();
 
         // 復元が済むまで打ち込めないようにする。
         // 待たずに開けると、先に打った内容が復元データで上書きされてしまう。
@@ -8846,7 +8883,7 @@ ${derivedHTML}
         link(prev, e.to);
       });
 
-      const widthOf = id => virtual.has(id) ? 24 : SCENE_CARD_W;
+      const widthOf = id => virtual.has(id) ? SCENE_VIRTUAL_W : SCENE_CARD_W;
 
       // 3. 段ごとに並べる
       const layers = [];
@@ -8886,13 +8923,14 @@ ${derivedHTML}
       }
 
       // 4. 座標にする
-      const margin = 24;
+      const margin = SCENE_MARGIN;
       const rowWidth = layer => layer.reduce((w, id, i) => w + widthOf(id) + (i ? SCENE_GAP_X : 0), 0);
       let widest = 0;
       layers.forEach(l => { widest = Math.max(widest, rowWidth(l)); });
 
       layers.forEach((layer, r) => {
-        let x = margin + (widest - rowWidth(layer)) / 2;
+        // 段を中央に寄せるずれも格子の倍数に丸める。幅と間隔は格子の倍数なので、これで段の全員が格子に乗る
+        let x = margin + Math.round((widest - rowWidth(layer)) / 2 / SCENE_GRID) * SCENE_GRID;
         layer.forEach(id => {
           pos[id] = { x: x, y: margin + r * (SCENE_CARD_H + SCENE_GAP_Y) };
           x += widthOf(id) + SCENE_GAP_X;
@@ -9014,16 +9052,18 @@ ${derivedHTML}
 
     // 接続線をSVGで組み立てる。
     //
-    // 曲線にしているのは、合流のある図では複数の線が同じ縦の道を通るため。
-    // 直角の折れ線だと線がぴったり重なって1本に見え、
+    // 既定を曲線にしているのは、合流のある図では複数の線が同じ縦の道を通るため。
+    // ただ中心どうしを直角の折れ線で結ぶと、線がぴったり重なって1本に見え、
     // 「3つのルートが合流している」という肝心のことが読めなくなる。
+    // 直角の線（シナリオごとに選べる）は、線ごとに通る位置をずらしてこれを避けている（sceneOrthoRoutes()）。
+    //
     // 2枚のカードの、どの辺どうしを結ぶかを決める。
     //
     // 常に「下端から上端へ」だと、カードを横に並べ替えたときに線が大きく回り込み、
     // 隣に置いただけなのに遠回りして見える。中心の位置関係を見て、
     // 縦につなぐか横につなぐかを切り替える。
     //
-    // カードは横長（180×72）なので、差をそのまま比べると縦の判定に寄る。
+    // カードは横長（180×80）なので、差をそのまま比べると縦の判定に寄る。
     // 幅と高さで割ってから比べることで、目で見た向きと一致する。
     function sceneAnchorPair(a, b) {
       const W = SCENE_CARD_W;
@@ -9070,12 +9110,207 @@ ${derivedHTML}
         + '" fill="' + fill + '"/>';
     }
 
+    // --- 直角の線（edgeStyle: 'orthogonal'。docs/06_場面ツリー設計書.html §8.2） ---
+    //
+    // 直角の線は、合流のある図で複数の線が同じ道を通ると、ぴったり重なって1本に見える。
+    // 曲線なら曲がり方の違いで追えるが、直角では追えない。そこで2つをずらす。
+    //  - 出入りする位置: 同じカードの同じ辺に付く線は、辺の上で位置を分ける（合流が「3本の線が入ってくる」と読める）
+    //  - 曲がる位置: 段と段の間を横に走る線（横につなぐ線では縦に走る線）が重なるなら、走る高さを分ける
+    const SCENE_PORT_GAP = 16;   // 同じ辺に付く線どうしの間隔の上限
+    const SCENE_TRACK_GAP = 8;   // 重なる区間を走る線どうしの間隔の上限
+    const SCENE_CORNER_R = 6;    // 曲がり角の丸め。交差と曲がり角を見分けやすくする
+    // 線の進む向き（sceneAnchorPair() の dir）ごとの、出る辺と入る辺
+    const SCENE_SIDES_OF_DIR = { down: ['bottom', 'top'], up: ['top', 'bottom'], right: ['right', 'left'], left: ['left', 'right'] };
+
+    function sceneEdgeStyle() {
+      return SCENE_EDGE_STYLES.indexOf(currentScenes.edgeStyle) !== -1 ? currentScenes.edgeStyle : SCENE_EDGE_STYLES[0];
+    }
+
+    // 接続ごとの道筋（折れ線の点の列と、最後に進む向き）を返す
+    function sceneOrthoRoutes(edges, layout) {
+      const W = SCENE_CARD_W;
+      const H = SCENE_CARD_H;
+      const center = p => ({ x: p.x + W / 2, y: p.y + H / 2 });
+
+      // 1. 向きと経由点を決める。経由点の扱いは曲線と同じ（手で動かしたカードが絡む線では使わない）
+      const specs = [];
+      edges.forEach(e => {
+        const a = layout.pos[e.from];
+        const b = layout.pos[e.to];
+        if (!a || !b) return;
+        const moved = layout.manual && (layout.manual.has(e.from) || layout.manual.has(e.to));
+        const via = moved ? [] : (layout.waypoints[e.id] || []);
+        const dir = via.length ? 'down' : sceneAnchorPair(a, b).dir;
+        // 辺の上の位置は、出る端なら次に向かう点、入る端なら直前の点の並びに合わせる（線どうしが辺の近くで交差しない）
+        specs.push({
+          e: e, a: a, b: b, dir: dir, via: via,
+          vertical: dir === 'down' || dir === 'up',
+          next: via.length ? via[0] : center(b),
+          prev: via.length ? via[via.length - 1] : center(a)
+        });
+      });
+
+      // 2. カードの辺ごとに、付く線の位置を割り振る
+      const sides = new Map();
+      const attach = (nodeId, side, item) => {
+        const k = nodeId + '\n' + side;
+        if (!sides.has(k)) sides.set(k, { side: side, items: [] });
+        sides.get(k).items.push(item);
+      };
+      specs.forEach(sp => {
+        const pair = SCENE_SIDES_OF_DIR[sp.dir];
+        attach(sp.e.from, pair[0], { sp: sp, end: 'p', card: sp.a, toward: sp.next });
+        attach(sp.e.to, pair[1], { sp: sp, end: 'q', card: sp.b, toward: sp.prev });
+      });
+      sides.forEach(({ side, items }) => {
+        const across = side === 'top' || side === 'bottom'; // 横向きの辺なら x で並べる
+        items.sort((i1, i2) => across
+          ? (i1.toward.x - i2.toward.x) || (i1.toward.y - i2.toward.y)
+          : (i1.toward.y - i2.toward.y) || (i1.toward.x - i2.toward.x));
+        const n = items.length;
+        const gap = n > 1 ? Math.min(SCENE_PORT_GAP, (across ? W : H) * 0.6 / (n - 1)) : 0;
+        items.forEach((it, i) => {
+          const off = (i - (n - 1) / 2) * gap;
+          const c = it.card;
+          it.sp[it.end] = side === 'bottom' ? { x: c.x + W / 2 + off, y: c.y + H }
+            : side === 'top' ? { x: c.x + W / 2 + off, y: c.y }
+            : side === 'right' ? { x: c.x + W, y: c.y + H / 2 + off }
+            : { x: c.x, y: c.y + H / 2 + off };
+        });
+      });
+
+      // 3. 道筋を組む。縦につなぐ線は「縦 → 横 → 縦」を、段をまたぐなら経由点ごとに繰り返す。
+      //    横につなぐ線は「横 → 縦 → 横」。真ん中の区間（chan）の位置は、次の手順で重なりを見てずらす
+      const chans = [];
+      specs.forEach(sp => {
+        const p = sp.p;
+        const q = sp.q;
+        sp.chans = [];
+        if (sp.vertical) {
+          sp.fixed = [p.x].concat(sp.via.map(v => v.x), [q.x]);
+          for (let j = 0; j < sp.fixed.length - 1; j++) {
+            // 経由点は段の真ん中にあるので、段の上下の縁を求めて、その間（段と段の間）の真ん中を走る
+            const y1 = j === 0 ? p.y : sp.via[j - 1].y + (sp.dir === 'up' ? -H / 2 : H / 2);
+            const y2 = j === sp.fixed.length - 2 ? q.y : sp.via[j].y + (sp.dir === 'up' ? H / 2 : -H / 2);
+            sp.chans.push({ dir: sp.dir, base: (y1 + y2) / 2, room: Math.abs(y2 - y1), from: sp.fixed[j], to: sp.fixed[j + 1] });
+          }
+        } else {
+          sp.fixed = [p.y, q.y];
+          sp.chans.push({ dir: sp.dir, base: (p.x + q.x) / 2, room: Math.abs(q.x - p.x), from: p.y, to: q.y });
+        }
+        sp.chans.forEach(c => { c.pos = c.base; chans.push(c); });
+      });
+
+      // 4. 同じ所を走る区間が重なるなら、走る位置を分ける。
+      //    先に置く線ほど、出てきたカードに近い側を走る。戻る向き（左・上）へ曲がる線は出どころの座標が小さいものから、
+      //    進む向きへ曲がる線は大きいものから置くと、同じカードから出た隣どうしの線が交差しない
+      const groups = new Map();
+      chans.forEach(c => {
+        if (Math.abs(c.to - c.from) < 0.5) return; // 曲がらない（真っすぐ）
+        const k = c.dir + '\n' + Math.round(c.base);
+        if (!groups.has(k)) groups.set(k, []);
+        groups.get(k).push(c);
+      });
+      groups.forEach(list => {
+        const back = list.filter(c => c.to < c.from).sort((c1, c2) => c1.from - c2.from);
+        const fwd = list.filter(c => c.to > c.from).sort((c1, c2) => c2.from - c1.from);
+        const tracks = [];
+        back.concat(fwd).forEach(c => {
+          const lo = Math.min(c.from, c.to);
+          const hi = Math.max(c.from, c.to);
+          let t = 0;
+          while (tracks[t] && tracks[t].some(r => lo < r[1] + 2 && r[0] < hi + 2)) t++;
+          (tracks[t] = tracks[t] || []).push([lo, hi]);
+          c.track = t;
+        });
+        const n = tracks.length;
+        if (n < 2) return;
+        const room = Math.min.apply(null, list.map(c => c.room));
+        const gap = Math.max(2, Math.min(SCENE_TRACK_GAP, (room - 24) / (n - 1)));
+        // 出てきたカードに近い側: 下・右へ進む線なら座標の小さい側、上・左へ進む線なら大きい側
+        const sign = (list[0].dir === 'down' || list[0].dir === 'right') ? 1 : -1;
+        list.forEach(c => { c.pos = c.base + sign * (c.track - (n - 1) / 2) * gap; });
+      });
+
+      // 5. 点の列にする
+      const routes = new Map();
+      specs.forEach(sp => {
+        const pts = [sp.p];
+        sp.chans.forEach((c, i) => {
+          if (sp.vertical) pts.push({ x: sp.fixed[i], y: c.pos }, { x: sp.fixed[i + 1], y: c.pos });
+          else pts.push({ x: c.pos, y: sp.fixed[i] }, { x: c.pos, y: sp.fixed[i + 1] });
+        });
+        pts.push(sp.q);
+        routes.set(sp.e.id, { points: simplifyOrthoPoints(pts), dir: sp.dir });
+      });
+      return routes;
+    }
+
+    // 重なった点と、一直線に並んだ途中の点を除く（曲がらない区間が残ると、丸めた角が描けない）
+    function simplifyOrthoPoints(pts) {
+      const out = [];
+      pts.forEach(p => {
+        const last = out[out.length - 1];
+        if (last && Math.abs(last.x - p.x) < 0.5 && Math.abs(last.y - p.y) < 0.5) return;
+        out.push(p);
+        while (out.length >= 3) {
+          const a = out[out.length - 3];
+          const b = out[out.length - 2];
+          const c = out[out.length - 1];
+          const straight = (Math.abs(a.x - b.x) < 0.5 && Math.abs(b.x - c.x) < 0.5)
+            || (Math.abs(a.y - b.y) < 0.5 && Math.abs(b.y - c.y) < 0.5);
+          if (!straight) break;
+          out.splice(out.length - 2, 1);
+        }
+      });
+      return out;
+    }
+
+    // 折れ線を、角だけ小さく丸めた path にする
+    function sceneOrthoPathD(pts) {
+      const pt = p => svgNum(p.x) + ' ' + svgNum(p.y);
+      let d = 'M ' + pt(pts[0]);
+      for (let i = 1; i < pts.length - 1; i++) {
+        const a = pts[i - 1];
+        const b = pts[i];
+        const c = pts[i + 1];
+        const l1 = Math.hypot(b.x - a.x, b.y - a.y);
+        const l2 = Math.hypot(c.x - b.x, c.y - b.y);
+        const r = Math.min(SCENE_CORNER_R, l1 / 2, l2 / 2);
+        d += ' L ' + pt({ x: b.x - (b.x - a.x) / l1 * r, y: b.y - (b.y - a.y) / l1 * r })
+          + ' Q ' + pt(b) + ' ' + pt({ x: b.x + (c.x - b.x) / l2 * r, y: b.y + (c.y - b.y) / l2 * r });
+      }
+      return d + ' L ' + pt(pts[pts.length - 1]);
+    }
+
+    // 折れ線の、道のりでちょうど半分の点（ラベルを置く場所）
+    function polylineHalfway(pts) {
+      const lens = [];
+      let total = 0;
+      for (let i = 1; i < pts.length; i++) {
+        const l = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+        lens.push(l);
+        total += l;
+      }
+      let rest = total / 2;
+      for (let i = 0; i < lens.length; i++) {
+        if (rest <= lens[i] && lens[i] > 0) {
+          const t = rest / lens[i];
+          return { x: pts[i].x + (pts[i + 1].x - pts[i].x) * t, y: pts[i].y + (pts[i + 1].y - pts[i].y) * t };
+        }
+        rest -= lens[i];
+      }
+      return pts[pts.length - 1];
+    }
+
     function buildSceneEdgesSVG(edges, layout, opts) {
       const o = opts || {};
       const stroke = o.stroke || '#64748b';
       const labelColor = o.labelColor || '#cbd5e1';
       const labelBg = o.labelBg || '#181c24';
       const fontSize = o.fontSize || 11;
+      // 線の形はシナリオごとの設定。画面の樹形図と [場面図] の出力で同じものを使う
+      const routes = sceneEdgeStyle() === 'orthogonal' ? sceneOrthoRoutes(edges, layout) : null;
 
       let out = '';
       edges.forEach(e => {
@@ -9094,8 +9329,15 @@ ${derivedHTML}
         let d;
         let endDir;
         let points;
+        let mid = null;
 
-        if (via.length) {
+        if (routes) {
+          const route = routes.get(e.id);
+          points = route.points;
+          d = sceneOrthoPathD(points);
+          endDir = route.dir;
+          mid = polylineHalfway(points);
+        } else if (via.length) {
           // 経由点があるのは自動配置のときだけなので、素直に上から下へ降ろす
           points = [{ x: a.x + SCENE_CARD_W / 2, y: a.y + SCENE_CARD_H }]
             .concat(via)
@@ -9134,9 +9376,11 @@ ${derivedHTML}
         out += sceneArrowPolygon(end.x, end.y, endDir, stroke);
 
         if (e.label) {
-          const mid = (points.length === 2)
-            ? { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 }
-            : points[Math.floor(points.length / 2)];
+          if (!mid) {
+            mid = (points.length === 2)
+              ? { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 }
+              : points[Math.floor(points.length / 2)];
+          }
           const w = svgTextWidth(e.label, fontSize) + 12;
           const h = fontSize * 1.8;
           out += '<rect x="' + svgNum(mid.x - w / 2) + '" y="' + svgNum(mid.y - h / 2) + '"'
@@ -9158,6 +9402,9 @@ ${derivedHTML}
     function renderSceneCanvas() {
       const canvas = document.getElementById('scene-canvas');
       if (!canvas) return;
+      // 線の形はシナリオのデータなので、開き直したとき・元に戻したときも選択欄を合わせる
+      const styleSelect = document.getElementById('scene-edge-style');
+      if (styleSelect) styleSelect.value = sceneEdgeStyle();
 
       if (!currentScenes.nodes.length) {
         sceneLayout = null;
@@ -9190,7 +9437,7 @@ ${derivedHTML}
         if (hits > 1) badges += '<span class="scene-badge">同名 ×' + hits + '</span>';
         if (!n.inDiagram) badges += '<span class="scene-badge hidden-in-diagram">図解に出さない</span>';
 
-        html += '<div class="scene-node' + (n.id === selectedSceneId ? ' selected' : '') + '"'
+        html += '<div class="scene-node' + (n.id === selectedSceneId ? ' selected' : '') + (badges ? ' has-badges' : '') + '"'
           + ' data-scene-id="' + escapeHTML(n.id) + '"'
           + ' style="left:' + p.x + 'px; top:' + p.y + 'px; border-left-color:' + kind.color + ';">'
           + (n.title
@@ -9208,7 +9455,29 @@ ${derivedHTML}
         + ' viewBox="0 0 ' + layout.width + ' ' + layout.height + '" aria-hidden="true">'
         + buildSceneEdgesSVG(currentScenes.edges, layout)
         + '</svg>' + html;
+      fitSceneCards(canvas);
       applySceneScale();
+    }
+
+    // タグ（バッジ）のあるカードを、固定の大きさに収める。
+    // カードは大きさを変えられない（線の端点がずれる。docs/06_場面ツリー設計書.html §8.1）ので、
+    // 収まらないカードだけ、題名を1行に詰め（fit-1）、それでも収まらなければ種別の名前を省く（fit-2。種別は左の色の帯と点で分かる）。
+    // タグの数と種別の名前の長さの組み合わせで決まるので、決め打ちにせず実際に測る（ヘッダーの fitHeader() と同じ考え方）。
+    // 場面図を隠しているあいだは測れない（高さが0になる）。場面図に切り替えたときに描き直すので、そこで測られる
+    function fitSceneCards(canvas) {
+      canvas.querySelectorAll('.scene-node.has-badges').forEach(card => {
+        const meta = card.querySelector('.scene-node-meta');
+        if (!meta || !card.clientHeight) return;
+        const fits = () => meta.offsetTop + meta.offsetHeight <= card.clientHeight - 4;
+        let level = 0;
+        while (!fits() && level < 2) {
+          level++;
+          card.classList.add('fit-' + level);
+        }
+        // 題名が切れたカードは、押さなくても全文が読めるようにする
+        const title = card.querySelector('.scene-node-title');
+        if (level && title.scrollHeight > title.clientHeight + 1) card.title = title.textContent;
+      });
     }
 
     function renderSceneInspector() {
@@ -9349,6 +9618,57 @@ ${derivedHTML}
 
     let sceneScale = 1;
     let sceneDrag = null;
+
+    // --- 格子に合わせる（グリッドスナップ。docs/06_場面ツリー設計書.html §8.7） ---
+    //
+    // 入切はこの端末の好みとして localStorage に持つ（並べ方の trpg_layout と同じ扱い）。
+    // シナリオの見た目は変えない（動かしたカードの位置が格子に乗るだけ）ので、シナリオのデータには入れない
+    const SCENE_VIEW_KEY = 'trpg_scene_view';
+    let sceneView = { snap: true };
+
+    function loadSceneView() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(SCENE_VIEW_KEY) || 'null');
+        if (saved && typeof saved.snap === 'boolean') sceneView.snap = saved.snap;
+      } catch (e) {
+        // 壊れていれば既定（入）のまま
+      }
+      applySceneSnap();
+    }
+
+    // 表示の好みでしかないので、保存できなくても知らせない（savePaneLayout() と同じ）
+    function saveSceneView() {
+      try {
+        writeSetting(SCENE_VIEW_KEY, JSON.stringify(sceneView));
+      } catch (e) {
+        console.warn('場面図の設定を保存できませんでした:', e);
+      }
+    }
+
+    function toggleSceneSnap() {
+      sceneView.snap = !sceneView.snap;
+      saveSceneView();
+      applySceneSnap();
+    }
+
+    function applySceneSnap() {
+      const btn = document.getElementById('scene-snap-toggle');
+      if (btn) btn.setAttribute('aria-pressed', sceneView.snap ? 'true' : 'false');
+      const view = document.getElementById('scene-viewport');
+      if (view) view.classList.toggle('snap-on', sceneView.snap);
+    }
+
+    // カードの左上の座標を格子に合わせる。自動配置の位置も格子に乗っている（layoutSceneGraph()）
+    function snapSceneCoord(v) {
+      return sceneView.snap ? Math.round(v / SCENE_GRID) * SCENE_GRID : v;
+    }
+
+    // 線の形を変える。シナリオのデータなので、作業状態へ書き、[場面図] のプレビューも描き直す
+    function setSceneEdgeStyle(value) {
+      currentScenes.edgeStyle = SCENE_EDGE_STYLES.indexOf(value) !== -1 ? value : SCENE_EDGE_STYLES[0];
+      renderSceneCanvas();
+      scheduleSceneSave();
+    }
 
     // 画面上の座標を、図の中の座標へ直す。
     // 縮尺を掛けているので、この換算を通さないと縮小表示のときにカードが指からずれる。
@@ -9514,8 +9834,8 @@ ${derivedHTML}
 
       const p = canvasPointFromEvent(e);
       sceneDrag.pending = {
-        x: Math.max(0, p.x - sceneDrag.grabX),
-        y: Math.max(0, p.y - sceneDrag.grabY)
+        x: snapSceneCoord(Math.max(0, p.x - sceneDrag.grabX)),
+        y: snapSceneCoord(Math.max(0, p.y - sceneDrag.grabY))
       };
       if (sceneDrag.raf) return;
       sceneDrag.raf = requestAnimationFrame(() => {
@@ -9605,6 +9925,8 @@ ${derivedHTML}
       const wrap = document.getElementById('scene-canvas-wrap');
       if (!canvas || !wrap) return;
       canvas.style.transform = 'scale(' + sceneScale + ')';
+      const view = document.getElementById('scene-viewport');
+      if (view) view.style.backgroundSize = (SCENE_GRID * sceneScale) + 'px ' + (SCENE_GRID * sceneScale) + 'px';
       // transform は要素の占める場所を変えないので、
       // 縮めた見た目に合わせて入れ物のほうの大きさを指定し直す。
       if (sceneLayout && sceneLayout.width) {
