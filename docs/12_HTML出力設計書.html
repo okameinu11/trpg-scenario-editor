@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HTML出力設計書 | Kotro</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="page">
+
+  <header class="hero">
+    <div class="eyebrow">KOTRO / 設計</div>
+    <h1>HTML出力設計書</h1>
+    <p class="lead">
+      台本（プレビューの紙面）を、それだけで開ける<strong>HTMLファイル1枚</strong>に書き出す機能について、
+      何を残して何を外すか・CSSと画像をどう持たせるか・書き出したファイルで何が動くかを、なぜその形にしたかとともに残す。
+      プレビューにボタンなどの操作を足すとき、プレビューのCSSの書き方を変えるとき、コピーの処理を直すときに読むこと。
+    </p>
+  </header>
+
+  <section>
+    <h2>1. 守備範囲</h2>
+    <p>
+      それまでの書き出しは PDF（ブラウザの印刷）だけだった。PDFでも目次の項目は見出しへのリンクとして残る
+      （<a href="04_記法設計書.html">04 記法設計書</a> §10）が、情報（<code>[情報:題名]</code>）と探索可能箇所のコピーのボタンは紙に出さないので、
+      受け取った人の手元では使えない。2026-10-10 に「コピーや目次のジャンプが死んでしまう」との要望を受け、HTMLでの書き出しを足した。
+    </p>
+    <table>
+      <thead><tr><th>知りたいこと</th><th>読む場所</th></tr></thead>
+      <tbody>
+        <tr><td>何を残し、何を外すか</td><td>§2</td></tr>
+        <tr><td>紙面のCSSの拾い方</td><td>§3</td></tr>
+        <tr><td>書き出す前の確認</td><td>§4</td></tr>
+        <tr><td>書き出したファイルで動く処理（コピー・目次・印刷）</td><td>§5</td></tr>
+        <tr><td>立ち絵・サムネイルの持たせ方</td><td>§6</td></tr>
+        <tr><td>入口（ヘッダーの「📤 出力」）</td><td>§7</td></tr>
+        <tr><td>プレビューのダブルクリック・原文の小窓（書き出しでは外すもの）</td><td><a href="11_プレビュー連携設計書.html">11 プレビュー連携設計書</a></td></tr>
+      </tbody>
+    </table>
+    <p>
+      処理は <code>index.html</code> の <code>exportScenarioHtml()</code> から始まる。PDF出力（<code>triggerPrint()</code>）と同じく、
+      原文の小窓の書き換えを確定し、プレビューを描き直してから写す（打った直後はデバウンス待ちでプレビューが古いことがあるため）。
+    </p>
+  </section>
+
+  <section>
+    <h2>2. 残すものと外すもの</h2>
+    <p>
+      書き出すファイルの読み手は、配られた台本でセッションを回すGMである。Kotroで<strong>書くため</strong>の仕掛けは要らず、
+      <strong>読む・回すため</strong>のものだけを残す。中身はプレビューの紙面（<code>.preview-paper</code>）をそのまま写す。
+    </p>
+    <table>
+      <thead><tr><th>プレビューにあるもの</th><th>書き出し</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr><td>目次の項目（見出しへのリンク）</td><td>残す</td><td>読み手が長い台本を行き来するためのもの。PDFでも残している</td></tr>
+        <tr><td>情報・探索可能箇所の「📋 コピー」</td><td>残す</td><td>セッション中にチャットへ貼るためのもの。HTML出力を足した理由そのもの</td></tr>
+        <tr><td>立ち絵・サムネイル・場面図・レーダーチャート</td><td>残す</td><td>紙面の一部。画像はファイルに埋め込む（§6）</td></tr>
+        <tr><td>未登録のNPC・情報の警告</td><td>残す（PDFと同じ）</td><td>紙面を変えないかわりに、書き出す前に知らせる（§4）</td></tr>
+        <tr><td>ダブルクリックで原文へ・書いた画面を開く、マウスを乗せたときの点線の枠</td><td>外す</td><td>Kotroの本文やモーダルへ戻る仕掛けで、書き出したファイルには戻る先が無い</td></tr>
+        <tr><td>原文の小窓</td><td>外す</td><td>同上。書き出す前に確定するので、紙面には残らない</td></tr>
+        <tr><td>未登録の情報の「＋ 登録する」</td><td>外す</td><td>情報一覧へ登録する入口。読み手には登録する先が無い</td></tr>
+        <tr><td>目次が空のときの案内文（「行頭に # を付けた段落が…」）</td><td>外す</td><td>書き手への使い方の案内</td></tr>
+        <tr><td>情報一覧（Alt+L のパネル）</td><td>付けない</td><td>本文の中の各情報にコピーのボタンがあり、コピーはそれで足りる。紙面の上に操作の部品を増やさない（2026-10-10 に利用者と決めた。§8）</td></tr>
+        <tr><td>スクロールの連動・本文とプレビューの並べ方</td><td>外す</td><td>本文の欄が無い</td></tr>
+      </tbody>
+    </table>
+
+    <h3>2.1 残すものを選んで拾う</h3>
+    <p>
+      紙面のうち操作の部品は、どれも <code>.no-print</code>（紙に出さない）が付いている。
+      書き出しでは <code>.no-print</code> の要素を<strong>すべて外し、<code>EXPORT_KEEP_SELECTOR</code> に当たるもの（コピーのボタン）だけを残す</strong>。
+      あわせて <code>data-*</code> の属性（原文での位置 <code>data-src</code>・出どころ <code>data-origin</code> など）も、
+      書き出し用の <code>data-copy</code>（§5.1）を除いてすべて落とす。
+    </p>
+    <div class="do-dont">
+      <div class="do">
+        <div class="label">DO</div>
+        <p>
+          プレビューに<strong>書き手向け</strong>の部品を足すときは <code>.no-print</code> を付ける。書き出しには何もしなくても出ない。
+          <strong>読み手も使う</strong>操作を足すときは、<code>EXPORT_KEEP_SELECTOR</code> に足し、書き出したファイルで動く処理を §5 の形で用意する。
+        </p>
+      </div>
+      <div class="dont">
+        <div class="label">DON'T</div>
+        <p>
+          外すものを並べて消す形（ブラックリスト）にしない。書き手向けの部品を足したときに書き出しの側を直し忘れると、
+          押しても何も起きないボタンが配った台本に残る。残すものを選ぶ形なら、直し忘れても「出ない」側に倒れる。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>3. 紙面のCSSの拾い方</h2>
+    <p>
+      紙面のCSSは <code>index.html</code> の1つの <code>&lt;style&gt;</code> の中に、アプリの画面のCSSと混ざって散らばっている
+      （<code>#preview-area</code> の規則だけでも十数か所に分かれ、<code>.info-target</code> のように情報一覧と共有していて
+      <code>#preview-area</code> を付けていない規則もある）。書き出しでは、ブラウザが読み込んだスタイルシート（CSSOM）を規則ごとに見て、
+      次のどれかに当たるものだけを拾う（<code>collectExportCss()</code>）。
+    </p>
+    <table>
+      <thead><tr><th>拾う規則</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr><td>セレクタに <code>#preview-area</code> か <code>.preview-paper</code> を含む</td><td>ホバー・コピー済み（<code>.copied</code>）など、書き出す時点では当たっていない状態の規則も拾うため</td></tr>
+        <tr><td>書き出す紙面のどれかの要素に当たる（<code>querySelector</code> で確かめる）</td><td><code>.info-target</code>・<code>.level-symbols</code> のような共有の規則や <code>*</code> を拾うため。ホバーなどの状態と疑似要素はセレクタから外してから確かめる（<code>EXPORT_SELECTOR_STATE_RE</code>）。外すと書けなくなるセレクタ（<code>:hover</code> だけ など）は、どこにでも当たりうるので拾う</td></tr>
+        <tr><td><code>:root</code></td><td>色の変数（<code>--preview-text</code>・成功度の色など）</td></tr>
+      </tbody>
+    </table>
+    <p>
+      <code>@media</code>・<code>@supports</code> の中も同じ基準で拾う（印刷用の <code>@media print</code> も入る。§5.3）。
+      <code>@keyframes</code> は、拾った規則が名前を使っているものだけ載せる。
+      アプリの <code>body</code> の規則（画面の割り付け・暗い背景・<code>overflow: hidden</code>）は紙面のどの要素にも当たらないので入らず、
+      かわりに白い背景とアプリと同じ字体だけの土台を置く（字体は <code>getComputedStyle(document.body)</code> から写す）。
+    </p>
+    <p>
+      書き出すファイルの構造は <code>&lt;body&gt;</code> 直下に <code>.preview-paper</code> &gt; <code>#preview-area</code> で、アプリと同じなので、
+      拾った規則はそのまま当たる。2026-10-10 に、エモクロアとCoCのサンプルで、紙面の全要素（571個・610個）の位置・大きさ・文字色・背景・字体が
+      アプリのプレビュー（プレビューだけの表示、1280px）と一致することを確かめた。違ったのはスクロールバーの幅だけである
+      （アプリのプレビュー欄は細いスクロールバー、書き出したファイルはブラウザ標準のもの。紙面の幅に上限がある 1080px 以上では差が出ない）。
+    </p>
+    <div class="callout warn">
+      紙面の部品のCSSは、これまでどおり <code>#preview-area</code> を付けて書くこと。付けずに書いた状態の規則
+      （例: <code>.npc-card.open</code> のような、書き出す時点では当たっていないクラスの規則）は拾われない。
+      当たっている要素がある規則（共有のクラスなど）は、付けなくても拾われる。
+    </div>
+
+    <h3>3.1 却下した案</h3>
+    <table>
+      <thead><tr><th>案</th><th>却下した理由</th></tr></thead>
+      <tbody>
+        <tr><td>アプリの <code>&lt;style&gt;</code> を丸ごと写す</td><td>アプリの <code>body</code> の規則（<code>height: 100vh</code>・<code>overflow: hidden</code>・暗い背景）が紙面を壊し、打ち消す規則を書き出し側で持ち続けることになる。画面のCSSの大半（モーダル・パネルなど）も無駄に入る</td></tr>
+        <tr><td>紙面のCSSを別の <code>&lt;style id&gt;</code> に移し、それを写す</td><td>契約としては一番分かりやすいが、十数か所に散った規則を動かすとカスケードの順序（同じ詳細度の規則の勝ち負け）が変わり、プレビューの見た目が気づかない形で変わりうる。上の方式は規則の場所を変えずに済む</td></tr>
+        <tr><td>写すクラスを手で並べた一覧を持つ</td><td>紙面に部品を足すたびに一覧の更新が要り、忘れると書き出しだけ崩れる。<code>#preview-area</code> と「当たるかどうか」で決めれば一覧が要らない</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>4. 書き出す前の確認</h2>
+    <table>
+      <thead><tr><th>状況</th><th>扱い</th><th>理由</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>本文で使っているのに登録されていないNPC・情報がある</td>
+          <td>名前を並べて「このまま書き出しますか？」と確認する（<code>exportMissingRefs()</code>）。書き出したファイルの紙面はPDFと同じで、警告もそのまま出る</td>
+          <td>HTMLは配るための形なので、配る前に気づけるようにする。紙面から黙って消すと、NPCカードや情報があるはずの場所が空になり、書き手も読み手も欠けに気づけない（2026-10-10 に利用者と決めた）</td>
+        </tr>
+        <tr>
+          <td>本文が空</td>
+          <td>書き出さずに知らせる</td>
+          <td>空のプレビューには書き手向けの案内文（「テキストを入力すると…」）が出ており、そのまま書き出しても意味が無い</td>
+        </tr>
+        <tr>
+          <td>原文の小窓を開いている</td>
+          <td>確定してから書き出す。確定できなければ止める</td>
+          <td>PDF出力と同じ（<a href="11_プレビュー連携設計書.html">11</a> §4.5）。書き出したつもりで小窓の中身だけが残るのを防ぐ</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>
+      未登録のものは、プレビューに出ている警告から拾う（NPCカードの <code>.npc-missing</code>、NPCのセリフの <code>.npc-speech-missing</code>、
+      情報の <code>.info-missing</code>）。本文の記法を読み直さないのは、書き出す紙面に出ているものと確認の中身を必ず一致させるため。
+    </p>
+  </section>
+
+  <section>
+    <h2>5. 書き出したファイルで動く処理</h2>
+
+    <h3>5.1 コピー</h3>
+    <p>
+      コピーする文面は、<strong>書き出すときに作ってボタンの <code>data-copy</code> に持たせる</strong>。
+      アプリでは情報の文面を情報一覧のデータ（<code>currentInfos</code>）から作るが、書き出したファイルにはそのデータが無い。
+      情報は <code>infoCopyText()</code>、探索可能箇所は <code>searchListCopyText()</code> で作る（どちらもアプリのコピーと同じ関数なので、文面がずれない）。
+    </p>
+    <p>
+      押したときの処理（クリップボードへ書く・押したボタンに「✓ コピーしました」を1.5秒出す）は、アプリの
+      <code>copyTextToClipboard()</code>・<code>legacyCopy()</code>・<code>copyWithFeedback()</code> を、関数の文字列（<code>toString()</code>）のまま埋め込む。
+      同じ処理を書き出し用に書き直すと、片方だけ直す事故が起きるため。
+    </p>
+    <div class="callout warn">
+      この3つの関数は、書き出したファイルの中では<strong>この3つだけで動く</strong>。中でほかの関数やアプリの変数（<code>showAppToast()</code> など）を使うと、
+      アプリでは動くのに、書き出したファイルでだけコピーが壊れる。直したら、書き出したファイルでボタンを押して確かめること。
+    </div>
+    <p>
+      file:// で開いたとき（受け取った人がファイルをダブルクリックで開く）も、Chrome は安全な文脈として扱うので Clipboard API が使える。
+      使えない環境では、アプリと同じく <code>legacyCopy()</code> に落ちる。
+    </p>
+
+    <h3>5.2 目次のリンク</h3>
+    <p>
+      書き出したファイルでは、リンク本来の動き（<code>href="#toc-h-…"</code> で飛び、アドレスに <code>#</code> が付く）に任せ、スクリプトを持たせない。
+      <code>html { scroll-behavior: smooth }</code> で、アプリと同じくなめらかに移る。
+    </p>
+    <p>
+      アプリでは <code>#</code> を付けないようにしている（再読み込みのたびに飛ぶのを避けるため。<code>initTocLinks()</code>）。
+      書き出したファイルは読むための文書なので、<code>#</code> が付けばブラウザの「戻る」で目次へ戻れる利点のほうが大きい。
+    </p>
+
+    <h3>5.3 印刷</h3>
+    <p>
+      受け取った人が書き出したファイルを印刷・PDF化しても、アプリのPDF出力と同じ組み方になる。
+      印刷用の規則（<code>@media print</code> の <code>@page</code>・段組み・色の印刷）も §3 の基準で拾われ、
+      コピーのボタンは <code>.no-print</code> の規則で紙には出ない。
+    </p>
+  </section>
+
+  <section>
+    <h2>6. 立ち絵・サムネイル</h2>
+    <p>
+      画面に出している立ち絵とサムネイルは <code>blob:</code> URL で、そのタブの中でしか読めない。
+      書き出すときに data URL へ置き換え、<strong>ファイル1枚で画像まで出る</strong>ようにする（<code>inlineObjectUrls()</code>）。
+      画像を別のファイルに分けないのは、「渡せば即開ける」ことを優先したため（Kotro自体を1枚構成にしたのと同じ理由。CLAUDE.md）。
+      立ち絵は長辺1024px、サムネイルは1600pxに縮めて保存しているので、ファイルが大きくなりすぎることはない（サンプルで約230KB）。
+    </p>
+    <p>
+      置き換えには、<code>blob:</code> URL を fetch せず、URLを作ったときに控えた Blob を使う（<code>objectUrlRegistry</code> を URL → Blob の対応にした）。
+      file:// で開いたときに fetch を拒否される環境があるため（<code>dataUrlToBlob()</code> を自前で書いたのと同じ理由）。
+      Blob は <code>blob:</code> URL が掴んでいるので、控えに持ってもメモリは増えない。
+    </p>
+    <p>
+      字体は Google Fonts をアプリと同じリンクで読む。オフラインでは、アプリと同じく端末の字体に落ちる。
+    </p>
+  </section>
+
+  <section>
+    <h2>7. 入口</h2>
+    <p>
+      ヘッダーの「🖨 PDF出力」を「📤 出力」にし、押すと「PDF出力」「HTML出力」を選ぶメニューが出る形にした。
+      ヘッダーは幅が尽きており（<a href="07_操作の入口設計書.html">07 操作の入口設計書</a> §3.6）、ボタンを足すと狭い画面で入口の名前が消える段へ進むため。
+      メニューの仕組みは下部パネルの「🗺 場面図・目次」と同じ <code>PANEL_MENUS</code> / <code>panelMenu</code>（07 §3.7）で、
+      ボタンが画面の上半分にあるときはメニューをボタンの下に出す。
+    </p>
+    <p>
+      コマンドパレットでは「PDF出力」「HTML出力」が別々の操作として出る（どちらも既定のキーは無し。場面図の表示中も使える）。
+      ボタンの ▾ は下部パネルと同じく右上の角に重ねる。名前の横に並べると、768px でヘッダーの左側が11pxはみ出した。
+      重ねる形にしてからは、エモクロア・CoCとも 1280px・768px で、詰める段は「PDF出力」のボタンだったときと同じである。
+    </p>
+  </section>
+
+  <section>
+    <h2>8. 見送った案</h2>
+    <table>
+      <thead><tr><th>案</th><th>見送った理由</th></tr></thead>
+      <tbody>
+        <tr><td>情報一覧（場面ごとにまとめた情報のコピー・その情報への移動）も書き出したファイルに付ける</td><td>本文の中の各情報のコピーで足りる。紙面の上に開閉する部品が増える。必要になったら §9 の入り口から足す（2026-10-10 に利用者と決めた）</td></tr>
+        <tr><td>ヘッダーに「HTML出力」のボタンを別に足す</td><td>§7。1手で出せるが、ヘッダーが詰まる</td></tr>
+        <tr><td>コマンドパレットからだけ使える形にする</td><td>ボタンが無いと存在に気づかれない（目次で実際に指摘を受けた。07 §3.2）</td></tr>
+        <tr><td>未登録の警告を、書き出したファイルからは消す</td><td>§4。欠けに気づけなくなる</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>9. 将来拡張の入り口</h2>
+    <table>
+      <thead><tr><th>やりたいこと</th><th>変える場所</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>読み手も使う操作を紙面に足す（例: 判定の結果をコピー）</td>
+          <td>部品に <code>.no-print</code> を付け、<code>EXPORT_KEEP_SELECTOR</code> に足す。押したときの処理は、文面を <code>buildExportHtml()</code> で <code>data-copy</code> に持たせればコピーの処理をそのまま使える。別の処理が要るなら、§5.1 と同じく単独で動く関数にして埋め込む</td>
+        </tr>
+        <tr>
+          <td>情報一覧を付ける（§8 で見送ったもの）</td>
+          <td><code>renderInfoDrawer()</code> の場面ごとのまとめ方を、書き出すときに静的なHTML（コピーのボタンと、情報への <code>#</code> リンク）として組み、紙面の外に置く。開閉の処理は §5.1 と同じく埋め込む</td>
+        </tr>
+        <tr>
+          <td>どこからでも目次へ戻るボタン・常に見える目次</td>
+          <td><code>buildExportHtml()</code> で紙面の外に置く。<code>[目次]</code> を書いていないシナリオでも出すなら、<code>collectTocHeadings()</code> と <code>appendixTocEntries()</code> から組む</td>
+        </tr>
+        <tr>
+          <td>書き出すシナリオを一覧から選ぶ（いま開いているもの以外）</td>
+          <td>いまはプレビューを写しているので、開いているシナリオしか書き出せない。一覧から書き出すなら、そのシナリオを読み込んで描いてから写す必要がある</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <nav class="pagenav">
+    <a href="00_INDEX.html">← 目次</a>
+    <a href="11_プレビュー連携設計書.html">プレビュー連携設計書 →</a>
+  </nav>
+
+  <footer class="pagefoot">
+    最終更新: 2026-10-10（新規作成。HTML出力で残すもの・外すもの、CSSと画像の持たせ方、書き出したファイルで動く処理、入口を記述）
+  </footer>
+
+</div>
+</body>
+</html>

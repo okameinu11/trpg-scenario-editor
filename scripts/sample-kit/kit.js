@@ -76,7 +76,7 @@ window.SampleKit = (function () {
   ];
 
   // シナリオのデータに残らない操作（サンプルで見せようがないもの）。ここに無く FEATURES にも無い操作は drift に出る
-  const APP_ONLY_ACTIONS = ['palette', 'undo', 'redo', 'cloud-save', 'list', 'pdf', 'shortcut-settings', 'layout-preview', 'layout-editor', 'scroll-sync'];
+  const APP_ONLY_ACTIONS = ['palette', 'undo', 'redo', 'cloud-save', 'list', 'pdf', 'html-export', 'shortcut-settings', 'layout-preview', 'layout-editor', 'scroll-sync'];
 
   // 記法の一覧（docs/01_要件定義書.html §4.1 の表）の行と、FEATURES の対応。
   // ボタン（ACTIONS）の無い書き方は unknownActions では見つからないので、表の行でも突き合わせる。

@@ -1556,6 +1556,23 @@
     line-height: 1;
     color: var(--text-secondary);
   }
+  /* ヘッダーのメニューのボタン（出力）。▾ はパネルと同じく右上の角に重ね、ボタンの幅を増やさない
+     （名前の横に並べると、768px でヘッダーの左側がはみ出した。docs/07_操作の入口設計書.html §3.6） */
+  .btn-menu {
+    position: relative;
+  }
+  .btn-menu::after {
+    content: '▾';
+    position: absolute;
+    top: 2px;
+    right: 4px;
+    font-size: 0.6rem;
+    line-height: 1;
+    color: var(--text-secondary);
+  }
+  .btn-menu.active {
+    background-color: var(--border-color);
+  }
 
   /* === コマンドパレット ===
      .modal の仕組みに載せているのは、Esc・背景クリック・× で閉じる処理と、
@@ -3898,7 +3915,10 @@
            ショートカット設定は名前が最も長く、使う頻度は最も低い（コマンドパレットからも開ける）ので、最初に名前を消す -->
       <button class="btn" onclick="openShortcutModal()" title="ショートカット設定">⌨️ <span class="header-btn-label header-btn-label-wide">ショートカット設定</span></button>
       <button class="btn btn-primary" id="btn-save" onclick="saveScenarioToStore()" title="保存">💾 <span class="header-btn-label">保存</span></button>
-      <button class="btn" onclick="triggerPrint()" title="PDF出力">🖨 <span class="header-btn-label">PDF出力</span></button>
+      <!-- PDFとHTMLファイルの出力は1つのボタン（メニュー）にまとめる。ヘッダーの幅を増やさないため
+           （docs/07_操作の入口設計書.html §3.7）。メニューの中身は ACTIONS の panelMenu: 'export' から作る -->
+      <button type="button" class="btn btn-menu" data-panel-menu="export" aria-haspopup="menu" aria-expanded="false"
+              onclick="togglePanelMenu(this, event.detail === 0)" title="出力（PDF・HTMLファイル）">📤 <span class="header-btn-label">出力</span></button>
     </div>
   </header>
 
@@ -4864,9 +4884,11 @@
     ];
 
     // パネルで1つのボタンにまとめる操作の組（ACTIONS の panelMenu）。ボタンを押すと、組の操作を選ぶメニューが出る。
-    // 使う頻度の低い挿入を、パネルの幅を増やさずに見える場所へ置くための形（docs/07_操作の入口設計書.html §3.7）
+    // 使う頻度の低い挿入を、パネルの幅を増やさずに見える場所へ置くための形（docs/07_操作の入口設計書.html §3.7）。
+    // export はヘッダーの「📤 出力」ボタンのメニュー（ボタンはヘッダーのHTMLに直接書いてある。操作は panel: false なのでパネルには出ない）
     const PANEL_MENUS = {
-      'insert-block': { icon: '🗺', name: '場面図・目次', short: '図・目次', desc: '場面図か目次を選んで本文に挿入する' }
+      'insert-block': { icon: '🗺', name: '場面図・目次', short: '図・目次', desc: '場面図か目次を選んで本文に挿入する' },
+      'export': { icon: '📤', name: '出力', short: '出力', desc: 'PDFかHTMLファイルを選んで書き出す' }
     };
 
     const withAlt = key => ({ key, ctrlKey: false, altKey: true, shiftKey: false });
@@ -4993,9 +5015,13 @@
       { id: 'list', group: 'app', icon: '📂', name: 'シナリオ一覧', panel: false,
         desc: '保存したシナリオの一覧を開く', keywords: 'しなりおいちらん', key: null,
         inSceneMode: true, run: () => openListModal() },
-      { id: 'pdf', group: 'app', icon: '🖨', name: 'PDF出力', panel: false,
-        desc: '印刷画面を開いてPDFに書き出す', keywords: 'ぴーでぃーえふ いんさつ print', key: null,
+      { id: 'pdf', group: 'app', icon: '🖨', name: 'PDF出力', panel: false, panelMenu: 'export',
+        desc: '印刷画面を開いてPDFに書き出す', keywords: 'ぴーでぃーえふ いんさつ しゅつりょく print', key: null,
         inSceneMode: true, run: () => triggerPrint() },
+      { id: 'html-export', group: 'app', icon: '🌐', name: 'HTML出力', panel: false, panelMenu: 'export',
+        desc: '台本をHTMLファイルに書き出す（目次のリンクと、情報・探索箇所のコピーが使える）',
+        keywords: 'えいちてぃーえむえる しゅつりょく かきだし html export', key: null,
+        inSceneMode: true, run: () => exportScenarioHtml() },
       { id: 'shortcut-settings', group: 'app', icon: '⌨️', name: 'ショートカット設定', panel: false,
         desc: 'ショートカットキーの割り当てを変える', keywords: 'しょーとかっと せってい', key: null,
         inSceneMode: true, run: () => openShortcutModal() }
@@ -5210,11 +5236,14 @@
     //
     // blob: URL はドキュメントが生きている限りメモリを掴むため、
     // 作ったものは1箇所で控えて必ず解放する。
-    const objectUrlRegistry = new Set();
+    // 控えには元の Blob も持つ。HTML出力で画像を data URL に埋め込むとき、blob: URL を fetch せずに済む
+    // （file:// で開いたときに fetch を拒否される環境がある。dataUrlToBlob() と同じ理由）。
+    // Blob は blob: URL が既に掴んでいるので、控えに持ってもメモリは増えない
+    const objectUrlRegistry = new Map(); // blob: URL → Blob
 
     function makeObjectUrl(blob) {
       const url = URL.createObjectURL(blob);
-      objectUrlRegistry.add(url);
+      objectUrlRegistry.set(url, blob);
       return url;
     }
 
@@ -6262,6 +6291,164 @@
       window.print();
     }
 
+    // === HTML出力 ===
+    //
+    // 台本（プレビューの紙面）を、それだけで開けるHTMLファイル1枚に書き出す（docs/12_HTML出力設計書.html）。
+    // PDFでは情報・探索可能箇所のコピーが使えないので、受け取った人の手元でも使える形を別に用意した。
+    // 中身はプレビューをそのまま写し、Kotroで書くための仕掛け（ダブルクリックで原文へ・未登録の情報の登録など）は外す。
+
+    // .no-print（紙に出さないもの）のうち、書き出したファイルに残すもの。読み手が使う操作だけを選んで残す形にしてあるので、
+    // プレビューに書き手向けの部品を .no-print で足せば、書き出しには何もしなくても出ない（§2）
+    const EXPORT_KEEP_SELECTOR = '[data-copy-info], [data-copy-search]';
+    // 紙面に当たるCSSを選ぶとき、セレクタから外す状態（ホバーなど）と疑似要素。書き出す時点では当たっていないため（§3）
+    const EXPORT_SELECTOR_STATE_RE = /::?(?:hover|active|focus-visible|focus-within|focus|before|after|marker|placeholder|selection|backdrop|first-line|first-letter|-webkit-[\w-]+|-moz-[\w-]+)/g;
+
+    async function exportScenarioHtml() {
+      if (!editor || !previewArea) return;
+      // 原文の小窓の書き換えは、確定してから書き出す（PDF出力と同じ）
+      if (srcEdit && !commitSourceEditor()) return;
+      if (!editor.value.trim()) {
+        alert('本文が空のため、書き出すものがありません。');
+        return;
+      }
+      // 入力直後はデバウンス待ちでプレビューが古いままのことがある。書き出すのはプレビューなので描き直してから写す
+      updatePreview();
+
+      // 未登録の警告は、書き出したファイルにもそのまま出る。配る前に気づけるよう、先に知らせる（§4）
+      const missing = exportMissingRefs();
+      if (missing.npcs.length || missing.infos.length) {
+        const lines = [];
+        if (missing.npcs.length) lines.push('NPC：' + missing.npcs.join('、'));
+        if (missing.infos.length) lines.push('情報：' + missing.infos.join('、'));
+        const ok = confirm('本文で使っているのに、登録されていないものがあります。\n\n' + lines.join('\n')
+          + '\n\n書き出したファイルにも「未登録」の警告がそのまま出ます。このまま書き出しますか？');
+        if (!ok) return;
+      }
+
+      const title = (scenarioTitle && scenarioTitle.value.trim()) || DEFAULT_SCENARIO_TITLE;
+      try {
+        const html = await buildExportHtml(title);
+        downloadFile(html, sanitizeFileName(title) + '.html', 'text/html');
+        showAppToast('「' + title + '」をHTMLファイルに書き出しました');
+      } catch (e) {
+        alert('HTMLファイルの書き出しに失敗しました:\n\n' + e.message);
+      }
+    }
+
+    // 本文で使っているのに登録されていないNPC・情報の名前。プレビューに出ている警告から拾う
+    function exportMissingRefs() {
+      const texts = els => Array.from(new Set(els.map(el => el.textContent.trim()).filter(Boolean)));
+      // セリフの名前の欄は「名前」の文字のあとに「未登録のNPC」の印が続く。名前は欄の先頭の文字
+      const speechNames = Array.from(previewArea.querySelectorAll('.npc-speech-missing'))
+        .map(el => el.parentNode.firstChild).filter(n => n && n.nodeType === Node.TEXT_NODE);
+      return {
+        npcs: texts(Array.from(previewArea.querySelectorAll('.npc-missing strong')).concat(speechNames)),
+        infos: texts(Array.from(previewArea.querySelectorAll('.info-missing strong')))
+      };
+    }
+
+    async function buildExportHtml(title) {
+      const page = previewArea.closest('.preview-paper').cloneNode(true);
+
+      page.querySelectorAll('.no-print').forEach(el => {
+        if (!el.matches(EXPORT_KEEP_SELECTOR)) el.remove();
+      });
+      // コピーする文面は、書き出すときに作ってボタンに持たせる（書き出したファイルには情報一覧のデータが無い）
+      page.querySelectorAll('[data-copy-info]').forEach(btn => {
+        const info = findInfoById(btn.dataset.copyInfo);
+        btn.dataset.copy = info ? infoCopyText(info) : '';
+      });
+      page.querySelectorAll('[data-copy-search]').forEach(btn => {
+        btn.dataset.copy = searchListCopyText(btn) || '';
+      });
+      // 原文での位置（data-src）・出どころ（data-origin）など、Kotroの中でだけ使う印を落とす
+      page.querySelectorAll('*').forEach(el => {
+        el.getAttributeNames().forEach(name => {
+          if (name.startsWith('data-') && name !== 'data-copy') el.removeAttribute(name);
+        });
+      });
+
+      const css = collectExportCss(page);
+      const body = await inlineObjectUrls(page.outerHTML);
+      const version = RELEASE_NOTES.length ? RELEASE_NOTES[0].version : '';
+      // フォントはアプリと同じものを読む（オフラインでは、アプリと同じく端末のフォントに落ちる）
+      const fonts = Array.from(document.querySelectorAll('head link[rel="preconnect"], head link[rel="stylesheet"]'))
+        .map(l => l.outerHTML).join('\n');
+      // アプリの body の指定（画面の割り付け・暗い背景）は持ち込まず、書き出したファイル用の土台を置く
+      const baseCss = 'html { scroll-behavior: smooth; }\n'
+        + 'body { margin: 0; background-color: #ffffff; font-family: ' + getComputedStyle(document.body).fontFamily + '; }\n';
+      // コピーのボタンの処理。アプリと同じ関数を文字列のまま埋め込む（copyTextToClipboard() の注記）
+      const script = '(function () {\n'
+        + [copyTextToClipboard, legacyCopy, copyWithFeedback].map(f => f.toString()).join('\n')
+        + '\ndocument.addEventListener(\'click\', function (e) {\n'
+        + '  var btn = e.target.closest(\'button[data-copy]\');\n'
+        + '  if (btn) copyWithFeedback(btn.getAttribute(\'data-copy\'), btn);\n'
+        + '});\n})();';
+
+      return '<!DOCTYPE html>\n<html lang="ja">\n<head>\n<meta charset="UTF-8">\n'
+        + '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n'
+        + '<meta name="generator" content="' + escapeHTML('Kotro ' + version) + '">\n'
+        + '<title>' + escapeHTML(title) + '</title>\n'
+        + fonts + '\n'
+        + '<style>\n' + baseCss + css + '</style>\n'
+        + '</head>\n<body>\n' + body + '\n'
+        // 閉じタグを分けて書くのは、この文字列がアプリの <script> を途中で閉じてしまうのを防ぐため
+        + '<script>\n' + script + '\n</' + 'script>\n'
+        + '</body>\n</html>\n';
+    }
+
+    // 書き出すファイルに載せるCSS。アプリのスタイルシートから、書き出す紙面に当たる規則だけを拾う（§3）。
+    //  - セレクタに #preview-area / .preview-paper を含むもの（ホバー・コピー済みなど、いま当たっていない状態のものも拾うため）
+    //  - 紙面の要素のどれかに当たるもの（.info-target のように情報一覧と共有していて #preview-area が付いていないもの、* など）
+    //  - :root（色の変数）
+    // @media / @supports の中も同じ基準で拾う。@keyframes は、拾った規則が名前を使っているものだけ載せる
+    function collectExportCss(page) {
+      const sheet = document.querySelector('head style').sheet;
+      // 紙面そのもの（.preview-paper）にもセレクタを当てるため、外側を1枚かぶせて探す
+      const holder = document.createElement('div');
+      holder.appendChild(page);
+      const hits = rule => {
+        const sel = rule.selectorText;
+        if (sel === ':root' || /#preview-area|\.preview-paper/.test(sel)) return true;
+        // 状態と疑似要素を外すと書けなくなるセレクタ（:hover だけ など）は、どこにでも当たりうるので拾う
+        try { return !!holder.querySelector(sel.replace(EXPORT_SELECTOR_STATE_RE, '')); } catch (e) { return true; }
+      };
+      const keyframes = [];
+      const walk = rules => {
+        let out = '';
+        for (const r of rules) {
+          if (r instanceof CSSStyleRule) {
+            if (hits(r)) out += r.cssText + '\n';
+          } else if (r instanceof CSSMediaRule || r instanceof CSSSupportsRule) {
+            const inner = walk(r.cssRules);
+            if (inner) out += (r instanceof CSSMediaRule ? '@media ' : '@supports ') + r.conditionText + ' {\n' + inner + '}\n';
+          } else if (r instanceof CSSKeyframesRule) {
+            keyframes.push(r);
+          } else if (r instanceof CSSPageRule || r instanceof CSSFontFaceRule) {
+            out += r.cssText + '\n';
+          }
+        }
+        return out;
+      };
+      let css = walk(sheet.cssRules);
+      keyframes.forEach(k => { if (css.includes(k.name)) css += k.cssText + '\n'; });
+      holder.removeChild(page);
+      return css;
+    }
+
+    // 立ち絵・サムネイルの blob: URL を data URL に置き換えて、ファイル1枚で画像まで出るようにする。
+    // blob: URL はこのタブの中でしか読めず、書き出したファイルでは画像が消えるため
+    async function inlineObjectUrls(html) {
+      const urls = Array.from(new Set(html.match(/blob:[\w:/.-]+/g) || []));
+      for (const url of urls) {
+        const blob = objectUrlRegistry.get(url);
+        // 控えに無い（解放済みの）URLは読めないので、画像を出さない
+        const dataUrl = blob ? await blobToDataUrl(blob) : '';
+        html = html.split(url).join(dataUrl);
+      }
+      return html;
+    }
+
     // シナリオ一覧（保存庫）への保存。
     //
     // 入力のたびに走る saveToLocal()（編集中の作業状態の自動保存）とは別物であり、
@@ -6311,7 +6498,11 @@
     // 利用者がJSONファイルを持ち運ぶ。これが端末間でデータを共有する唯一の手段である。
 
     function downloadJson(obj, filename) {
-      const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+      downloadFile(JSON.stringify(obj, null, 2), filename, 'application/json');
+    }
+
+    function downloadFile(text, filename, type) {
+      const blob = new Blob([text], { type: type });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -10952,7 +11143,8 @@ ${parseRollResultLines(lines, 1)}            </div>
       // （以前は生の名前と比べており、「&」を含む名前のNPCが「未登録」と表示されていた）
       const npc = currentNpcs.find(n => escapeHTML(n.name) === name);
       if (!npc) {
-        return `<div class="npc-card mini" style="border-color: #ef4444 !important; background-color: #fef2f2 !important; padding: 8px 12px; font-size: 0.8rem; border-radius: 6px;">⚠️ NPC「<strong>${escapeHTML(name)}</strong>」未登録</div>`;
+        // npc-missing は、HTML出力の前に未登録のものを数えるための目印（exportMissingRefs()）
+        return `<div class="npc-card mini npc-missing" style="border-color: #ef4444 !important; background-color: #fef2f2 !important; padding: 8px 12px; font-size: 0.8rem; border-radius: 6px;">⚠️ NPC「<strong>${escapeHTML(name)}</strong>」未登録</div>`;
       }
 
       const avatarStyle = npc.avatarUrl ? `background-image: url('${escapeHTML(npc.avatarUrl)}');` : '';
@@ -12672,11 +12864,13 @@ ${parseRollResultLines(lines, 1)}            </div>
         + `<span class="panel-menu-keys">${shortcutKbdHTML(shortcuts[a.id])}</span>`
         + `</button>`).join('');
       menu.hidden = false;
-      // 中身を入れてから測る。ボタンの真上に出し、画面の端からははみ出させない
+      // 中身を入れてから測る。下部パネルのボタンなら真上に、ヘッダーのボタン（出力）なら真下に出し、
+      // 画面の端からははみ出させない
       const r = btn.getBoundingClientRect();
       const left = Math.min(Math.max(8, r.left), window.innerWidth - menu.offsetWidth - 8);
+      const below = r.top < window.innerHeight / 2;
       menu.style.left = left + 'px';
-      menu.style.top = (r.top - menu.offsetHeight - 6) + 'px';
+      menu.style.top = (below ? r.bottom + 6 : r.top - menu.offsetHeight - 6) + 'px';
       panelMenuButton = btn;
       btn.classList.add('active');
       btn.setAttribute('aria-expanded', 'true');
@@ -13064,7 +13258,10 @@ ${parseRollResultLines(lines, 1)}            </div>
     }
 
     // クリップボードへ書く。http の非安全な文脈など Clipboard API が使えない環境では、
-    // 一時的な textarea を選択してコピーする古い方法に落とす
+    // 一時的な textarea を選択してコピーする古い方法に落とす。
+    // copyTextToClipboard / legacyCopy / copyWithFeedback の3つは、HTML出力で書き出すファイルにも
+    // 関数の文字列のまま埋め込む（EXPORT_SCRIPT_FUNCS）。書き出したファイルにはこの3つしか無いので、
+    // ほかの関数やアプリの変数を使わないこと（docs/12_HTML出力設計書.html §5）
     function copyTextToClipboard(text) {
       if (navigator.clipboard && window.isSecureContext) {
         return navigator.clipboard.writeText(text).then(() => true, () => legacyCopy(text));
@@ -13110,13 +13307,18 @@ ${parseRollResultLines(lines, 1)}            </div>
     // 探索可能箇所一覧（[探索:エリア名]）のコピー。「【探索可能箇所：エリア名】」の行＋項目を「・」付きで1行ずつ。
     // 項目は描いた文字（textContent）から取るので、文字色の記法はもう外れている（docs/04_記法設計書.html §9.4）
     function copySearchList(button) {
+      const text = searchListCopyText(button);
+      if (text !== null) copyWithFeedback(text, button);
+    }
+
+    // 探索可能箇所一覧のコピーボタンからコピーする文面を作る（HTML出力でも、書き出すときにこれで作って埋め込む）
+    function searchListCopyText(button) {
       const box = button.closest('.search-box');
-      if (!box) return;
+      if (!box) return null;
       const area = (button.dataset.copySearch || '').trim();
       const items = Array.from(box.querySelectorAll('.search-item'))
         .map(el => el.textContent.trim()).filter(Boolean).map(t => '・' + t);
-      const text = (area ? `【探索可能箇所：${area}】` : '【探索可能箇所】') + (items.length ? '\n' + items.join('\n') : '');
-      copyWithFeedback(text, button);
+      return (area ? `【探索可能箇所：${area}】` : '【探索可能箇所】') + (items.length ? '\n' + items.join('\n') : '');
     }
 
     // [情報:題名] を本文のカーソル位置に入れる（段落として独立させる）

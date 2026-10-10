@@ -74,7 +74,7 @@
         <tr><td><code>keywords</code></td><td>パレットの絞り込み用の読み（ひらがな）と別名</td><td><span class="badge recommended">推奨</span></td></tr>
         <tr><td><code>key</code></td><td>既定のショートカット。<code>null</code> なら未割り当て</td><td><span class="badge optional">任意</span></td></tr>
         <tr><td><code>available</code></td><td>そのシステムで使えるか。<code>false</code> を返すと3つの入口のすべてから消える</td><td><span class="badge optional">任意</span></td></tr>
-        <tr><td><code>panel</code></td><td><code>false</code> ならパネルに出さない（ヘッダーに既にボタンがある保存・PDF出力など）</td><td><span class="badge optional">任意</span></td></tr>
+        <tr><td><code>panel</code></td><td><code>false</code> ならパネルに出さない（ヘッダーに既にボタンがある保存・PDF出力・HTML出力など）</td><td><span class="badge optional">任意</span></td></tr>
         <tr><td><code>inModal</code> / <code>inSceneMode</code></td><td>モーダル表示中・場面図表示中にも受け付けるか（§5）</td><td><span class="badge optional">任意</span></td></tr>
       </tbody>
     </table>
@@ -203,7 +203,7 @@
         <tr><td><code>header-compact-2</code></td><td>「シナリオ一覧」を「一覧」に縮める（枠と 📂 があれば、短くしても何のボタンかは伝わる）</td></tr>
         <tr><td><code>header-compact-3</code></td><td>アプリの名前「Kotro」と、左側の要素の間隔（12px → 8px）</td></tr>
         <tr><td><code>header-compact-4</code></td><td>「執筆／場面図」「基本情報／巻末」の名前</td></tr>
-        <tr><td><code>header-compact-5</code></td><td>「保存」「PDF出力」の名前と、ボタン・ヘッダーの余白</td></tr>
+        <tr><td><code>header-compact-5</code></td><td>「保存」「出力」の名前と、ボタン・ヘッダーの余白</td></tr>
         <tr><td><code>header-compact-6</code></td><td>「一覧」の文字。それでも収まらない画面（768px未満）では、左側を横スクロールにする</td></tr>
       </tbody>
     </table>
@@ -271,13 +271,21 @@
       §3.5 で「分類ごとのドロップダウン」を却下したのと同じ理由で、毎回1タップ増えると書く手が止まる。
       メニューに入れてよいのは、シナリオに1回か数回しか使わない挿入だけである。
     </div>
+    <p>
+      <strong>ヘッダーの「📤 出力」も同じ仕組みで作っている</strong>（2026-10-10）。HTML出力を足すときに、「PDF出力」と1つのボタンにまとめた
+      （<code>PANEL_MENUS</code> の <code>export</code>。どちらの操作も <code>panel: false</code> なのでパネルには出ず、ボタンはヘッダーのHTMLに直接書いてある）。
+      ヘッダーのボタンは画面の上半分にあるので、メニューはボタンの真下に出す（<code>togglePanelMenu()</code> がボタンの位置で上下を決める）。
+      PDF出力は1手増えるが、書き出しは執筆の途中で何度も押すものではないので、上の注意には当たらない。
+      ▾ はパネルと同じく右上の角に重ねる。名前の横に並べると、768px でヘッダーの左側が11pxはみ出した（§3.6 の段は「PDF出力」のボタンのときと同じに保ってある）。
+      理由と見送った案は <a href="12_HTML出力設計書.html">12 HTML出力設計書</a> §7・§8。
+    </p>
   </section>
 
   <section>
     <h2>4. コマンドパレット</h2>
     <p>
       Ctrl+K（既定）または パネル末尾の「🔎 すべての操作」で開く。
-      操作を名前で絞り込み、Enter で実行する。パネルに無い操作（保存・PDF出力・シナリオ一覧・ショートカット設定など）も含む。
+      操作を名前で絞り込み、Enter で実行する。パネルに無い操作（保存・PDF出力・HTML出力・シナリオ一覧・ショートカット設定など）も含む。
     </p>
     <p>
       狙いは、<strong>ショートカットを覚えていない人と、覚えた人の間をつなぐ</strong>ことである。
@@ -349,7 +357,7 @@
         </tr>
         <tr>
           <td>場面図の表示中</td>
-          <td>保存・画面の切り替え・パレット・シナリオ一覧・PDF出力・ショートカット設定（<code>inSceneMode</code>）</td>
+          <td>保存・画面の切り替え・パレット・シナリオ一覧・PDF出力・HTML出力・ショートカット設定（<code>inSceneMode</code>）</td>
           <td>本文を書き換える操作を止める。隠れた本文に記法が入っても気づけない（<a href="06_場面ツリー設計書.html">06 場面ツリー設計書</a> §6.1）</td>
         </tr>
         <tr>
@@ -412,7 +420,8 @@
   </nav>
 
   <footer class="pagefoot">
-    最終更新: 2026-10-09（スクロールの連動の入口を境界とコマンドパレットに置いたことを §3.2 に追記）<br>
+    最終更新: 2026-10-10（ヘッダーの「PDF出力」を、PDF出力とHTML出力を選ぶ「📤 出力」のメニューにしたことを §3.7 に追記。§3.6・§5 の表を更新）<br>
+    2026-10-09（スクロールの連動の入口を境界とコマンドパレットに置いたことを §3.2 に追記）<br>
     2026-10-09（左上にアプリの名前を置き、一覧の入口を枠付きの「シナリオ一覧」ボタンにした。§3.6 の段を6つにし、測るあいだ transition を止めることを追記）<br>
     2026-10-07（本文とプレビューの並べ方の入口を境界に置いたことを §3.2 に追記）<br>
     2026-10-06（元に戻す・やり直すの受け付け方（nativeInText）を §5 に追記）<br>
