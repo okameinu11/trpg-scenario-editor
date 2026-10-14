@@ -547,6 +547,17 @@
     line-height: 1.4;
     color: var(--npc-color, #475569) !important;
   }
+  /* 発言のコピー（記法設計書 §8.7）。情報・探索可能箇所と同じ「📋 コピー」（.info-action）を、名前の行に収まる大きさにする。
+     会話では何行も並ぶので、色は淡くして発言より目立たせない（マウスを乗せると .info-action と同じ青になる） */
+  #preview-area .info-action.speech-copy {
+    margin-left: 8px;
+    padding: 0 7px;
+    font-size: 0.66rem;
+    line-height: 1.5;
+    vertical-align: 1px;
+    border-color: #e2e8f0;
+    color: #64748b;
+  }
   #preview-area .npc-speech-text {
     color: var(--npc-color, var(--preview-text)) !important;
     font-family: 'Noto Serif JP', "BIZ UDMincho", "Hiragino Mincho ProN", "Yu Mincho", YuMincho, serif;
@@ -1149,6 +1160,22 @@
     padding: 2px 4px;
     border-radius: 4px;
     margin-right: 12px;
+  }
+  /* ラベルは押すと結果の文をコピーするボタン（記法設計書 §5.2）。紙面ではバッジのまま見せるため、
+     ボタンの既定の枠・字体・行の高さを消す。押せることはマウスを乗せたときだけ示す */
+  #preview-area button.result-label {
+    -webkit-appearance: none;
+    appearance: none;
+    border: none;
+    font-family: inherit;
+    line-height: inherit;
+    cursor: pointer;
+  }
+  #preview-area button.result-label:hover {
+    box-shadow: 0 0 0 2px #93c5fd;
+  }
+  #preview-area button.result-label.copied {
+    background: #059669 !important;
   }
   #preview-area .result-text {
     flex-grow: 1;
@@ -3855,7 +3882,8 @@
     height: auto;
   }
   #preview-area .scene-map-error,
-  #preview-area .scene-map-note {
+  #preview-area .scene-map-note,
+  #preview-area .table-note {
     background-color: #fff7ed !important;
     border: 1px solid #fed7aa !important;
     border-left: 4px solid #f97316 !important;
@@ -3864,6 +3892,42 @@
     border-radius: 0 4px 4px 0;
     margin-bottom: 16px;
     font-size: 0.88rem;
+  }
+
+  /* 表 [表] / [表:題名]（記法設計書 §12）。段組みの外に出す全幅のブロック。
+     幅は中身に合わせる（列の少ない表が紙の端まで間延びしないように）。中身が多ければ紙の幅で折り返す */
+  #preview-area .table-box {
+    margin: 4px 0 18px;
+  }
+  #preview-area .table-box table {
+    border-collapse: collapse;
+    font-size: 0.86rem;
+    line-height: 1.65;
+    color: var(--preview-text) !important;
+  }
+  #preview-area .table-box caption {
+    caption-side: top;
+    text-align: left;
+    padding-bottom: 6px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #334155 !important;
+  }
+  #preview-area .table-box th,
+  #preview-area .table-box td {
+    border: 1px solid #cbd5e1 !important;
+    padding: 6px 12px;
+    text-align: left;
+    vertical-align: top;
+  }
+  #preview-area .table-box th {
+    background-color: #f1f5f9 !important;
+    color: #1e293b !important;
+    font-weight: 700;
+  }
+  /* 行の多い表で、横に目を移すときに行を取り違えないよう1行おきに薄く塗る */
+  #preview-area .table-box tbody tr:nth-child(even) td {
+    background-color: #f8fafc !important;
   }
 
   /* 本文の中の文字位置を測るための隠し要素。
@@ -3894,6 +3958,14 @@
       max-height: 240mm;
       width: auto;
       max-width: 100%;
+    }
+    /* 表はページをまたいでよいが、1行の途中では切らない。見出しの行は次のページの頭にも出る（thead） */
+    #preview-area .table-box tr {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    #preview-area .table-box thead {
+      display: table-header-group;
     }
   }
 </style>
@@ -4921,7 +4993,8 @@
     // 使う頻度の低い挿入を、パネルの幅を増やさずに見える場所へ置くための形（docs/07_操作の入口設計書.html §3.7）。
     // export はヘッダーの「📤 出力」ボタンのメニュー（ボタンはヘッダーのHTMLに直接書いてある。操作は panel: false なのでパネルには出ない）
     const PANEL_MENUS = {
-      'insert-block': { icon: '🗺', name: '場面図・目次', short: '図・目次', desc: '場面図か目次を選んで本文に挿入する' },
+      // 短い名前は768pxで4文字までしか収まらない（「図・目次・表」は20pxはみ出した）。表はメニューの中とコマンドパレットで見つかる
+      'insert-block': { icon: '🗺', name: '場面図・目次・表', short: '図・目次', desc: '場面図・目次・表のどれかを選んで本文に挿入する' },
       'export': { icon: '📤', name: '出力', short: '出力', desc: 'PDFかHTMLファイルを選んで書き出す' }
     };
 
@@ -4946,6 +5019,11 @@
       { id: 'toc-insert', group: 'structure', icon: '🔖', name: '目次を挿入', short: '目次',
         desc: '本文に [目次] を挿入する（見出しの一覧が自動で入る）', keywords: 'もくじ もくじをそうにゅう toc contents',
         key: null, panelMenu: 'insert-block', run: () => insertTemplate('toc') },
+      // 表も全幅のブロックで、シナリオに数回しか使わないので同じメニューに入れる（docs/07_操作の入口設計書.html §3.7）
+      { id: 'table-insert', group: 'structure', icon: '📊', name: '表を挿入', short: '表',
+        desc: '本文に [表:題名] を挿入する（文字を選んでいれば、その行を表の行にする）',
+        keywords: 'ひょう ひょうをそうにゅう てーぶる いちらんひょう table',
+        key: null, panelMenu: 'insert-block', run: () => insertTable() },
 
       { id: 'read', group: 'text', icon: '💬', name: '情景描写', short: '情景',
         desc: '行頭に > を挿入', keywords: 'じょうけいびょうしゃ', key: withAlt('4'),
@@ -6336,7 +6414,7 @@
 
     // .no-print（紙に出さないもの）のうち、書き出したファイルに残すもの。読み手が使う操作だけを選んで残す形にしてあるので、
     // プレビューに書き手向けの部品を .no-print で足せば、書き出しには何もしなくても出ない（§2）
-    const EXPORT_KEEP_SELECTOR = '[data-copy-info], [data-copy-search]';
+    const EXPORT_KEEP_SELECTOR = '[data-copy-info], [data-copy-search], [data-copy-speech]';
     // 紙面に当たるCSSを選ぶとき、セレクタから外す状態（ホバーなど）と疑似要素。書き出す時点では当たっていないため（§3）
     const EXPORT_SELECTOR_STATE_RE = /::?(?:hover|active|focus-visible|focus-within|focus|before|after|marker|placeholder|selection|backdrop|first-line|first-letter|-webkit-[\w-]+|-moz-[\w-]+)/g;
 
@@ -6397,6 +6475,13 @@
       });
       page.querySelectorAll('[data-copy-search]').forEach(btn => {
         btn.dataset.copy = searchListCopyText(btn) || '';
+      });
+      page.querySelectorAll('[data-copy-speech]').forEach(btn => {
+        btn.dataset.copy = speechCopyText(btn);
+      });
+      // 判定の結果のラベルは紙面の一部（.no-print ではない）なので、外す処理を通らずにそのまま残る
+      page.querySelectorAll('[data-copy-roll]').forEach(btn => {
+        btn.dataset.copy = rollResultCopyText(btn);
       });
       // 原文での位置（data-src）・出どころ（data-origin）など、Kotroの中でだけ使う印を落とす
       page.querySelectorAll('*').forEach(el => {
@@ -10256,6 +10341,41 @@ ${derivedHTML}
       });
     }
 
+    // === 表 [表] / [表:題名] ===
+    //
+    // 進行の目安・場所ごとの危険のような一覧を、罫線の表にする（docs/04_記法設計書.html §12）。
+    // 次の行から、1行が表の1行。セルは | で区切る（全角の ｜ でもよい。両端の | は省ける）。1行目は見出しの行になる。
+    // 見出しの行のすぐ次に Markdown の区切りの行（|---|---|）があれば読み飛ばす。よそで書いた表を貼れるようにするため。
+    // 場面図・目次と同じく、段組みの外に出す全幅のブロックにする（表は横幅が要る。記法設計書 §7.1）
+    const TABLE_TAG_RE = /^\[表(?:\s*[:：]\s*([^\]\n]*))?\]/;
+    // 区切りの行。半角の - と : だけのセルが | で並ぶ行（|---|:--:| など）
+    const TABLE_RULE_RE = /^[|｜]?\s*:?-+:?\s*(?:[|｜]\s*:?-+:?\s*)*[|｜]?$/;
+
+    // 表の1行をセルに分ける。両端の | は省いてよい
+    function splitTableRow(line) {
+      return line.trim().replace(/^[|｜]/, '').replace(/[|｜]$/, '').split(/[|｜]/).map(c => c.trim());
+    }
+
+    // block は parseMarkdown() の段落（未エスケープの生文字列）。セルと題名は renderInline() に通す（エスケープ → 装飾の順）
+    function buildTableHTML(block) {
+      const m = block.match(TABLE_TAG_RE);
+      const caption = m && m[1] ? m[1].trim() : '';
+      const lines = block.substring(m ? m[0].length : 0).split('\n').map(l => l.trim()).filter(Boolean);
+      // 読み飛ばすのは見出しの行のすぐ次の区切りの行だけ。ほかの行の「-」は中身として残す（「-」で「なし」を表す表もある）
+      const rows = lines.filter((l, i) => !(i === 1 && TABLE_RULE_RE.test(l))).map(splitTableRow);
+      const captionHTML = caption ? `<caption>${renderInline(caption)}</caption>` : '';
+      if (!rows.length) {
+        return `<div class="table-box"><div class="table-note no-print">📊 表の中身がまだありません。`
+          + `次の行から「| 見出し | 見出し |」のように、1行に表の1行を書いてください（1行目が見出しの行になります）。</div></div>\n`;
+      }
+      // 列の数は、いちばんセルの多い行に揃える（足りない行は空のセルで埋める）
+      const cols = Math.max(...rows.map(r => r.length));
+      const cells = (row, tag) => Array.from({ length: cols }, (_, i) => `<${tag}>${renderInline(row[i] || '')}</${tag}>`).join('');
+      const head = `<thead><tr>${cells(rows[0], 'th')}</tr></thead>`;
+      const body = rows.length > 1 ? `<tbody>${rows.slice(1).map(r => `<tr>${cells(r, 'td')}</tr>`).join('')}</tbody>` : '';
+      return `<div class="table-box"><table>${captionHTML}${head}${body}</table></div>\n`;
+    }
+
     // === 本文とプレビューの並べ方 ===
     //
     // 並べる（both）・プレビューだけ（preview）・本文だけ（editor）の3つと、並べたときの本文の幅の割合。
@@ -11048,6 +11168,14 @@ ${derivedHTML}
           continue;
         }
 
+        // 表 [表] / [表:題名]。場面図と同じく、段組みの外に出す全幅のブロック（docs/04_記法設計書.html §12）。
+        // 段落の全体が表になる（>> で右の段に分けない）。右の段の補足は、表の前の本文の段落に添える
+        // （空行のあとに >> だけの段落を書いても、表をまたいで前の本文の段落の右に並ぶ。§11）
+        if (TABLE_TAG_RE.test(block)) {
+          pushFullWidth(withSrcAttrs(buildTableHTML(block), src));
+          continue;
+        }
+
         // 3. 段落 (メインカラム・サイドカラムに分解)
         let mainText = '';
         let sideText = '';
@@ -11116,6 +11244,11 @@ ${derivedHTML}
       if (html.startsWith('[目次]')) {
         return '<div class="scene-map-note">🔖 目次は、前後に空行を入れて、'
           + 'その行だけの段落として書いてください。</div>';
+      }
+      // 表も段組みの外に出すので、ここへ来るのは右の段（>> [表]）に書いたときだけ
+      if (/^\[表(?:\s*[:：][^\]\n]*)?\]/.test(html)) {
+        return '<div class="scene-map-note">📊 表は右の段（&gt;&gt;）には書けません。'
+          + '空行で区切った、[表] で始まる段落として書いてください。</div>';
       }
 
       if (type === 'main') {
@@ -11317,10 +11450,13 @@ ${parseRollResultLines(lines, 1)}            </div>
         items[items.length - 1].val += '\n' + line;
       }
 
+      // ラベル（成功・失敗などのバッジ）は、押すとその結果の文をコピーするボタンにする。
+      // GMは判定の結果をチャットに貼ってPLへ伝えるため（docs/04_記法設計書.html §5.2）。
+      // 紙面の見た目はバッジのままなので、印刷・PDFにもそのまま出る
       let html = '';
       items.forEach(item => {
         const badgeInfo = getBadgeInfo(item.key);
-        html += `            <div class="result-item"><span class="result-label ${badgeInfo.class}">${badgeInfo.label}</span><span class="result-text">${decorate(item.val)}</span></div>\n`;
+        html += `            <div class="result-item"><button type="button" class="result-label copy-compact ${badgeInfo.class}" data-copy-roll title="押すと、この結果の文をコピーします">${badgeInfo.label}</button><span class="result-text">${decorate(item.val)}</span></div>\n`;
       });
       return html;
     }
@@ -11451,9 +11587,11 @@ ${parseRollResultLines(lines, 1)}            </div>
       // 複数行になりうるので、名前の横のラベルではなく独立した欄にする（改行は decorate() が <br> にする）
       const noteHTML = note ? `<div class="npc-speech-note">${decorate(note)}</div>` : '';
 
+      // 名前の行の後ろに、この発言をコピーするボタンを置く（docs/04_記法設計書.html §8.7）
       return `<div class="npc-speech"${style}>${avatar}`
         + `<div class="npc-speech-body">`
-        + `<div class="npc-speech-name">${name}${missing}</div>`
+        + `<div class="npc-speech-name">${name}${missing}`
+        + `<button type="button" class="info-action speech-copy no-print" data-copy-speech title="この発言をコピー（名前と備考は付きません）">📋 コピー</button></div>`
         + noteHTML
         + `<div class="npc-speech-text">${decorate(body)}</div>`
         + `</div></div>`;
@@ -11616,6 +11754,24 @@ ${parseRollResultLines(lines, 1)}            </div>
       }
 
       insertAtCursor(template);
+      handleInput();
+    }
+
+    // 表 [表:題名] を挿入する（docs/04_記法設計書.html §12）。入れたあとは「題名」を選んだ状態にし、そのまま打ち替えられるようにする。
+    // 文字を選んでいれば、その行を表の行にする（選んだ文字を消さないため）。表計算ソフトから貼った行（タブ区切り）はセルに分ける
+    function insertTable() {
+      const field = insertionTarget();
+      if (!field) return;
+      const start = field.selectionStart;
+      const end = field.selectionEnd;
+      const selected = field.value.substring(start, end).trim();
+      const rows = selected
+        ? selected.split('\n').map(l => l.trim()).filter(Boolean).map(l =>
+            /^[|｜]/.test(l) ? l : '| ' + l.split('\t').map(c => c.trim()).join(' | ') + ' |')
+        : ['| 見出し | 見出し |', '| 内容 | 内容 |'];
+      // 段組みの外に出る全幅のブロックなので、前後を空行で挟む
+      const head = '\n\n[表:';
+      replaceRange(start, end, head + '題名]\n' + rows.join('\n') + '\n\n', head.length, 2);
       handleInput();
     }
 
@@ -13604,13 +13760,16 @@ ${parseRollResultLines(lines, 1)}            </div>
       return ok;
     }
 
-    // コピーして、押したボタンに結果を1.5秒出す（情報・探索一覧で共通）
+    // コピーして、押したボタンに結果を1.5秒出す（情報・探索一覧・判定の結果・セリフで共通）。
+    // 幅の決まった小さなボタン（判定の結果のラベル）には .copy-compact を付け、短い文で知らせる
     function copyWithFeedback(text, button) {
       copyTextToClipboard(text).then(ok => {
         if (!button) return;
         const original = button.dataset.label || button.textContent;
         button.dataset.label = original;
-        button.textContent = ok ? '✓ コピーしました' : '⚠ コピーできませんでした';
+        const compact = button.classList.contains('copy-compact');
+        button.textContent = ok ? (compact ? '✓ コピー済' : '✓ コピーしました')
+          : (compact ? '⚠ 失敗' : '⚠ コピーできませんでした');
         button.classList.toggle('copied', ok);
         clearTimeout(button._copyTimer);
         button._copyTimer = setTimeout(() => {
@@ -13641,6 +13800,29 @@ ${parseRollResultLines(lines, 1)}            </div>
       const items = Array.from(box.querySelectorAll('.search-item'))
         .map(el => el.textContent.trim()).filter(Boolean).map(t => '・' + t);
       return (area ? `【探索可能箇所：${area}】` : '【探索可能箇所】') + (items.length ? '\n' + items.join('\n') : '');
+    }
+
+    // 描いた文字をコピーする文面にする。文字色の記法はもう外れている。改行（<br>）は改行に戻す
+    function renderedCopyText(el) {
+      if (!el) return '';
+      const clone = el.cloneNode(true);
+      clone.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
+      return clone.textContent.trim();
+    }
+
+    // 判定の結果のラベルからコピーする文面。その結果の文だけで、ラベル（成功など）は付けない。
+    // PLはダイスの結果をすでに見ているので、チャットに要るのは「何が起きたか」の文だけだから。
+    // （このあとのセリフも含め、HTML出力でも、書き出すときにこれで作って埋め込む）
+    function rollResultCopyText(button) {
+      const item = button.closest('.result-item');
+      return renderedCopyText(item && item.querySelector('.result-text'));
+    }
+
+    // セリフのコピーボタンからコピーする文面。発言だけで、名前と備考は付けない。
+    // チャットにはNPCとして発言する形で貼るので名前はツールの側に出る。備考はGMへのト書きで、PLには見せない
+    function speechCopyText(button) {
+      const speech = button.closest('.npc-speech');
+      return renderedCopyText(speech && speech.querySelector('.npc-speech-text'));
     }
 
     // [情報:題名] を本文のカーソル位置に入れる（段落として独立させる）
@@ -13975,7 +14157,7 @@ ${parseRollResultLines(lines, 1)}            </div>
         toggleInfoDrawer(false, false);
       }, true);
 
-      // プレビューの情報ブロックのボタン（コピー・未登録の情報の登録）
+      // プレビューのボタン（情報・探索一覧・判定の結果・セリフのコピー、未登録の情報の登録）
       if (previewArea) {
         previewArea.addEventListener('click', e => {
           const btn = e.target.closest('button');
@@ -13984,6 +14166,10 @@ ${parseRollResultLines(lines, 1)}            </div>
             copyInfo(btn.dataset.copyInfo, btn);
           } else if (btn.dataset.copySearch !== undefined) {
             copySearchList(btn);
+          } else if (btn.dataset.copyRoll !== undefined) {
+            copyWithFeedback(rollResultCopyText(btn), btn);
+          } else if (btn.dataset.copySpeech !== undefined) {
+            copyWithFeedback(speechCopyText(btn), btn);
           } else if (btn.dataset.createInfo !== undefined) {
             const info = createInfo(btn.dataset.createInfo);
             infoEditingId = info.id;

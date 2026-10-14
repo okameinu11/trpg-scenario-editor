@@ -33,6 +33,7 @@ window.SampleKit = (function () {
     { id: 'map-all', area: '本文', label: '場面図（全体）', actions: ['scene-map-insert'], count: c => (c.body.match(/^\[場面図\]$/gm) || []).length },
     { id: 'map-part', area: '本文', label: '場面図（場面名を指定）', actions: ['scene-map-insert'], count: c => (c.body.match(/^\[場面図\s*[:：][^\]\n]+\]$/gm) || []).length },
     { id: 'toc', area: '本文', label: '目次', actions: ['toc-insert'], count: c => c.q('.scenario-toc') },
+    { id: 'table', area: '本文', label: '表', actions: ['table-insert'], count: c => c.q('.table-box table') },
     // 本文の文章
     { id: 'read', area: '本文', label: '情景描写（>）', actions: ['read'], count: c => c.q('.read-text') },
     { id: 'speech', area: '本文', label: 'NPCのセリフ', actions: ['npc-speech'], count: c => c.q('.npc-speech') },
@@ -86,14 +87,15 @@ window.SampleKit = (function () {
     '情景描写・セリフ': ['read'], 'NPCのセリフ': ['speech', 'speech-note'], 'プレイヤーへ渡す情報': ['info', 'info-limited'],
     'GM向け情報（DL情報／KP情報）': ['gm'], '探索可能箇所一覧': ['search'], '共鳴判定': ['resonance'], 'SANチェック': ['san'],
     '文字色（インライン）': ['color-preset', 'color-custom'], 'TIPS・補足（右）': ['tips', 'side-stack'], '通常文章（右）': ['side-text'],
-    '小さなNPCカード（右）': ['npc-mini'], '場面図': ['map-all', 'map-part'], '目次': ['toc']
+    '小さなNPCカード（右）': ['npc-mini'], '場面図': ['map-all', 'map-part'], '目次': ['toc'], '表': ['table']
   };
   const DOC_TABLE = { url: '/docs/01_要件定義書.html', heading: '4.1' };
 
   // プレビューに変換されずに残った記法
-  const LEFTOVER_RE = /\[(?:判定|共鳴|SAN|探索|調査|情報|セリフ|NPC|場面図|目次|DL|KP|TIPS)[^\]\n]*\]|\{[^{}:：\n]{1,16}[:：][^{}\n]*\}/g;
+  // 表は [表] / [表:題名] だけを見る（「[表紙]」のような地の文を拾わないため）
+  const LEFTOVER_RE = /\[(?:判定|共鳴|SAN|探索|調査|情報|セリフ|NPC|場面図|目次|DL|KP|TIPS)[^\]\n]*\]|\[表(?:[:：][^\]\n]*)?\]|\{[^{}:：\n]{1,16}[:：][^{}\n]*\}/g;
   // 段落の先頭でしか効かない記法（2行目以降に書くと変換されない）
-  const BLOCK_START_RE = /^(?:#|\[(?:判定|SAN|共鳴|探索|調査|情報|セリフ|NPC|場面図)\s*[:：\]]|\[(?:DL|KP|目次)\])/i;
+  const BLOCK_START_RE = /^(?:#|\[(?:判定|SAN|共鳴|探索|調査|情報|セリフ|NPC|場面図|表)\s*[:：\]]|\[(?:DL|KP|目次)\])/i;
   const ROLL_TYPES = ['強制', '提示推奨', '非提示推奨'];
 
   // ---------------------------------------------------------------
