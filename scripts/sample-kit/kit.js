@@ -34,6 +34,11 @@ window.SampleKit = (function () {
     { id: 'map-part', area: '本文', label: '場面図（場面名を指定）', actions: ['scene-map-insert'], count: c => (c.body.match(/^\[場面図\s*[:：][^\]\n]+\]$/gm) || []).length },
     { id: 'toc', area: '本文', label: '目次', actions: ['toc-insert'], count: c => c.q('.scenario-toc') },
     { id: 'table', area: '本文', label: '表', actions: ['table-insert'], count: c => c.q('.table-box table') },
+    { id: 'table-align', area: '本文', label: '表の列の寄せ（中央・右）', actions: ['table-insert'], count: c => c.q('.table-box .ta-center, .table-box .ta-right') },
+    { id: 'table-br', area: '本文', label: '表のセルの中の改行', actions: ['table-insert'], count: c => c.q('.table-box td br, .table-box th br') },
+    { id: 'table-merge', area: '本文', label: '表のセルの結合', actions: ['table-insert'], count: c => c.q('.table-box [rowspan], .table-box [colspan]') },
+    { id: 'table-headcol', area: '本文', label: '表の見出しの列（/見出し列）', actions: ['table-insert'], count: c => c.q('.table-box tbody th') },
+    { id: 'table-nohead', area: '本文', label: '見出しの行の無い表（/見出しなし）', actions: ['table-insert'], count: c => c.q('.table-box table:not(:has(thead))') },
     // 本文の文章
     { id: 'read', area: '本文', label: '情景描写（>）', actions: ['read'], count: c => c.q('.read-text') },
     { id: 'speech', area: '本文', label: 'NPCのセリフ', actions: ['npc-speech'], count: c => c.q('.npc-speech') },
@@ -87,15 +92,16 @@ window.SampleKit = (function () {
     '情景描写・セリフ': ['read'], 'NPCのセリフ': ['speech', 'speech-note'], 'プレイヤーへ渡す情報': ['info', 'info-limited'],
     'GM向け情報（DL情報／KP情報）': ['gm'], '探索可能箇所一覧': ['search'], '共鳴判定': ['resonance'], 'SANチェック': ['san'],
     '文字色（インライン）': ['color-preset', 'color-custom'], 'TIPS・補足（右）': ['tips', 'side-stack'], '通常文章（右）': ['side-text'],
-    '小さなNPCカード（右）': ['npc-mini'], '場面図': ['map-all', 'map-part'], '目次': ['toc'], '表': ['table']
+    '小さなNPCカード（右）': ['npc-mini'], '場面図': ['map-all', 'map-part'], '目次': ['toc'],
+    '表': ['table', 'table-align', 'table-br', 'table-merge', 'table-headcol', 'table-nohead']
   };
   const DOC_TABLE = { url: '/docs/01_要件定義書.html', heading: '4.1' };
 
   // プレビューに変換されずに残った記法
-  // 表は [表] / [表:題名] だけを見る（「[表紙]」のような地の文を拾わないため）
-  const LEFTOVER_RE = /\[(?:判定|共鳴|SAN|探索|調査|情報|セリフ|NPC|場面図|目次|DL|KP|TIPS)[^\]\n]*\]|\[表(?:[:：][^\]\n]*)?\]|\{[^{}:：\n]{1,16}[:：][^{}\n]*\}/g;
+  // 表は [表] / [表:題名] / [表/見出し列] だけを見る（「[表紙]」のような地の文を拾わないため。アプリの TABLE_TAG_RE と同じ条件）
+  const LEFTOVER_RE = /\[(?:判定|共鳴|SAN|探索|調査|情報|セリフ|NPC|場面図|目次|DL|KP|TIPS)[^\]\n]*\]|\[表(?=\s*[\]:：/／])[^\]\n]*\]|\{[^{}:：\n]{1,16}[:：][^{}\n]*\}/g;
   // 段落の先頭でしか効かない記法（2行目以降に書くと変換されない）
-  const BLOCK_START_RE = /^(?:#|\[(?:判定|SAN|共鳴|探索|調査|情報|セリフ|NPC|場面図|表)\s*[:：\]]|\[(?:DL|KP|目次)\])/i;
+  const BLOCK_START_RE = /^(?:#|\[(?:判定|SAN|共鳴|探索|調査|情報|セリフ|NPC|場面図|表)\s*[:：\]]|\[表\s*[/／]|\[(?:DL|KP|目次)\])/i;
   const ROLL_TYPES = ['強制', '提示推奨', '非提示推奨'];
 
   // ---------------------------------------------------------------
@@ -575,6 +581,11 @@ window.SampleKit = (function () {
     previewArea.querySelectorAll('.scene-map-note').forEach(e => P('段落の中に書いた場面図・目次：' + e.textContent.trim()));
     (previewArea.innerText.match(/場面「[^」]*」が見つかりません/g) || []).forEach(m => P('場面図の場面が無い：' + m));
     previewArea.querySelectorAll('h2.scene-title, h3.search-subtitle').forEach(e => { if (/^#/.test(e.textContent.trim())) P('見出しに # が残っている（### を使った？）：' + e.textContent.trim()); });
+    // 結合できなかった印（長方形にならない・見出しの行と本文の行をまたぐ）は、アプリが文字のまま出す（記法設計書 §12.5）
+    previewArea.querySelectorAll('.table-box td, .table-box th').forEach(e => {
+      const t = e.textContent.trim();
+      if (t === '<' || t === '^') P('表の結合の印が結合されずに残っている：' + t + '（' + ((e.closest('table').querySelector('caption') || {}).textContent || '題名なしの表') + '）');
+    });
 
     const leftovers = (previewArea.innerText.match(LEFTOVER_RE) || []).filter(m => allow.indexOf(m) === -1);
     uniq(leftovers).forEach(m => P('変換されずに残った記法：' + m));

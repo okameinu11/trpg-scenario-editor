@@ -1320,10 +1320,10 @@
   }
 
   /* === アシスタントパネル (タッチ入力支援) ===
-     ボタンは ACTIONS から renderAssistantPanel() が組み立てる。
+     ボタンは ACTIONS から renderAssistantPanel() が組み立てる。左に分類のタブ、右に開いているタブのボタンを並べる。
      アイコンの下に名前を置く縦組みにして、1個あたりの幅を詰めている。
      ショートカットは名前に含めず、マウスを乗せたときの吹き出し（#panel-tip）に出す。
-     幅が足りなければ data-density を full → nocaption（分類名を消す）→ short → tight と詰め、
+     幅が足りなければ data-density を full → short → tight と詰め、
      それでも収まらない狭い画面だけ横スクロールに任せる（fitAssistantPanel()）。 */
   .assistant-panel {
     background-color: var(--bg-card);
@@ -1352,19 +1352,47 @@
     display: flex;
     align-items: stretch;
     gap: 4px;
+  }
+  /* 分類のタブ。押すと、右に並ぶボタンがその分類のものに替わる。
+     タップ領域の下限（44px、要件定義書 §5）を保ったまま、ボタンとは形（角の丸い枠の連なり）と色で見分ける */
+  .panel-tabs {
+    display: flex;
+    align-items: stretch;
+    flex-shrink: 0;
     padding-right: 8px;
+    margin-right: 2px;
     border-right: 1px solid var(--border-color);
   }
-  /* 分類名は縦書きにして、ボタン1個分の幅を取らないようにする */
-  .panel-group-label {
-    writing-mode: vertical-rl;
-    align-self: center;
-    font-size: 0.66rem;
-    font-weight: 600;
-    letter-spacing: 0.2em;
+  .panel-tab {
+    min-width: 48px;
+    min-height: 44px;
+    padding: 0 10px;
+    border: 1px solid var(--border-color);
+    background-color: transparent;
     color: var(--text-secondary);
-    margin-right: 2px;
-    user-select: none;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .panel-tab + .panel-tab {
+    border-left: none;
+  }
+  .panel-tab:first-child {
+    border-radius: 6px 0 0 6px;
+  }
+  .panel-tab:last-child {
+    border-radius: 0 6px 6px 0;
+  }
+  .panel-tab:hover {
+    color: var(--text-primary);
+    background-color: var(--bg-input);
+  }
+  .panel-tab.active {
+    color: #fff;
+    background-color: var(--accent-color);
+    border-color: var(--accent-color);
   }
   .btn-panel {
     display: flex;
@@ -1420,27 +1448,13 @@
   .assistant-panel[data-density="tight"] .btn-panel-short {
     display: inline;
   }
-  /* nocaption は分類名だけを消して正式名を保つ段（正式名を削るより先に、分類名を譲る） */
   .assistant-panel[data-density="short"] .btn-panel-palette-keys,
   .assistant-panel[data-density="tight"] .btn-panel-palette-keys,
-  .assistant-panel[data-density="tight"] .btn-panel-palette-label,
-  .assistant-panel[data-density="nocaption"] .panel-group-label,
-  .assistant-panel[data-density="short"] .panel-group-label,
-  .assistant-panel[data-density="tight"] .panel-group-label {
+  .assistant-panel[data-density="tight"] .btn-panel-palette-label {
     display: none;
   }
-  /* nocaption では余白も少しだけ削る（1280px で正式名のまま収めるため） */
-  .assistant-panel[data-density="nocaption"] {
-    gap: 6px;
-  }
-  .assistant-panel[data-density="nocaption"] .panel-group {
-    padding-right: 6px;
-  }
-  .assistant-panel[data-density="nocaption"] .btn-panel {
-    padding: 4px 6px;
-  }
-  /* tight は縦画面（768px、タブレット縦）で全ボタンを収めるための段。
-     ボタンの最小幅はタップ領域の下限（44px、要件定義書 §5）ちょうどまで詰め、余白と間隔も削る。
+  /* tight は狭い画面で、開いているタブのボタンを収めるための段。
+     ボタンとタブの最小幅はタップ領域の下限（44px、要件定義書 §5）ちょうどまで詰め、余白と間隔も削る。
      ボタンを足して収まらなくなったら、まずここを確かめる（docs/07_操作の入口設計書.html §3.2） */
   .assistant-panel[data-density="tight"] {
     gap: 4px;
@@ -1448,7 +1462,13 @@
   }
   .assistant-panel[data-density="tight"] .panel-group {
     gap: 2px;
+  }
+  .assistant-panel[data-density="tight"] .panel-tabs {
     padding-right: 4px;
+  }
+  .assistant-panel[data-density="tight"] .panel-tab {
+    min-width: 44px;
+    padding: 0 6px;
   }
   .assistant-panel[data-density="tight"] .btn-panel {
     min-width: 44px;
@@ -2367,6 +2387,132 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+  }
+
+  /* 📊 表の編集画面（docs/13_表の編集画面設計書.html）。マス目の1つ1つが入力欄で、結合したセルは rowspan/colspan で広げて見せる */
+  .table-modal-content {
+    max-width: 980px;
+    max-height: 90%;
+  }
+  .te-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px 20px;
+  }
+  .te-title {
+    flex: 1 1 280px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .te-check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.85rem;
+    padding-bottom: 8px;
+    cursor: pointer;
+  }
+  .te-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+  }
+  .te-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .te-group-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-right: 2px;
+  }
+  .te-btn {
+    padding: 3px 10px;
+    font-size: 0.8rem;
+    font-family: inherit;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--bg-input);
+    color: var(--text-primary);
+    cursor: pointer;
+  }
+  .te-btn:hover:not(:disabled) {
+    border-color: var(--accent-color);
+  }
+  .te-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  /* 選んでいる列の、いまの寄せ */
+  .te-btn.active {
+    border-color: var(--accent-color);
+    background-color: rgba(59, 130, 246, 0.25);
+  }
+  .te-grid-wrap {
+    overflow: auto;
+    min-height: 120px;
+    padding: 2px;
+  }
+  #table-editor-grid {
+    border-collapse: collapse;
+  }
+  #table-editor-grid td {
+    border: 1px solid var(--border-color);
+    padding: 0;
+    vertical-align: top;
+    background-color: var(--bg-input);
+  }
+  /* 見出しのセル（1行目・1列目の指定）。プレビューの表と同じく、地の色と太字で分ける */
+  #table-editor-grid td.te-head {
+    background-color: rgba(148, 163, 184, 0.18);
+  }
+  #table-editor-grid td.te-selected {
+    background-color: rgba(59, 130, 246, 0.22);
+    box-shadow: inset 0 0 0 1px var(--accent-color);
+  }
+  .te-input {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 120px;
+    min-height: 34px;
+    margin: 0;
+    padding: 6px 9px;
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    font: inherit;
+    font-size: 0.88rem;
+    line-height: 1.6;
+    resize: none;
+    overflow: hidden;
+  }
+  td.te-head .te-input {
+    font-weight: 700;
+  }
+  .te-input:focus {
+    outline: 2px solid var(--accent-color);
+    outline-offset: -2px;
+  }
+  .te-input::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.6;
+    font-weight: 400;
+  }
+  .te-hint {
+    margin: 0;
+    font-size: 0.75rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+  }
+  .te-actions-right {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
   }
   .list-container {
     display: flex;
@@ -3920,6 +4066,7 @@
     text-align: left;
     vertical-align: top;
   }
+  /* 見出しの行と、見出しの列（/見出し列。本文の行の1列目）の両方に当たる */
   #preview-area .table-box th {
     background-color: #f1f5f9 !important;
     color: #1e293b !important;
@@ -3928,6 +4075,22 @@
   /* 行の多い表で、横に目を移すときに行を取り違えないよう1行おきに薄く塗る */
   #preview-area .table-box tbody tr:nth-child(even) td {
     background-color: #f8fafc !important;
+  }
+  /* 縦に結合したセルがある表は塗り分けない（結合したセルの途中で色が切り替わり、行を読み違える） */
+  #preview-area .table-box table.has-rowspan tbody tr:nth-child(even) td {
+    background-color: transparent !important;
+  }
+  /* 見出しの列（/見出し列）のセルは折り返さない。隣の列に長い文があると、表の幅の配分で見出しの列が数文字の幅まで
+     削られ、「1. 迎え」のような短い項目名まで1〜2文字ごとに折り返していた。見出しの列は項目名なので短い前提にしている */
+  #preview-area .table-box tbody th {
+    white-space: nowrap;
+  }
+  /* 列の寄せ（区切りの行の :-: と -:）。左寄せは既定なので印を付けない */
+  #preview-area .table-box .ta-center {
+    text-align: center;
+  }
+  #preview-area .table-box .ta-right {
+    text-align: right;
   }
 
   /* 本文の中の文字位置を測るための隠し要素。
@@ -4280,6 +4443,63 @@
 
         <div class="modal-actions" style="justify-content: flex-end; margin-top: 10px;">
           <button class="btn btn-primary" onmousedown="event.preventDefault(); insertSanBlock()">決定（エディタへ挿入）</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 📊 表の編集画面（マス目に書いて表を作る・直す。docs/13_表の編集画面設計書.html） -->
+  <div id="table-modal" class="modal">
+    <div class="modal-content table-modal-content" role="dialog" aria-labelledby="table-modal-heading">
+      <div class="modal-header">
+        <h3 id="table-modal-heading">📊 表を作る</h3>
+        <button class="btn-close" onclick="closeTableModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="te-top">
+          <label class="te-title">
+            <span class="form-label">題名</span>
+            <input type="text" id="table-title" class="form-input" placeholder="例: 進行の目安（空けてもかまいません）" autocomplete="off">
+          </label>
+          <label class="te-check"><input type="checkbox" id="table-header-row"> 1行目を見出しにする</label>
+          <label class="te-check"><input type="checkbox" id="table-header-col"> 1列目を見出しにする</label>
+        </div>
+        <!-- 選んでいるセル（Shift+クリック・ドラッグで範囲）に対する操作。押してもセルからフォーカスを外さない -->
+        <div class="te-toolbar" role="toolbar" aria-label="表の操作">
+          <div class="te-group"><span class="te-group-label">行</span>
+            <button type="button" class="te-btn" data-te="row-above" title="選んでいる行の上に1行足す">＋上に</button>
+            <button type="button" class="te-btn" data-te="row-below" title="選んでいる行の下に1行足す">＋下に</button>
+            <button type="button" class="te-btn" data-te="row-delete" title="選んでいる行を消す">削除</button>
+          </div>
+          <div class="te-group"><span class="te-group-label">列</span>
+            <button type="button" class="te-btn" data-te="col-left" title="選んでいる列の左に1列足す">＋左に</button>
+            <button type="button" class="te-btn" data-te="col-right" title="選んでいる列の右に1列足す">＋右に</button>
+            <button type="button" class="te-btn" data-te="col-delete" title="選んでいる列を消す">削除</button>
+          </div>
+          <div class="te-group"><span class="te-group-label">寄せ</span>
+            <button type="button" class="te-btn" data-te="align-left" title="選んでいる列の文字を左に寄せる">左</button>
+            <button type="button" class="te-btn" data-te="align-center" title="選んでいる列の文字を中央に寄せる">中央</button>
+            <button type="button" class="te-btn" data-te="align-right" title="選んでいる列の文字を右に寄せる">右</button>
+          </div>
+          <div class="te-group"><span class="te-group-label">セル</span>
+            <button type="button" class="te-btn" data-te="merge" title="選んでいる範囲のセルを1つにする（中身は左上のセルにまとめる）">結合</button>
+            <button type="button" class="te-btn" data-te="unmerge" title="選んでいる範囲の結合を解く">結合を解く</button>
+          </div>
+        </div>
+        <div class="te-grid-wrap">
+          <!-- 中身は renderTableEditor() が組み立てる -->
+          <table id="table-editor-grid"></table>
+        </div>
+        <p class="te-hint">
+          Tab で右のセル、Enter で下のセルへ移ります（最後のセルでは行が増えます）。セルの中の改行は Shift+Enter です。
+          Shift を押しながらクリックするか、ドラッグすると範囲を選べます。表計算ソフトでコピーした範囲を貼ると、セルに分かれて入ります。
+        </p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-small" id="table-source-btn" onclick="jumpToTableSource()" title="この表の記法を、本文で開く">原文へ</button>
+          <span class="te-actions-right">
+            <button type="button" class="btn" onclick="closeTableModal()">取り消す</button>
+            <button type="button" class="btn btn-primary" id="table-apply-btn" onclick="applyTableEditor()" title="Ctrl+Enter でも確定できます">決定（本文へ入れる）</button>
+          </span>
         </div>
       </div>
     </div>
@@ -4968,7 +5188,7 @@
     // 操作を足すときに触るのはここ1箇所でよい（記法の変換は別。docs/07_操作の入口設計書.html）。
     //
     //   id        … ショートカット設定(trpg_shortcuts)の保存キー。変えると利用者の割り当てが失われる
-    //   group     … ACTION_GROUPS のどれか。パネルとパレットの並び順・見出しになる
+    //   group     … ACTION_GROUPS のどれか。パネルのタブとパレットの見出しになり、その中の並び順はこの表の順
     //   icon/name … 表示名。name / short / desc は関数でもよい（システムで呼称が変わるもの）
     //   short     … 幅の足りないパネルで使う短い名前
     //   desc      … 何が起きるか。パネルの吹き出し・パレット・設定画面に出る
@@ -4989,12 +5209,11 @@
       { id: 'app', label: '操作' }
     ];
 
-    // パネルで1つのボタンにまとめる操作の組（ACTIONS の panelMenu）。ボタンを押すと、組の操作を選ぶメニューが出る。
-    // 使う頻度の低い挿入を、パネルの幅を増やさずに見える場所へ置くための形（docs/07_操作の入口設計書.html §3.7）。
-    // export はヘッダーの「📤 出力」ボタンのメニュー（ボタンはヘッダーのHTMLに直接書いてある。操作は panel: false なのでパネルには出ない）
+    // 1つのボタンにまとめる操作の組（ACTIONS の panelMenu）。ボタンを押すと、組の操作を選ぶメニューが出る（docs/07_操作の入口設計書.html §3.7）。
+    // export はヘッダーの「📤 出力」ボタンのメニュー（ボタンはヘッダーのHTMLに直接書いてある。操作は panel: false なのでパネルには出ない）。
+    // 下部パネルにも同じ組を置ける（renderAssistantPanel()）。以前は場面図と目次をこれで1つにしていたが、
+    // パネルを分類のタブにして幅が空いたので、2つのボタンに戻した（2026-10-14）
     const PANEL_MENUS = {
-      // 短い名前は768pxで4文字までしか収まらない（「図・目次・表」は20pxはみ出した）。表はメニューの中とコマンドパレットで見つかる
-      'insert-block': { icon: '🗺', name: '場面図・目次・表', short: '図・目次', desc: '場面図・目次・表のどれかを選んで本文に挿入する' },
       'export': { icon: '📤', name: '出力', short: '出力', desc: 'PDFかHTMLファイルを選んで書き出す' }
     };
 
@@ -5011,19 +5230,12 @@
       { id: 'search-list', group: 'structure', icon: '🔍', name: '探索一覧', short: '探索',
         desc: '探索箇所ブロックを挿入', keywords: 'たんさくいちらん', key: withAlt('3'),
         run: () => insertTemplate('search-list') },
-      // 場面図と目次は、どちらもシナリオに1回入れれば済む全幅のブロック。パネルでは1つのボタン（メニュー）に
-      // まとめる（panelMenu。docs/07_操作の入口設計書.html §3.7）。パレットとキーでは今までどおり別々の操作
       { id: 'scene-map-insert', group: 'structure', icon: '🗺', name: '場面図を挿入', short: '場面図',
         desc: '本文に [場面図] を挿入する', keywords: 'ばめんずをそうにゅう map', key: withAlt('z'),
-        panelMenu: 'insert-block', run: () => insertTemplate('scene-map') },
+        run: () => insertTemplate('scene-map') },
       { id: 'toc-insert', group: 'structure', icon: '🔖', name: '目次を挿入', short: '目次',
         desc: '本文に [目次] を挿入する（見出しの一覧が自動で入る）', keywords: 'もくじ もくじをそうにゅう toc contents',
-        key: null, panelMenu: 'insert-block', run: () => insertTemplate('toc') },
-      // 表も全幅のブロックで、シナリオに数回しか使わないので同じメニューに入れる（docs/07_操作の入口設計書.html §3.7）
-      { id: 'table-insert', group: 'structure', icon: '📊', name: '表を挿入', short: '表',
-        desc: '本文に [表:題名] を挿入する（文字を選んでいれば、その行を表の行にする）',
-        keywords: 'ひょう ひょうをそうにゅう てーぶる いちらんひょう table',
-        key: null, panelMenu: 'insert-block', run: () => insertTable() },
+        key: null, run: () => insertTemplate('toc') },
 
       { id: 'read', group: 'text', icon: '💬', name: '情景描写', short: '情景',
         desc: '行頭に > を挿入', keywords: 'じょうけいびょうしゃ', key: withAlt('4'),
@@ -5048,6 +5260,12 @@
       { id: 'color', group: 'text', icon: '🎨', name: '文字色', short: '色',
         desc: '選択した文字に色を付ける', keywords: 'もじいろ いろ からー color', key: withAlt('c'),
         run: () => openColorModal() },
+      // 表は記法を手で書かずに、マス目の編集画面で作る（docs/13_表の編集画面設計書.html）。
+      // カーソルが表の中にあれば、その表を開き直す。id は以前の「表を挿入」のまま（ショートカットの割り当ての保存キー）
+      { id: 'table-insert', group: 'text', icon: '📊', name: '表', short: '表',
+        desc: '表の編集画面を開き、マス目に書いた表を本文に入れる（カーソルが表の中にあれば、その表を直す）',
+        keywords: 'ひょう ひょうをつくる ひょうをそうにゅう ひょうのへんしゅう てーぶる いちらんひょう table',
+        key: null, run: () => openTableEditor() },
 
       { id: 'roll', group: 'check', icon: '🎲', name: '技能判定', short: '技能',
         desc: '技能判定モーダルを開く', keywords: 'ぎのうはんてい ろーる roll', key: withAlt('6'),
@@ -6298,6 +6516,7 @@
         initAssistantPanel();
         initCommandPalette();
         initSpeechModal();
+        initTableModal();
         initInfoFeature();
         initBasicInfoModal();
         initFaqModal();
@@ -6754,6 +6973,7 @@
       'release-modal': () => closeReleaseModal(),
       'palette-modal': () => closeCommandPalette(),
       'speech-modal': () => closeSpeechModal(),
+      'table-modal': () => closeTableModal(),
       'info-modal': () => closeInfoModal(),
       'basic-info-modal': () => closeBasicInfoModal(),
       'backmatter-modal': () => closeBackMatterModal()
@@ -10345,35 +10565,145 @@ ${derivedHTML}
     //
     // 進行の目安・場所ごとの危険のような一覧を、罫線の表にする（docs/04_記法設計書.html §12）。
     // 次の行から、1行が表の1行。セルは | で区切る（全角の ｜ でもよい。両端の | は省ける）。1行目は見出しの行になる。
-    // 見出しの行のすぐ次に Markdown の区切りの行（|---|---|）があれば読み飛ばす。よそで書いた表を貼れるようにするため。
+    // 1行目か2行目に Markdown の区切りの行（|---|:--:|）があれば、列の寄せとして読み、表の中身からは外す。よそで書いた表を貼れるようにするため。
+    // 題名の後ろの /見出し列 /見出しなし で見出しの付け方を変え、セルの < と ^ で左・上のセルと結合し、セルの <br> で改行する。
     // 場面図・目次と同じく、段組みの外に出す全幅のブロックにする（表は横幅が要る。記法設計書 §7.1）
-    const TABLE_TAG_RE = /^\[表(?:\s*[:：]\s*([^\]\n]*))?\]/;
+    // 「[表紙]」のような語を表にしないよう、[表 の次は ] : ： / ／ のどれかに限る
+    const TABLE_TAG_RE = /^\[表(?=\s*[\]:：/／])([^\]\n]*)\]/;
     // 区切りの行。半角の - と : だけのセルが | で並ぶ行（|---|:--:| など）
     const TABLE_RULE_RE = /^[|｜]?\s*:?-+:?\s*(?:[|｜]\s*:?-+:?\s*)*[|｜]?$/;
+    // 題名の後ろに書ける指定。末尾から順に外す（題名の中の「/」は指定でなければ題名のまま残す）
+    const TABLE_OPTION_RE = /[/／]\s*(見出し列|見出しなし)\s*$/;
+    // 結合の印。セルにこの1文字だけを書くと、左（<）・上（^）のセルと1つになる。1文字の記号そのものは全角（＜ ＾）で書く
+    const TABLE_MERGE_LEFT = '<';
+    const TABLE_MERGE_UP = '^';
+    // セルの中の改行。Markdown の表で広く使われている書き方に合わせる
+    const TABLE_BR_RE = /<br\s*\/?>/gi;
 
     // 表の1行をセルに分ける。両端の | は省いてよい
     function splitTableRow(line) {
       return line.trim().replace(/^[|｜]/, '').replace(/[|｜]$/, '').split(/[|｜]/).map(c => c.trim());
     }
 
+    // 区切りの行のセルから、列の寄せを読む。:-: は中央、-: は右。左（:-）と指定なしは、どちらも既定の左寄せ
+    function tableAlignOf(rule) {
+      const c = rule.trim();
+      if (c.startsWith(':') && c.endsWith(':') && c.length > 1) return 'center';
+      if (c.endsWith(':')) return 'right';
+      return '';
+    }
+
+    // 表の段落を読み、題名・見出しの指定・列の寄せ・セルの格子を返す。描くとき（buildTableHTML）と、表の編集画面で開くとき
+    // （tableModelFromSource）の両方がこれを使う。block は段落の生文字列（未エスケープ）。
+    // grid は行×列の長方形で、足りないセルは空文字で埋め、結合の印（< ^）はそのまま残す
+    function parseTableSource(block) {
+      const m = block.match(TABLE_TAG_RE);
+      let inner = m ? m[1].trim().replace(/^[:：]\s*/, '') : '';
+      let headerRow = true;
+      let headerCol = false;
+      let opt;
+      while ((opt = inner.match(TABLE_OPTION_RE))) {
+        if (opt[1] === '見出し列') headerCol = true;
+        else headerRow = false;
+        inner = inner.substring(0, opt.index).trim();
+      }
+      const lines = block.substring(m ? m[0].length : 0).split('\n').map(l => l.trim()).filter(Boolean);
+      // 区切りの行は、1行目か2行目にある最初の1つだけを読む。3行目より後ろの「| - | - |」は中身として残す
+      // （「-」で「なし」を表す表もある）。見出しの無い表では1行目に、見出しのある表では2行目に書く
+      let align = [];
+      const ruleIndex = lines.slice(0, 2).findIndex(l => TABLE_RULE_RE.test(l));
+      if (ruleIndex !== -1) {
+        align = splitTableRow(lines[ruleIndex]).map(tableAlignOf);
+        lines.splice(ruleIndex, 1);
+      }
+      const rows = lines.map(splitTableRow);
+      // 列の数は、いちばんセルの多い行に揃える（足りない行は空のセルで埋める）
+      const cols = rows.length ? Math.max(...rows.map(r => r.length)) : 0;
+      const grid = rows.map(r => Array.from({ length: cols }, (_, i) => r[i] || ''));
+      return { title: inner, headerRow, headerCol, align: Array.from({ length: cols }, (_, i) => align[i] || ''), grid };
+    }
+
+    // 結合の印を読み、結合したセルの範囲を求める。headerRows は見出しの行の数（0 か 1）。
+    // < は左のセルの、^ は上のセルの仲間になる（仲間をたどって、印でないセルを親にする）。
+    // 親ごとに仲間が長方形をきっちり埋めていれば、1つのセルとして結合する（merges）。
+    // 長方形にならない・左や上にセルが無い・見出しの行と本文の行をまたぐ印は結合せず、書いた文字のまま出す
+    function computeTableMerges(grid, headerRows) {
+      const rows = grid.length;
+      const cols = rows ? grid[0].length : 0;
+      const root = [];
+      for (let r = 0; r < rows; r++) {
+        root.push([]);
+        for (let c = 0; c < cols; c++) {
+          const v = grid[r][c];
+          let to = null;
+          if (v === TABLE_MERGE_LEFT && c > 0) to = root[r][c - 1];
+          else if (v === TABLE_MERGE_UP && r > 0 && r !== headerRows) to = root[r - 1][c];
+          root[r].push(to === null ? r * cols + c : to);
+        }
+      }
+      const groups = new Map();
+      root.forEach((row, r) => row.forEach((id, c) => {
+        if (!groups.has(id)) groups.set(id, []);
+        groups.get(id).push([r, c]);
+      }));
+      const merges = [];
+      groups.forEach((cellsOf, id) => {
+        if (cellsOf.length < 2) return;
+        const r0 = Math.floor(id / cols), c0 = id % cols;
+        const r1 = Math.max(...cellsOf.map(p => p[0]));
+        const c1 = Math.max(...cellsOf.map(p => p[1]));
+        if ((r1 - r0 + 1) * (c1 - c0 + 1) === cellsOf.length && cellsOf.every(p => p[0] >= r0 && p[1] >= c0)) {
+          merges.push({ r0, c0, r1, c1 });
+        }
+      });
+      return merges;
+    }
+
+    // セル1つの中身。<br> を改行にしてから renderInline()（エスケープ → 装飾 → 改行）に通す
+    function renderTableCell(text) {
+      return renderInline(String(text).replace(TABLE_BR_RE, '\n'));
+    }
+
     // block は parseMarkdown() の段落（未エスケープの生文字列）。セルと題名は renderInline() に通す（エスケープ → 装飾の順）
     function buildTableHTML(block) {
-      const m = block.match(TABLE_TAG_RE);
-      const caption = m && m[1] ? m[1].trim() : '';
-      const lines = block.substring(m ? m[0].length : 0).split('\n').map(l => l.trim()).filter(Boolean);
-      // 読み飛ばすのは見出しの行のすぐ次の区切りの行だけ。ほかの行の「-」は中身として残す（「-」で「なし」を表す表もある）
-      const rows = lines.filter((l, i) => !(i === 1 && TABLE_RULE_RE.test(l))).map(splitTableRow);
-      const captionHTML = caption ? `<caption>${renderInline(caption)}</caption>` : '';
-      if (!rows.length) {
+      const t = parseTableSource(block);
+      const captionHTML = t.title ? `<caption>${renderInline(t.title)}</caption>` : '';
+      if (!t.grid.length) {
         return `<div class="table-box"><div class="table-note no-print">📊 表の中身がまだありません。`
-          + `次の行から「| 見出し | 見出し |」のように、1行に表の1行を書いてください（1行目が見出しの行になります）。</div></div>\n`;
+          + `次の行から「| 見出し | 見出し |」のように、1行に表の1行を書いてください（1行目が見出しの行になります）。`
+          + `下部の「📊 表」から、マス目に書いて作ることもできます。</div></div>\n`;
       }
-      // 列の数は、いちばんセルの多い行に揃える（足りない行は空のセルで埋める）
-      const cols = Math.max(...rows.map(r => r.length));
-      const cells = (row, tag) => Array.from({ length: cols }, (_, i) => `<${tag}>${renderInline(row[i] || '')}</${tag}>`).join('');
-      const head = `<thead><tr>${cells(rows[0], 'th')}</tr></thead>`;
-      const body = rows.length > 1 ? `<tbody>${rows.slice(1).map(r => `<tr>${cells(r, 'td')}</tr>`).join('')}</tbody>` : '';
-      return `<div class="table-box"><table>${captionHTML}${head}${body}</table></div>\n`;
+      const headerRows = t.headerRow ? 1 : 0;
+      const merges = computeTableMerges(t.grid, headerRows);
+      // 結合したセルの左上（親）に広がりを持たせ、ほかのセルは描かない
+      const span = new Map();
+      const covered = new Set();
+      merges.forEach(g => {
+        span.set(g.r0 + ',' + g.c0, { rows: g.r1 - g.r0 + 1, cols: g.c1 - g.c0 + 1 });
+        for (let r = g.r0; r <= g.r1; r++) for (let c = g.c0; c <= g.c1; c++) {
+          if (r !== g.r0 || c !== g.c0) covered.add(r + ',' + c);
+        }
+      });
+      const cell = (r, c, tag, scope) => {
+        if (covered.has(r + ',' + c)) return '';
+        const sp = span.get(r + ',' + c);
+        const attrs = (scope ? ` scope="${scope}"` : '')
+          + (sp && sp.rows > 1 ? ` rowspan="${sp.rows}"` : '')
+          + (sp && sp.cols > 1 ? ` colspan="${sp.cols}"` : '')
+          + (t.align[c] ? ` class="ta-${t.align[c]}"` : '');
+        return `<${tag}${attrs}>${renderTableCell(t.grid[r][c])}</${tag}>`;
+      };
+      const cols = t.grid[0].length;
+      const row = (r, fn) => `<tr>${Array.from({ length: cols }, (_, c) => fn(c)).join('')}</tr>`;
+      const head = headerRows ? `<thead>${row(0, c => cell(0, c, 'th', 'col'))}</thead>` : '';
+      const bodyRows = t.grid.slice(headerRows).map((_, i) => {
+        const r = i + headerRows;
+        return row(r, c => (c === 0 && t.headerCol) ? cell(r, c, 'th', 'row') : cell(r, c, 'td'));
+      });
+      const body = bodyRows.length ? `<tbody>${bodyRows.join('')}</tbody>` : '';
+      // 縦に結合したセルがあると、1行おきの塗り分けが結合したセルの途中で切り替わって行を読み違えるので、塗り分けをやめる
+      const cls = merges.some(g => g.r1 > g.r0) ? ' class="has-rowspan"' : '';
+      return `<div class="table-box"><table${cls}>${captionHTML}${head}${body}</table></div>\n`;
     }
 
     // === 本文とプレビューの並べ方 ===
@@ -10870,6 +11200,11 @@ ${derivedHTML}
           openPreviewOrigin(el);
           return;
         }
+        // 表は、原文ではなく表の編集画面で開く（NPCカードが NPC管理を開くのと同じ。docs/13_表の編集画面設計書.html §2）
+        if (el.classList.contains('table-box')) {
+          openTableEditorFromPreview(el);
+          return;
+        }
         const range = parseSrcRange(el.dataset.src);
         if (!range || !editor) return;
         const part = parseSrcRange(el.dataset.part) || range;
@@ -11246,7 +11581,7 @@ ${derivedHTML}
           + 'その行だけの段落として書いてください。</div>';
       }
       // 表も段組みの外に出すので、ここへ来るのは右の段（>> [表]）に書いたときだけ
-      if (/^\[表(?:\s*[:：][^\]\n]*)?\]/.test(html)) {
+      if (TABLE_TAG_RE.test(html)) {
         return '<div class="scene-map-note">📊 表は右の段（&gt;&gt;）には書けません。'
           + '空行で区切った、[表] で始まる段落として書いてください。</div>';
       }
@@ -11757,22 +12092,598 @@ ${parseRollResultLines(lines, 1)}            </div>
       handleInput();
     }
 
-    // 表 [表:題名] を挿入する（docs/04_記法設計書.html §12）。入れたあとは「題名」を選んだ状態にし、そのまま打ち替えられるようにする。
-    // 文字を選んでいれば、その行を表の行にする（選んだ文字を消さないため）。表計算ソフトから貼った行（タブ区切り）はセルに分ける
-    function insertTable() {
+    // === 表の編集画面（docs/13_表の編集画面設計書.html） ===
+    //
+    // マス目に書いて表を作る・直す画面。開くときに本文の [表] の段落を読んで格子にし、確定すると記法に書き戻して段落ごと差し替える。
+    // プレビューの表に直接書き込む形にしなかったのは、プレビューは本文から描き直すもので、書いた内容を本文の位置へ戻す
+    // 対応づけが壊れやすいため（原文の小窓と同じ理由。docs/11 §4.1）。ここでは表の段落全体を書き直すので、対応づけが要らない。
+    //
+    // 画面の中では、表を次の形で持つ（tableEdit.model）。結合は印（< ^）ではなく範囲で持つ。行や列を足し引きしたときに直しやすいため
+    //   { title, headerRow, headerCol, align: ['' | 'center' | 'right', ...], cells: [[文字, ...], ...], merges: [{ r0, c0, r1, c1 }] }
+    //   cells は長方形で、結合で隠れるセルは空文字。セルの中の改行は \n
+    let tableModal, tableGrid, tableTitleInput, tableHeaderRowInput, tableHeaderColInput, tableSourceBtn;
+    // 開いている表。field・start・end は書き戻す先（insert なら選んでいた範囲に入れる）。original は開いたときの段落。
+    // cur はフォーカスのあるセル、anchor は範囲選択の起点、sel は選んでいる範囲（結合を含むところまで広げたもの）
+    let tableEdit = null;
+
+    function emptyTableModel(rows, cols) {
+      return {
+        title: '', headerRow: true, headerCol: false, align: Array(cols).fill(''),
+        cells: Array.from({ length: rows }, () => Array(cols).fill('')), merges: []
+      };
+    }
+
+    // [表] の段落を、画面の形にする。結合できなかった印（< ^）は文字のまま残す（書き戻すときに全角になる。tableCellToSource()）
+    function tableModelFromSource(block) {
+      const t = parseTableSource(block);
+      if (!t.grid.length) {
+        const empty = emptyTableModel(3, 3);
+        return Object.assign(empty, { title: t.title, headerRow: t.headerRow, headerCol: t.headerCol });
+      }
+      const merges = computeTableMerges(t.grid, t.headerRow ? 1 : 0);
+      const cells = t.grid.map(row => row.map(v => v.replace(TABLE_BR_RE, '\n')));
+      merges.forEach(g => tableEachCell(g, (r, c) => {
+        if (r !== g.r0 || c !== g.c0) cells[r][c] = '';
+      }));
+      return { title: t.title, headerRow: t.headerRow, headerCol: t.headerCol, align: t.align.slice(), cells, merges };
+    }
+
+    // 選んでいた行から表を作る。| で始まる行は表の行として、ほかの行はタブ（表計算ソフトから貼った行）でセルに分ける
+    function tableModelFromLines(text) {
+      const rows = text.split('\n').map(l => l.trim()).filter(Boolean)
+        .filter((l, i) => !(i < 2 && TABLE_RULE_RE.test(l)))
+        .map(l => /^[|｜]/.test(l) ? splitTableRow(l) : l.split('\t').map(c => c.trim()));
+      const cols = Math.max(2, ...rows.map(r => r.length));
+      const model = emptyTableModel(Math.max(rows.length, 2), cols);
+      rows.forEach((r, i) => r.forEach((v, c) => { model.cells[i][c] = v.replace(TABLE_BR_RE, '\n'); }));
+      return model;
+    }
+
+    // 1つのセルの中身を記法に書く。改行は <br>、縦線はセルの区切りと区別できないので ¦ にする。
+    // 1文字だけの < ^ は結合の印と区別できないので、全角にして文字として残す
+    function tableCellToSource(text) {
+      const s = String(text).replace(/\r/g, '').split('\n').map(l => l.trim()).join('<br>')
+        .replace(/[|｜]/g, '¦').trim();
+      if (s === TABLE_MERGE_LEFT) return '＜';
+      if (s === TABLE_MERGE_UP) return '＾';
+      return s;
+    }
+
+    // 画面の形を [表] の記法に書き戻す（前後の空行は付けない）。
+    // 結合は、左上のセルに中身を書き、同じ行の右側に <、下の行の左端に ^、残りに < を書く（computeTableMerges() がこの形を読む）
+    function tableModelToSource(model) {
+      const grid = model.cells.map(row => row.map(tableCellToSource));
+      model.merges.forEach(g => tableEachCell(g, (r, c) => {
+        if (r === g.r0 && c === g.c0) return;
+        grid[r][c] = (c === g.c0) ? TABLE_MERGE_UP : TABLE_MERGE_LEFT;
+      }));
+      const opts = (model.headerCol ? '/見出し列' : '') + (model.headerRow ? '' : '/見出しなし');
+      const title = String(model.title || '').replace(/\]/g, '］').replace(/\s+/g, ' ').trim();
+      const tag = title ? `[表:${title}${opts}]` : (opts ? `[表${opts}]` : '[表]');
+      const lines = grid.map(r => '| ' + r.join(' | ') + ' |');
+      // 寄せを決めた列があるとき、または中身の行が区切りの行と見分けられないとき（「| - | - |」）だけ、区切りの行を書く
+      const dataRule = lines.slice(model.headerRow ? 1 : 0).slice(0, 1).some(l => TABLE_RULE_RE.test(l));
+      if (model.align.some(a => a) || dataRule) {
+        const rule = '|' + model.align.map(a => a === 'center' ? ':-:' : a === 'right' ? '--:' : '---').join('|') + '|';
+        lines.splice(model.headerRow ? 1 : 0, 0, rule);
+      }
+      return [tag].concat(lines).join('\n');
+    }
+
+    function tableEachCell(g, fn) {
+      for (let r = g.r0; r <= g.r1; r++) for (let c = g.c0; c <= g.c1; c++) fn(r, c);
+    }
+    function tableRangesMeet(a, b) {
+      return a.r0 <= b.r1 && a.r1 >= b.r0 && a.c0 <= b.c1 && a.c1 >= b.c0;
+    }
+    function tableMergeAt(model, r, c) {
+      return model.merges.find(g => tableRangesMeet(g, { r0: r, c0: c, r1: r, c1: c })) || null;
+    }
+
+    // 範囲を、交わる結合をすべて含むところまで広げる（結合したセルの一部だけを選べないようにする）
+    function expandTableRange(model, rg) {
+      const out = { r0: Math.min(rg.r0, rg.r1), c0: Math.min(rg.c0, rg.c1), r1: Math.max(rg.r0, rg.r1), c1: Math.max(rg.c0, rg.c1) };
+      let grown = true;
+      while (grown) {
+        grown = false;
+        model.merges.forEach(g => {
+          if (!tableRangesMeet(g, out)) return;
+          ['r0', 'c0'].forEach(k => { if (g[k] < out[k]) { out[k] = g[k]; grown = true; } });
+          ['r1', 'c1'].forEach(k => { if (g[k] > out[k]) { out[k] = g[k]; grown = true; } });
+        });
+      }
+      return out;
+    }
+
+    // 1×1 になった結合を消す
+    function dropSingleTableMerges(model) {
+      model.merges = model.merges.filter(g => g.r1 > g.r0 || g.c1 > g.c0);
+    }
+
+    // 行・列の足し引き。結合の中に足したら結合を広げ、結合の行・列を消したら縮める（左上を消したら、中身を残る側へ移す）
+    function tableInsertRow(model, at) {
+      model.cells.splice(at, 0, Array(model.cells[0].length).fill(''));
+      model.merges.forEach(g => {
+        if (g.r0 >= at) { g.r0++; g.r1++; } else if (g.r1 >= at) g.r1++;
+      });
+    }
+    function tableInsertCol(model, at) {
+      model.cells.forEach(row => row.splice(at, 0, ''));
+      model.align.splice(at, 0, '');
+      model.merges.forEach(g => {
+        if (g.c0 >= at) { g.c0++; g.c1++; } else if (g.c1 >= at) g.c1++;
+      });
+    }
+    function tableDeleteRows(model, from, to) {
+      const shift = i => i < from ? i : i - (to - from + 1);
+      model.merges = model.merges.filter(g => {
+        const keep = [];
+        for (let r = g.r0; r <= g.r1; r++) if (r < from || r > to) keep.push(r);
+        if (!keep.length) return false;
+        if (keep[0] !== g.r0) model.cells[keep[0]][g.c0] = model.cells[g.r0][g.c0];
+        g.r0 = shift(keep[0]);
+        g.r1 = shift(keep[keep.length - 1]);
+        return true;
+      });
+      model.cells.splice(from, to - from + 1);
+      dropSingleTableMerges(model);
+    }
+    function tableDeleteCols(model, from, to) {
+      const shift = i => i < from ? i : i - (to - from + 1);
+      model.merges = model.merges.filter(g => {
+        const keep = [];
+        for (let c = g.c0; c <= g.c1; c++) if (c < from || c > to) keep.push(c);
+        if (!keep.length) return false;
+        if (keep[0] !== g.c0) model.cells[g.r0][keep[0]] = model.cells[g.r0][g.c0];
+        g.c0 = shift(keep[0]);
+        g.c1 = shift(keep[keep.length - 1]);
+        return true;
+      });
+      model.cells.forEach(row => row.splice(from, to - from + 1));
+      model.align.splice(from, to - from + 1);
+      dropSingleTableMerges(model);
+    }
+
+    // 範囲を1つのセルにする。中身は捨てずに、読む順に改行でつないで左上のセルへ入れる。
+    // 見出しの行と本文の行は、記法でも結合できない（HTML の thead と tbody をまたげない）ので断る
+    function tableMergeRange(model, rg) {
+      const g = expandTableRange(model, rg);
+      if (g.r0 === g.r1 && g.c0 === g.c1) return true;
+      if (model.headerRow && g.r0 === 0 && g.r1 > 0) {
+        alert('見出しの行（1行目）と、その下の行は結合できません。\n\n結合したいときは「1行目を見出しにする」を外してください。');
+        return false;
+      }
+      const texts = [];
+      tableEachCell(g, (r, c) => {
+        const v = model.cells[r][c].trim();
+        if (v) texts.push(v);
+        model.cells[r][c] = '';
+      });
+      model.cells[g.r0][g.c0] = texts.join('\n');
+      model.merges = model.merges.filter(m => !tableRangesMeet(m, g));
+      model.merges.push(g);
+      return true;
+    }
+
+    // 表計算ソフトでコピーした範囲（タブ区切り。改行やタブを含むセルは " で囲まれる）を、セルの格子に分ける。
+    // | で始まる行ばかりなら、Markdown や [表] の行として読む
+    function parseClipboardTable(text) {
+      const t = String(text).replace(/\r\n?/g, '\n').replace(/\n+$/, '');
+      const lines = t.split('\n');
+      if (lines.every(l => !l.trim() || /^\s*[|｜]/.test(l))) {
+        return lines.map(l => l.trim()).filter(Boolean).filter(l => !TABLE_RULE_RE.test(l)).map(splitTableRow);
+      }
+      const rows = [];
+      let row = [];
+      let cell = '';
+      let quoted = false;
+      for (let i = 0; i < t.length; i++) {
+        const ch = t[i];
+        if (quoted) {
+          if (ch === '"' && t[i + 1] === '"') { cell += '"'; i++; }
+          else if (ch === '"') quoted = false;
+          else cell += ch;
+        } else if (ch === '"' && cell === '') quoted = true;
+        else if (ch === '\t') { row.push(cell); cell = ''; }
+        else if (ch === '\n') { row.push(cell); rows.push(row); row = []; cell = ''; }
+        else cell += ch;
+      }
+      row.push(cell);
+      rows.push(row);
+      return rows.map(r => r.map(v => v.trim()));
+    }
+
+    // pos（選んでいれば start〜end）を含む段落が表なら、その段落 { text, start, end } を返す
+    function findTableBlockAt(text, start, end) {
+      const block = splitSourceBlocks(text).find(b => b.start <= start && end <= b.end);
+      return block && TABLE_TAG_RE.test(block.text) ? block : null;
+    }
+
+    // 下部パネル・コマンドパレットの「📊 表」。カーソルが表の中にあればその表を、なければ新しい表を開く。
+    // 文字を選んでいれば、その行から表を作る（選んだ文字を消さないため）
+    function openTableEditor() {
       const field = insertionTarget();
       if (!field) return;
       const start = field.selectionStart;
       const end = field.selectionEnd;
+      const block = findTableBlockAt(field.value, start, end);
+      if (block) {
+        openTableModal({ field, start: block.start, end: block.end, original: block.text, model: tableModelFromSource(block.text) });
+        return;
+      }
       const selected = field.value.substring(start, end).trim();
-      const rows = selected
-        ? selected.split('\n').map(l => l.trim()).filter(Boolean).map(l =>
-            /^[|｜]/.test(l) ? l : '| ' + l.split('\t').map(c => c.trim()).join(' | ') + ' |')
-        : ['| 見出し | 見出し |', '| 内容 | 内容 |'];
-      // 段組みの外に出る全幅のブロックなので、前後を空行で挟む
-      const head = '\n\n[表:';
-      replaceRange(start, end, head + '題名]\n' + rows.join('\n') + '\n\n', head.length, 2);
+      const model = !selected ? emptyTableModel(3, 3)
+        : TABLE_TAG_RE.test(selected) ? tableModelFromSource(selected) : tableModelFromLines(selected);
+      openTableModal({ field, start, end, original: null, insert: true, model });
+    }
+
+    // プレビューの表のダブルクリック。原文の小窓を開いていれば先に確定し、描き直したあとの同じ表を開く
+    function openTableEditorFromPreview(el) {
+      if (!editor) return;
+      let box = el;
+      if (srcEdit) {
+        const index = Array.from(previewArea.querySelectorAll('.table-box')).indexOf(el);
+        if (!commitSourceEditor()) return;
+        box = previewArea.querySelectorAll('.table-box')[index];
+      }
+      const range = box && parseSrcRange(box.dataset.src);
+      if (!range) return;
+      const text = editor.value.substring(range.start, range.end);
+      if (!TABLE_TAG_RE.test(text)) return;
+      openTableModal({ field: editor, start: range.start, end: range.end, original: text, fromPreview: true, model: tableModelFromSource(text) });
+    }
+
+    function openTableModal(opts) {
+      if (!tableModal) return;
+      tableEdit = Object.assign({ insert: false, fromPreview: false, changed: false }, opts,
+        { cur: { r: 0, c: 0 }, anchor: { r: 0, c: 0 }, sel: { r0: 0, c0: 0, r1: 0, c1: 0 } });
+      const m = tableEdit.model;
+      document.getElementById('table-modal-heading').textContent = tableEdit.insert ? '📊 表を作る' : '📊 表を直す';
+      tableTitleInput.value = m.title;
+      tableHeaderRowInput.checked = m.headerRow;
+      tableHeaderColInput.checked = m.headerCol;
+      // 原文へ移れるのは、本文の欄にある表を直すときだけ（原文の小窓の中の表は、小窓がすでに原文）。
+      // .btn の display が hidden 属性に勝つので、style で消す
+      tableSourceBtn.style.display = (tableEdit.insert || tableEdit.field !== editor) ? 'none' : '';
+      tableModal.classList.add('active');
+      renderTableEditor();
+      focusTableCell(0, 0);
+    }
+
+    // force … 書き換えを捨てる確認をしない（確定したあと・原文へ移るとき）
+    function closeTableModal(force) {
+      if (!tableModal || !tableModal.classList.contains('active')) return;
+      if (!force && tableEdit && tableEdit.changed && !confirm('表の書き換えを捨てて閉じますか？')) return;
+      tableModal.classList.remove('active');
+      const e = tableEdit;
+      tableEdit = null;
+      // 本文から開いたなら本文へ戻す（プレビューから開いたなら、プレビューを見ているので動かさない）
+      if (e && !e.fromPreview && !force && e.field.offsetParent !== null) e.field.focus();
+    }
+
+    // 確定して本文へ書き戻す。直すときは段落ごと差し替え、作るときは前後を空行で挟んで入れる（段組みの外に出る全幅のブロックのため）
+    function applyTableEditor() {
+      const e = tableEdit;
+      if (!e) return;
+      const text = tableModelToSource(e.model);
+      const field = e.field;
+      const value = field.value;
+      let caret;
+      if (e.insert) {
+        const before = value.substring(0, e.start);
+        const after = value.substring(e.end);
+        const pre = !before || before.endsWith('\n\n') ? '' : before.endsWith('\n') ? '\n' : '\n\n';
+        const post = !after ? '\n' : after.startsWith('\n\n') ? '' : after.startsWith('\n') ? '\n' : '\n\n';
+        if (field === editor) revealEditorPane();
+        editFieldRange(field, e.start, e.end, pre + text + post);
+        caret = e.start + pre.length + text.length;
+      } else {
+        let start = e.start;
+        // 開いているあいだに本文が変わっていたら（ふつうは起きない）、開いたときの段落を探し直す
+        if (value.substring(e.start, e.end) !== e.original) {
+          const idx = value.indexOf(e.original);
+          if (idx === -1 || value.indexOf(e.original, idx + 1) !== -1) {
+            alert('表を開いたあとで本文が変わったため、書き換える場所を特定できませんでした。\n\n取り消して、もう一度開き直してください。');
+            return;
+          }
+          start = idx;
+        }
+        editFieldRange(field, start, start + e.original.length, text);
+        caret = start + text.length;
+      }
+      closeTableModal(true);
+      if (!e.fromPreview && field.offsetParent !== null) {
+        field.focus();
+        field.setSelectionRange(caret, caret);
+      }
       handleInput();
+      if (!srcEdit) flushPreview();
+    }
+
+    // 原文へ（本文の欄のこの表の位置へ移る）。書き換えていれば、捨ててよいか確かめる
+    function jumpToTableSource() {
+      const e = tableEdit;
+      if (!e || e.field !== editor) return;
+      if (e.changed && !confirm('表の書き換えを捨てて、原文へ移りますか？')) return;
+      closeTableModal(true);
+      jumpToSource({ start: e.start, end: e.end }, e.start);
+    }
+
+    // マス目を描き直す（行・列・結合・見出しの指定が変わったとき）。文字の入力では描き直さない（打っている欄が消えるため）
+    function renderTableEditor() {
+      const m = tableEdit.model;
+      const rows = m.cells.length;
+      const cols = m.cells[0].length;
+      const covered = new Set();
+      const span = new Map();
+      m.merges.forEach(g => {
+        span.set(g.r0 + ',' + g.c0, g);
+        tableEachCell(g, (r, c) => { if (r !== g.r0 || c !== g.c0) covered.add(r + ',' + c); });
+      });
+      let html = '';
+      for (let r = 0; r < rows; r++) {
+        html += '<tr>';
+        for (let c = 0; c < cols; c++) {
+          if (covered.has(r + ',' + c)) continue;
+          const g = span.get(r + ',' + c);
+          const head = (m.headerRow && r === 0) || (m.headerCol && c === 0);
+          const spanAttrs = g ? ` rowspan="${g.r1 - g.r0 + 1}" colspan="${g.c1 - g.c0 + 1}"` : '';
+          const align = m.align[c] ? ` style="text-align: ${m.align[c]};"` : '';
+          html += `<td class="te-cell${head ? ' te-head' : ''}" data-r="${r}" data-c="${c}"${spanAttrs}>`
+            + `<textarea class="te-input" rows="1" data-r="${r}" data-c="${c}"${align}`
+            + ` placeholder="${head ? '見出し' : ''}" aria-label="${r + 1}行目・${c + 1}列目">${escapeHTML(m.cells[r][c])}</textarea></td>`;
+        }
+        html += '</tr>';
+      }
+      tableGrid.innerHTML = html;
+      tableGrid.querySelectorAll('.te-input').forEach(fitTableInput);
+      paintTableSelection();
+    }
+
+    // 入力欄の高さを中身（改行）に合わせる
+    function fitTableInput(input) {
+      input.style.height = 'auto';
+      input.style.height = input.scrollHeight + 'px';
+    }
+
+    // 選んでいる範囲の色と、操作のボタンの状態を合わせる
+    function paintTableSelection() {
+      const e = tableEdit;
+      const m = e.model;
+      tableGrid.querySelectorAll('td.te-cell').forEach(td => {
+        const r = Number(td.dataset.r), c = Number(td.dataset.c);
+        td.classList.toggle('te-selected', r >= e.sel.r0 && r <= e.sel.r1 && c >= e.sel.c0 && c <= e.sel.c1
+          && (e.sel.r1 > e.sel.r0 || e.sel.c1 > e.sel.c0 || !!tableMergeAt(m, r, c)));
+      });
+      const single = expandTableRange(m, { r0: e.sel.r0, c0: e.sel.c0, r1: e.sel.r0, c1: e.sel.c0 });
+      const isOneCell = single.r1 >= e.sel.r1 && single.c1 >= e.sel.c1;
+      const btn = name => tableModal.querySelector(`[data-te="${name}"]`);
+      btn('merge').disabled = isOneCell;
+      btn('unmerge').disabled = !m.merges.some(g => tableRangesMeet(g, e.sel));
+      btn('row-delete').disabled = e.sel.r1 - e.sel.r0 + 1 >= m.cells.length;
+      btn('col-delete').disabled = e.sel.c1 - e.sel.c0 + 1 >= m.cells[0].length;
+      // 寄せのボタンは、選んでいる列がみな同じ寄せのときだけ、その寄せを押した状態に見せる
+      const aligns = new Set(m.align.slice(e.sel.c0, e.sel.c1 + 1));
+      const current = aligns.size === 1 ? Array.from(aligns)[0] : null;
+      ['left', 'center', 'right'].forEach(a => {
+        btn('align-' + a).classList.toggle('active', current === (a === 'left' ? '' : a));
+      });
+    }
+
+    // r, c のセル（結合で隠れていれば、その結合の左上）の入力欄へフォーカスを移す
+    function focusTableCell(r, c) {
+      const m = tableEdit.model;
+      const g = tableMergeAt(m, r, c);
+      const rr = g ? g.r0 : r, cc = g ? g.c0 : c;
+      const input = tableGrid.querySelector(`.te-input[data-r="${rr}"][data-c="${cc}"]`);
+      if (!input) return;
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+
+    // セルを読む順に1つ進める・戻す（結合で隠れたセルは飛ばす）。最後のセルの先へ進むときは行を足す
+    function moveTableFocus(step) {
+      const m = tableEdit.model;
+      const rows = m.cells.length, cols = m.cells[0].length;
+      const g = tableMergeAt(m, tableEdit.cur.r, tableEdit.cur.c);
+      let i = tableEdit.cur.r * cols + (step > 0 && g ? g.c1 : tableEdit.cur.c);
+      for (;;) {
+        i += step;
+        if (i < 0) return;
+        if (i >= rows * cols) {
+          tableInsertRow(m, rows);
+          markTableChanged(true);
+          focusTableCell(rows, 0);
+          return;
+        }
+        const r = Math.floor(i / cols), c = i % cols;
+        const owner = tableMergeAt(m, r, c);
+        if (!owner || (owner.r0 === r && owner.c0 === c)) {
+          focusTableCell(r, c);
+          return;
+        }
+      }
+    }
+
+    // 1つ下のセルへ。いちばん下の行からは、行を足して進む
+    function moveTableFocusDown() {
+      const m = tableEdit.model;
+      const g = tableMergeAt(m, tableEdit.cur.r, tableEdit.cur.c);
+      const next = (g ? g.r1 : tableEdit.cur.r) + 1;
+      if (next >= m.cells.length) {
+        tableInsertRow(m, m.cells.length);
+        markTableChanged(true);
+      }
+      focusTableCell(next, tableEdit.cur.c);
+    }
+
+    // 書き換えた印を付ける。rerender なら、マス目を描き直す
+    function markTableChanged(rerender) {
+      tableEdit.changed = true;
+      if (rerender) renderTableEditor();
+    }
+
+    // 操作のボタン（行・列・寄せ・結合）
+    function runTableAction(name) {
+      const e = tableEdit;
+      const m = e.model;
+      const s = e.sel;
+      let focus = { r: e.cur.r, c: e.cur.c };
+      if (name === 'row-above') { tableInsertRow(m, s.r0); focus = { r: s.r0, c: s.c0 }; }
+      else if (name === 'row-below') { tableInsertRow(m, s.r1 + 1); focus = { r: s.r1 + 1, c: s.c0 }; }
+      else if (name === 'col-left') { tableInsertCol(m, s.c0); focus = { r: s.r0, c: s.c0 }; }
+      else if (name === 'col-right') { tableInsertCol(m, s.c1 + 1); focus = { r: s.r0, c: s.c1 + 1 }; }
+      else if (name === 'row-delete') {
+        if (s.r1 - s.r0 + 1 >= m.cells.length) return;
+        tableDeleteRows(m, s.r0, s.r1);
+        focus = { r: Math.min(s.r0, m.cells.length - 1), c: s.c0 };
+      } else if (name === 'col-delete') {
+        if (s.c1 - s.c0 + 1 >= m.cells[0].length) return;
+        tableDeleteCols(m, s.c0, s.c1);
+        focus = { r: s.r0, c: Math.min(s.c0, m.cells[0].length - 1) };
+      } else if (name.startsWith('align-')) {
+        const a = name === 'align-left' ? '' : name.substring(6);
+        for (let c = s.c0; c <= s.c1; c++) m.align[c] = a;
+      } else if (name === 'merge') {
+        if (!tableMergeRange(m, s)) return;
+        focus = { r: s.r0, c: s.c0 };
+      } else if (name === 'unmerge') {
+        m.merges = m.merges.filter(g => !tableRangesMeet(g, s));
+      }
+      // 描き直すと入力欄が作り直されるので、フォーカスを置き直す（focusin が今のセル・起点・範囲をそのセルにする）
+      markTableChanged(true);
+      focusTableCell(focus.r, focus.c);
+      // 寄せと結合のあとは、選んでいた範囲を選んだままにする（続けて別の寄せや「結合を解く」を押せるように）
+      if (name === 'merge' || name.startsWith('align-')) e.sel = expandTableRange(m, s);
+      paintTableSelection();
+    }
+
+    // 貼り付け。タブや改行を含むときは、今のセルを左上にしてセルに分けて入れる（足りない行・列は足す。重なる結合は解く）
+    function pasteIntoTable(e, input) {
+      const text = e.clipboardData && e.clipboardData.getData('text/plain');
+      if (!text || !/[\t\n]/.test(text.replace(/\r?\n$/, ''))) return;
+      const rows = parseClipboardTable(text);
+      if (rows.length === 1 && rows[0].length === 1) return;
+      e.preventDefault();
+      const m = tableEdit.model;
+      const r0 = Number(input.dataset.r), c0 = Number(input.dataset.c);
+      const width = Math.max(...rows.map(r => r.length));
+      while (m.cells.length < r0 + rows.length) tableInsertRow(m, m.cells.length);
+      while (m.cells[0].length < c0 + width) tableInsertCol(m, m.cells[0].length);
+      const area = { r0, c0, r1: r0 + rows.length - 1, c1: c0 + width - 1 };
+      m.merges = m.merges.filter(g => !tableRangesMeet(g, area));
+      rows.forEach((row, i) => row.forEach((v, j) => { m.cells[r0 + i][c0 + j] = v.replace(TABLE_BR_RE, '\n'); }));
+      markTableChanged(true);
+      focusTableCell(r0, c0);
+      tableEdit.sel = area;
+      paintTableSelection();
+    }
+
+    function initTableModal() {
+      tableModal = document.getElementById('table-modal');
+      tableGrid = document.getElementById('table-editor-grid');
+      tableTitleInput = document.getElementById('table-title');
+      tableHeaderRowInput = document.getElementById('table-header-row');
+      tableHeaderColInput = document.getElementById('table-header-col');
+      tableSourceBtn = document.getElementById('table-source-btn');
+      if (!tableModal || !tableGrid) return;
+
+      tableTitleInput.addEventListener('input', () => {
+        if (!tableEdit) return;
+        tableEdit.model.title = tableTitleInput.value;
+        tableEdit.changed = true;
+      });
+      tableHeaderRowInput.addEventListener('change', () => {
+        if (!tableEdit) return;
+        const m = tableEdit.model;
+        m.headerRow = tableHeaderRowInput.checked;
+        // 見出しの行と本文の行にまたがる結合は、見出しにすると記法で書けないので解く
+        if (m.headerRow) m.merges = m.merges.filter(g => !(g.r0 === 0 && g.r1 > 0));
+        markTableChanged(true);
+      });
+      tableHeaderColInput.addEventListener('change', () => {
+        if (!tableEdit) return;
+        tableEdit.model.headerCol = tableHeaderColInput.checked;
+        markTableChanged(true);
+      });
+
+      // 操作のボタンは mousedown で既定の動きを止め、セルのフォーカス（と選んだ範囲）を外さない
+      tableModal.querySelectorAll('[data-te]').forEach(btn => {
+        btn.addEventListener('mousedown', ev => ev.preventDefault());
+        btn.addEventListener('click', () => { if (tableEdit) runTableAction(btn.dataset.te); });
+      });
+
+      // セルにフォーカスが来たら、そこを今のセル・範囲選択の起点にする
+      // （Shift+クリックはフォーカスを動かさないので、起点はそのまま残る）
+      tableGrid.addEventListener('focusin', ev => {
+        const input = ev.target.closest('.te-input');
+        if (!input || !tableEdit) return;
+        const r = Number(input.dataset.r), c = Number(input.dataset.c);
+        tableEdit.cur = { r, c };
+        tableEdit.anchor = { r, c };
+        tableEdit.sel = expandTableRange(tableEdit.model, { r0: r, c0: c, r1: r, c1: c });
+        paintTableSelection();
+      });
+
+      // 範囲の選択。Shift+クリックで起点からそのセルまで。押したままセルをまたいでドラッグしても選べる
+      let dragFrom = null;
+      const cellOf = node => {
+        const td = node && node.closest && node.closest('td.te-cell');
+        return td && tableGrid.contains(td) ? { r: Number(td.dataset.r), c: Number(td.dataset.c) } : null;
+      };
+      const selectTo = (from, to) => {
+        tableEdit.sel = expandTableRange(tableEdit.model, { r0: from.r, c0: from.c, r1: to.r, c1: to.c });
+        paintTableSelection();
+      };
+      tableGrid.addEventListener('mousedown', ev => {
+        const cell = cellOf(ev.target);
+        if (!cell || !tableEdit) return;
+        if (ev.shiftKey) {
+          ev.preventDefault();
+          selectTo(tableEdit.anchor, cell);
+          return;
+        }
+        dragFrom = cell;
+      });
+      tableGrid.addEventListener('mouseover', ev => {
+        if (!dragFrom || !tableEdit || !(ev.buttons & 1)) return;
+        const cell = cellOf(ev.target);
+        if (!cell || (cell.r === dragFrom.r && cell.c === dragFrom.c)) return;
+        tableEdit.anchor = dragFrom;
+        selectTo(dragFrom, cell);
+      });
+      document.addEventListener('mouseup', () => { dragFrom = null; });
+
+      tableGrid.addEventListener('input', ev => {
+        const input = ev.target.closest('.te-input');
+        if (!input || !tableEdit) return;
+        tableEdit.model.cells[Number(input.dataset.r)][Number(input.dataset.c)] = input.value;
+        tableEdit.changed = true;
+        fitTableInput(input);
+      });
+
+      tableGrid.addEventListener('paste', ev => {
+        const input = ev.target.closest('.te-input');
+        if (input && tableEdit) pasteIntoTable(ev, input);
+      });
+
+      // Tab で右へ、Enter で下へ（日本語入力の変換中は、変換の確定に任せる）。Shift+Enter はセルの中の改行
+      tableModal.addEventListener('keydown', ev => {
+        if (!tableEdit || ev.isComposing || ev.keyCode === 229) return;
+        if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) {
+          ev.preventDefault();
+          applyTableEditor();
+          return;
+        }
+        if (!ev.target.closest || !ev.target.closest('.te-input')) return;
+        if (ev.key === 'Tab') {
+          ev.preventDefault();
+          moveTableFocus(ev.shiftKey ? -1 : 1);
+        } else if (ev.key === 'Enter' && !ev.shiftKey && !ev.altKey) {
+          ev.preventDefault();
+          moveTableFocusDown();
+        }
+      });
     }
 
     // === 本文の書き換え ===
@@ -13141,45 +14052,82 @@ ${parseRollResultLines(lines, 1)}            </div>
     //
     // ボタンは ACTIONS から組み立てる。システムで使えない操作（共鳴判定・SANチェック）は
     // ここで落とすので、個別に隠す処理は要らない。
+    //
+    // 分類（ACTION_GROUPS）ごとのタブにして、開いているタブのボタンだけを並べる（Word のリボンと同じ形。docs/07_操作の入口設計書.html §3.2）。
+    // 以前は全部のボタンを1列に並べていたが、ボタンが増えるたびに幅が尽き、名前を削るか操作をメニューに隠すしかなくなっていた
+    // （「📊 表」を足したとき、768px では最小の幅でもはみ出した）。どのタブを開いていたかは、この端末の設定として覚える
+    const PANEL_TAB_KEY = 'trpg_panel_tab';
+    let panelTab = 'text';
+
+    function loadPanelTab() {
+      try {
+        const saved = localStorage.getItem(PANEL_TAB_KEY);
+        if (saved && ACTION_GROUPS.some(g => g.id === saved)) panelTab = saved;
+      } catch (e) {
+        // 読めなければ既定（本文）のまま
+      }
+    }
+
+    // 表示の好みでしかないので、保存できなくても知らせない（savePaneLayout() と同じ）
+    function setPanelTab(id) {
+      if (id === panelTab) return;
+      panelTab = id;
+      try {
+        writeSetting(PANEL_TAB_KEY, id);
+      } catch (e) {
+        console.warn('パネルのタブを保存できませんでした:', e);
+      }
+      renderAssistantPanel();
+    }
+
     function renderAssistantPanel() {
       const panel = document.getElementById('assistant-panel');
       if (!panel) return;
       hidePanelTip();
       closePanelMenu();
       const sys = currentSystem();
-      let html = '';
-      for (const g of ACTION_GROUPS) {
-        const items = ACTIONS.filter(a => a.group === g.id && a.panel !== false && isActionAvailable(a, sys));
-        if (items.length === 0) continue;
-        html += `<div class="panel-group"><span class="panel-group-label">${escapeHTML(g.label)}</span>`;
-        const menusDone = new Set();
-        for (const a of items) {
-          // panelMenu の組は、最初に出てきた位置に1つのボタンとして出す。
-          // 組のうち使えるものが1つしかなければ、メニューにせずそのボタンを出す
-          if (a.panelMenu) {
-            if (menusDone.has(a.panelMenu)) continue;
-            menusDone.add(a.panelMenu);
-            const def = PANEL_MENUS[a.panelMenu];
-            if (def && items.filter(x => x.panelMenu === a.panelMenu).length > 1) {
-              html += `<button type="button" class="btn-panel btn-panel-menu" data-panel-menu="${a.panelMenu}"`
-                + ` aria-haspopup="menu" aria-expanded="false" aria-label="${escapeHTML(def.name)}">`
-                + `<span class="btn-panel-icon">${def.icon}</span>`
-                + `<span class="btn-panel-full">${escapeHTML(def.name)}</span>`
-                + `<span class="btn-panel-short">${escapeHTML(def.short)}</span>`
-                + `</button>`;
-              continue;
-            }
+      const groups = ACTION_GROUPS
+        .map(g => ({ g, items: ACTIONS.filter(a => a.group === g.id && a.panel !== false && isActionAvailable(a, sys)) }))
+        .filter(x => x.items.length);
+      if (!groups.length) return;
+      const current = groups.find(x => x.g.id === panelTab) || groups.find(x => x.g.id === 'text') || groups[0];
+      // タブの吹き出しには、そのタブにある操作の名前を並べる（開かなくても、どこに何があるかが分かるように）
+      let html = '<div class="panel-tabs" role="tablist" aria-label="操作の分類">'
+        + groups.map(x => {
+          const on = x === current;
+          return `<button type="button" class="panel-tab${on ? ' active' : ''}" role="tab" aria-selected="${on}"`
+            + ` data-panel-tab="${x.g.id}" title="${escapeHTML(x.items.map(a => actionName(a)).join('・'))}">${escapeHTML(x.g.label)}</button>`;
+        }).join('')
+        + '</div>';
+      const items = current.items;
+      html += `<div class="panel-group" role="tabpanel">`;
+      const menusDone = new Set();
+      for (const a of items) {
+        // panelMenu の組は、最初に出てきた位置に1つのボタンとして出す。
+        // 組のうち使えるものが1つしかなければ、メニューにせずそのボタンを出す
+        if (a.panelMenu) {
+          if (menusDone.has(a.panelMenu)) continue;
+          menusDone.add(a.panelMenu);
+          const def = PANEL_MENUS[a.panelMenu];
+          if (def && items.filter(x => x.panelMenu === a.panelMenu).length > 1) {
+            html += `<button type="button" class="btn-panel btn-panel-menu" data-panel-menu="${a.panelMenu}"`
+              + ` aria-haspopup="menu" aria-expanded="false" aria-label="${escapeHTML(def.name)}">`
+              + `<span class="btn-panel-icon">${def.icon}</span>`
+              + `<span class="btn-panel-full">${escapeHTML(def.name)}</span>`
+              + `<span class="btn-panel-short">${escapeHTML(def.short)}</span>`
+              + `</button>`;
+            continue;
           }
-          // 情報一覧を開いたままパネルを作り直しても（システムの切り替えなど）、押された状態を保つ
-          const active = a.id === 'info-list' && isInfoDrawerOpen() ? ' active' : '';
-          html += `<button type="button" class="btn-panel${active}" data-action="${a.id}" aria-label="${escapeHTML(actionName(a))}">`
-            + `<span class="btn-panel-icon">${a.icon}</span>`
-            + `<span class="btn-panel-full">${escapeHTML(actionName(a))}</span>`
-            + `<span class="btn-panel-short">${escapeHTML(actionShort(a))}</span>`
-            + `</button>`;
         }
-        html += `</div>`;
+        // 情報一覧を開いたままパネルを作り直しても（システムの切り替えなど）、押された状態を保つ
+        const active = a.id === 'info-list' && isInfoDrawerOpen() ? ' active' : '';
+        html += `<button type="button" class="btn-panel${active}" data-action="${a.id}" aria-label="${escapeHTML(actionName(a))}">`
+          + `<span class="btn-panel-icon">${a.icon}</span>`
+          + `<span class="btn-panel-full">${escapeHTML(actionName(a))}</span>`
+          + `<span class="btn-panel-short">${escapeHTML(actionShort(a))}</span>`
+          + `</button>`;
       }
+      html += `</div>`;
       // 末尾の「すべての操作」だけは、キーを常に見せる。存在を知らなければ使われないため
       const pal = ACTION_BY_ID['palette'];
       html += `<button type="button" class="btn-panel btn-panel-palette" data-action="palette" aria-label="${escapeHTML(actionName(pal))}">`
@@ -13232,10 +14180,10 @@ ${parseRollResultLines(lines, 1)}            </div>
       fitHeader();
     }
 
-    // 幅が足りないときは、分類名を消し、名前を短くし、さらに余白を詰める。
-    // 何段目で収まるかはシステム（ボタンの数）と画面幅で変わるため、
+    // 幅が足りないときは、名前を短くし、さらに余白を詰める。
+    // 何段目で収まるかは開いているタブ（ボタンの数）・システム・画面幅で変わるため、
     // 決め打ちのブレークポイントではなく、実際にはみ出しているかを測って決める。
-    const PANEL_DENSITIES = ['full', 'nocaption', 'short', 'tight'];
+    const PANEL_DENSITIES = ['full', 'short', 'tight'];
     function fitAssistantPanel() {
       const panel = document.getElementById('assistant-panel');
       // 場面図の表示中は display:none で幅が 0 になり測れない。戻ったときに ResizeObserver が呼ぶ
@@ -13249,10 +14197,17 @@ ${parseRollResultLines(lines, 1)}            </div>
     function initAssistantPanel() {
       const panel = document.getElementById('assistant-panel');
       if (!panel) return;
+      loadPanelTab();
 
       // mousedown で実行し、既定動作を止める。ボタンにフォーカスが移ると
-      // 本文の選択範囲が外れ、挿入位置や文字色の対象が分からなくなるため。
+      // 本文の選択範囲が外れ、挿入位置や文字色の対象が分からなくなるため。タブを切り替えるときも同じ
       panel.addEventListener('mousedown', e => {
+        const tab = e.target.closest('.panel-tab');
+        if (tab) {
+          e.preventDefault();
+          setPanelTab(tab.dataset.panelTab);
+          return;
+        }
         const btn = e.target.closest('.btn-panel');
         if (!btn) return;
         e.preventDefault();
@@ -13266,6 +14221,14 @@ ${parseRollResultLines(lines, 1)}            </div>
       });
       // Tab で移ってきて Enter / Space を押した場合（mousedown が起きない）
       panel.addEventListener('click', e => {
+        const tab = e.target.closest('.panel-tab');
+        if (tab && e.detail === 0) {
+          setPanelTab(tab.dataset.panelTab);
+          // 描き直しでタブが作り直されるので、同じタブへフォーカスを戻す（続けて矢印や Tab で操れるように）
+          const again = panel.querySelector(`.panel-tab[data-panel-tab="${tab.dataset.panelTab}"]`);
+          if (again) again.focus();
+          return;
+        }
         const btn = e.target.closest('.btn-panel');
         if (!btn || e.detail !== 0) return;
         // キーボードで開いたメニューは、続けて矢印キーで選べるよう先頭の項目にフォーカスを移す
