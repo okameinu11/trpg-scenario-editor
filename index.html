@@ -1232,6 +1232,14 @@
   #preview-area span.ic-purple { color: #7c3aed !important; }
   #preview-area span.ic-gray { color: #64748b !important; }
 
+  /* ルビ {漢字|かんじ}（docs/04_記法設計書.html §13）。読みは親文字の半分の大きさで、太字の見出しの中でも細くする。
+     行の高さを1にして、ルビの付いた行だけ行間が広がるのを抑える */
+  #preview-area rt {
+    font-size: 0.5em;
+    font-weight: normal;
+    line-height: 1;
+  }
+
   /* TIPS・補足 (サイド) */
   #preview-area .side-note {
     background-color: #f0fdf4 !important;
@@ -2387,6 +2395,48 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+  }
+
+  /* ルビの画面（docs/04_記法設計書.html §13） */
+  .ruby-lead {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin: 0;
+    line-height: 1.6;
+  }
+  .ruby-hint {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+  }
+  /* 見本は紙面と同じ明朝の大きめの文字で見せる。ルビが付くと上に伸びるので、行の高さに余裕を持たせる */
+  .ruby-sample {
+    min-height: 64px;
+    padding: 10px 14px;
+    border: 1px dashed var(--border-color);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Noto Serif JP', "BIZ UDMincho", "Hiragino Mincho ProN", "Yu Mincho", YuMincho, serif;
+    font-size: 1.4rem;
+    line-height: 2;
+    color: var(--text-primary);
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
+  .ruby-sample.is-empty,
+  .ruby-sample.is-error {
+    font-family: inherit;
+    font-size: 0.85rem;
+    line-height: 1.6;
+  }
+  .ruby-sample.is-empty { color: var(--text-secondary); }
+  .ruby-sample.is-error { color: #f87171; border-color: #f87171; }
+  /* 「ルビを外す」を出さないとき（新しく付けるとき）も、右に寄せたままにする */
+  .ruby-actions-right {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
   }
 
   /* 📊 表の編集画面（docs/13_表の編集画面設計書.html）。マス目の1つ1つが入力欄で、結合したセルは rowspan/colspan で広げて見せる */
@@ -4552,6 +4602,42 @@
     </div>
   </div>
 
+  <!-- ルビの画面。{漢字|かんじ} を入れる・直す（docs/04_記法設計書.html §13） -->
+  <div id="ruby-modal" class="modal">
+    <div class="modal-content" style="max-width: 460px;" role="dialog" aria-labelledby="ruby-modal-heading">
+      <div class="modal-header">
+        <h3 id="ruby-modal-heading">ルビを付ける</h3>
+        <button class="btn-close" onclick="closeRubyModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="ruby-lead">
+          本文には <code>{漢字|かんじ}</code> の形で入ります。
+          ルビの付いた文字の上で開くと、そのルビを直せます。
+        </p>
+        <label class="form-group">
+          <span class="form-label">ルビを付ける文字</span>
+          <input type="text" id="ruby-base" class="form-input" autocomplete="off" spellcheck="false" placeholder="例: 黄泉比良坂"
+                 oninput="updateRubySample()" onkeydown="onRubyKeydown(event)">
+        </label>
+        <label class="form-group">
+          <span class="form-label">ルビ</span>
+          <input type="text" id="ruby-reading" class="form-input" autocomplete="off" spellcheck="false" placeholder="例: よもつひらさか"
+                 oninput="updateRubySample()" onkeydown="onRubyKeydown(event)">
+          <span class="ruby-hint">1字ずつ付けるときは「|」で区切ります（例: 漢字 → かん|じ）</span>
+        </label>
+        <!-- 見本。中身は updateRubySample() が組み立てる -->
+        <div class="ruby-sample" id="ruby-sample" aria-live="polite"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn" id="ruby-remove-btn" onclick="removeRuby()" title="ルビの記法を外し、文字だけを残す">🧹 ルビを外す</button>
+          <span class="ruby-actions-right">
+            <button type="button" class="btn" onclick="closeRubyModal()">取り消す</button>
+            <button type="button" class="btn btn-primary" onclick="applyRuby()" title="Enter でも確定できます">決定</button>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 👥 NPC管理モーダル -->
   <div id="npc-modal" class="modal">
     <div class="modal-content modal-content-npc" style="max-width: 1040px; height: 90%;">
@@ -4836,14 +4922,68 @@
     // 閉じ忘れた波括弧が後続の段落まで飲み込まないようにするため。
     const INLINE_COLOR_RE = /\{([^{}:：\n]{1,16})[:：]([^{}\n]*)\}/g;
 
-    // エスケープ済みの文字列に、色記法の変換と改行の <br> 化を施す。
+    // === ルビ（ふりがな） ===
+    //
+    // 記法は {漢字|かんじ}（でんでんマークダウンと同じ書き方。縦線は全角の ｜ でもよい）。
+    // 読みを | で親文字の字数と同じ数に区切ると、1字ずつのルビになる（{漢字|かん|じ}）。
+    // 選定理由・却下案は docs/04_記法設計書.html §13 にある。
+    //
+    // 色と同じく1行に閉じ、中に波括弧を含めない。親文字にコロンを含めないのは、
+    // 色の記法の中身に縦線がある {赤:A|B} を、ルビと取り違えないため
+    const INLINE_RUBY_RE = /\{([^{}|｜:：\n]+)[|｜]([^{}\n]+)\}/g;
+    const RUBY_SPLIT_RE = /[|｜]/;
+
+    // 記法に合っても、親文字か読みが空白だけなら記法として扱わない（{ | } のような書き方を消さないため）
+    function isRubyNotation(base, reading) {
+      return base.trim() !== '' && reading.replace(/[|｜]/g, '').trim() !== '';
+    }
+
+    // エスケープ済みの文字列のルビの記法を <ruby> にする（decorate() の最初の段）。
+    // <rp> の括弧は、描いた文字をそのまま写したとき（選んでコピーなど）に「漢字（かんじ）」と読めるようにするため
+    function renderRuby(escaped) {
+      return String(escaped).replace(INLINE_RUBY_RE, (whole, base, reading) => {
+        if (!isRubyNotation(base, reading)) return whole;
+        const rt = r => `<rp>（</rp><rt>${r}</rt><rp>）</rp>`;
+        const parts = reading.split(RUBY_SPLIT_RE);
+        // 1字の数え方は、エスケープした文字（&amp; など）を1字とする
+        const chars = base.match(/&(?:#\d+|\w+);|[\s\S]/gu) || [];
+        if (parts.length > 1 && parts.length === chars.length) {
+          return '<ruby>' + chars.map((c, i) => c + rt(parts[i])).join('') + '</ruby>';
+        }
+        return `<ruby>${base}${rt(parts.join(''))}</ruby>`;
+      });
+    }
+
+    // 未エスケープの生文字列のルビの記法を「漢字（かんじ）」にする。チャットに貼る文面を作るときに使う
+    function rubyToPlain(raw) {
+      return String(raw).replace(INLINE_RUBY_RE, (whole, base, reading) =>
+        isRubyNotation(base, reading) ? `${base}（${reading.split(RUBY_SPLIT_RE).join('')}）` : whole);
+    }
+
+    // ルビの記法を印に置き換えてから fn に通し、印を元の記法に戻す。fn は文字列か文字列の配列を返す。
+    // 記法の中の縦線を表のセルの区切りと見なさないため（splitTableRow()）と、
+    // 色の中のルビ {赤:{漢字|かんじ}} の波括弧で色の記法が見えなくならないようにするため（stripColorNotation()）
+    function withRubyMasked(text, fn) {
+      const kept = [];
+      const masked = String(text).replace(INLINE_RUBY_RE, (whole, base, reading) => {
+        if (!isRubyNotation(base, reading)) return whole;
+        kept.push(whole);
+        return '' + (kept.length - 1) + '';
+      });
+      const restore = s => s.replace(/(\d+)/g, (_, i) => kept[Number(i)]);
+      const out = fn(masked);
+      return Array.isArray(out) ? out.map(restore) : restore(out);
+    }
+
+    // エスケープ済みの文字列に、ルビと色記法の変換と改行の <br> 化を施す。
     //
     // 順序は「エスケープ → 装飾 → 改行」で固定。逆にすると
     // 生成した <span> ごとエスケープされるか、<br> が壊れる。
+    // 装飾の中ではルビが先。ルビを <ruby> にしてから色を見るので、{赤:{漢字|かんじ}} の外側の色も効く。
     // 各所で手書きせず必ずこの関数を通すこと。
     function decorate(escaped) {
       if (escaped === null || escaped === undefined) return '';
-      const decorated = String(escaped).replace(INLINE_COLOR_RE, (whole, name, body) => {
+      const decorated = renderRuby(escaped).replace(INLINE_COLOR_RE, (whole, name, body) => {
         const key = name.trim();
         const preset = INLINE_COLORS[key];
         if (preset) return `<span class="${preset.cls}">${body}</span>`;
@@ -5260,6 +5400,11 @@
       { id: 'color', group: 'text', icon: '🎨', name: '文字色', short: '色',
         desc: '選択した文字に色を付ける', keywords: 'もじいろ いろ からー color', key: withAlt('c'),
         run: () => openColorModal() },
+      // 読みを打つ欄が要るので、記法を直接入れずにルビの画面を開く。ルビの付いた文字の上で開くと、そのルビを直す
+      { id: 'ruby', group: 'text', icon: 'ふ', name: 'ルビ', short: 'ルビ',
+        desc: '選択した文字にルビ（ふりがな）を付ける（ルビの付いた文字の上なら、そのルビを直す）',
+        keywords: 'るび ふりがな よみがな ふりかな よみ ruby furigana', key: withAlt('r'),
+        run: () => openRubyModal() },
       // 表は記法を手で書かずに、マス目の編集画面で作る（docs/13_表の編集画面設計書.html）。
       // カーソルが表の中にあれば、その表を開き直す。id は以前の「表を挿入」のまま（ショートカットの割り当ての保存キー）
       { id: 'table-insert', group: 'text', icon: '📊', name: '表', short: '表',
@@ -6968,6 +7113,7 @@
       'res-modal': () => closeResModal(),
       'san-modal': () => closeSanModal(),
       'color-modal': () => closeColorModal(),
+      'ruby-modal': () => closeRubyModal(),
       'npc-modal': () => closeNpcModal(),
       'shortcut-modal': () => closeShortcutModal(),
       'release-modal': () => closeReleaseModal(),
@@ -7741,11 +7887,17 @@
 
     // 文字列から色記法だけを取り除く（中身の文字は残す）。
     // 色名でも16進でもないものは記法ではないので、そのまま残す。
+    // ルビの記法は残す。色の中のルビ {赤:{漢字|かんじ}} も、色だけが外れる
     function stripColorNotation(text) {
-      return text.replace(INLINE_COLOR_RE, (whole, name, body) => {
+      return withRubyMasked(text, masked => masked.replace(INLINE_COLOR_RE, (whole, name, body) => {
         const key = name.trim();
         return (INLINE_COLORS[key] || HEX_COLOR_RE.test(key)) ? body : whole;
-      });
+      }));
+    }
+
+    // 文字列から文中の記法を外し、チャットに貼れる文面にする。色は外し、ルビは「漢字（かんじ）」にする
+    function plainInlineText(text) {
+      return stripColorNotation(rubyToPlain(text));
     }
 
     // 選択範囲がまるごと色記法で囲まれているとき、その囲みまで含めた範囲を返す。
@@ -7810,6 +7962,163 @@
       const stripped = stripColorNotation(field.value.substring(range.start, range.end));
       replaceRange(range.start, range.end, stripped, 0, stripped.length);
       closeColorModal();
+      handleInput();
+    }
+
+    // === ルビの画面 ===
+    //
+    // 記法は {漢字|かんじ}（INLINE_RUBY_RE と renderRuby() を参照。docs/04_記法設計書.html §13）。
+    // 開いたときの選択範囲（insertionTarget() の欄での位置）を rubyEdit に覚えておき、決定でそこを差し替える。
+    // 入力欄にフォーカスが移っても、本文の欄は選択範囲を覚えている
+    let rubyEdit = null; // { start, end, existing }
+
+    // 親文字に使えない文字。波括弧と縦線は記法の区切りに、コロンは色の記法 {赤:…} と見分けられなくなる
+    const RUBY_BASE_NG_RE = /[{}|｜:：]/;
+
+    // start〜end を含むルビの記法を探す。カーソルだけのときは、記法の波括弧の内側にあるものに限る
+    // （記法のすぐ後ろで開いたときに、隣の文字に新しく付けたいのか直したいのかを取り違えないため）
+    function findRubyAround(text, start, end) {
+      const lineStart = text.lastIndexOf('\n', start - 1) + 1;
+      let lineEnd = text.indexOf('\n', start);
+      if (lineEnd === -1) lineEnd = text.length;
+      if (end > lineEnd) return null;
+      const line = text.substring(lineStart, lineEnd);
+      const re = new RegExp(INLINE_RUBY_RE.source, 'g');
+      let m;
+      while ((m = re.exec(line)) !== null) {
+        const s = lineStart + m.index;
+        const e = s + m[0].length;
+        if (!isRubyNotation(m[1], m[2])) continue;
+        const covers = start === end ? (s < start && start < e) : (s <= start && end <= e);
+        if (covers) return { start: s, end: e, base: m[1], reading: m[2] };
+      }
+      // 色の記法ごと選んでいて、色を外すとルビ1つだけになるなら、そのルビを直す（{赤:{黒川|くろかわ}} をまるごと選んだとき）
+      const sel = text.substring(start, end);
+      const inSel = Array.from(sel.matchAll(new RegExp(INLINE_RUBY_RE.source, 'g'))).filter(x => isRubyNotation(x[1], x[2]));
+      if (inSel.length === 1 && stripColorNotation(sel) === inSel[0][0]) {
+        const s = start + inSel[0].index;
+        return { start: s, end: s + inSel[0][0].length, base: inSel[0][1], reading: inSel[0][2] };
+      }
+      return null;
+    }
+
+    function openRubyModal() {
+      const modal = document.getElementById('ruby-modal');
+      const field = insertionTarget();
+      if (!modal || !field) return;
+      hidePanelTip();
+      const text = field.value;
+      let start = field.selectionStart;
+      let end = field.selectionEnd;
+      let base = text.substring(start, end);
+      let reading = '';
+      const found = findRubyAround(text, start, end);
+      if (found) {
+        ({ start, end, base, reading } = found);
+      } else if (base.includes('\n')) {
+        // ルビは1行に閉じる。行をまたいで選んでいたら、選んだ所の頭に新しく入れる
+        end = start;
+        base = '';
+      } else {
+        // 色の記法をまるごと選んでいたら、その中身に付ける（{赤:{漢字|かんじ}} になる。色の中のルビは描ける）
+        const colored = base.match(/^\{([^{}:：\n]{1,16})[:：]([^{}\n]*)\}$/);
+        const key = colored && colored[1].trim();
+        if (colored && (INLINE_COLORS[key] || HEX_COLOR_RE.test(key))) {
+          start += colored[0].length - colored[2].length - 1;
+          end -= 1;
+          base = colored[2];
+        } else {
+          // 色やルビの記法をまたいで選んでいたら、記法を外した文字に付ける（ルビの親文字に波括弧は書けない。
+          // 中のルビは、外側のルビと重ねられないので親文字だけにする）
+          base = stripColorNotation(base).replace(INLINE_RUBY_RE, (whole, b, r) => isRubyNotation(b, r) ? b : whole);
+        }
+      }
+      rubyEdit = { start, end, existing: !!found };
+      document.getElementById('ruby-modal-heading').textContent = found ? 'ルビを直す' : 'ルビを付ける';
+      // .btn の display が hidden 属性に勝つので、style で消す
+      document.getElementById('ruby-remove-btn').style.display = found ? '' : 'none';
+      const baseInput = document.getElementById('ruby-base');
+      const readingInput = document.getElementById('ruby-reading');
+      baseInput.value = base;
+      readingInput.value = reading;
+      updateRubySample();
+      modal.classList.add('active');
+      // 文字を選んでから開いたなら、打つのは読みだけ
+      const first = base.trim() ? readingInput : baseInput;
+      first.focus();
+      first.select();
+    }
+
+    function closeRubyModal() {
+      const modal = document.getElementById('ruby-modal');
+      if (!modal || !modal.classList.contains('active')) return;
+      modal.classList.remove('active');
+      rubyEdit = null;
+      // 本文（または原文の小窓）から開いたので、そちらへ戻す。選択範囲は欄が覚えている
+      const field = insertionTarget();
+      if (document.body.dataset.mode === 'write' && field && field.offsetParent !== null) field.focus();
+    }
+
+    // 入力中の親文字と読みを確かめ、記法にする。使えないときは理由を返す
+    function rubyNotationFromInputs() {
+      const base = document.getElementById('ruby-base').value.trim();
+      const reading = document.getElementById('ruby-reading').value.trim();
+      if (!base) return { error: 'ルビを付ける文字を入れてください。' };
+      if (RUBY_BASE_NG_RE.test(base)) return { error: 'ルビを付ける文字に { } | : は使えません。' };
+      if (!reading.replace(/[|｜]/g, '').trim()) return { error: 'ルビを入れてください。' };
+      if (/[{}]/.test(reading)) return { error: 'ルビに { } は使えません。' };
+      return { source: `{${base}|${reading}}` };
+    }
+
+    // 見本は紙面と同じ変換（renderInline()）で描く。1字ずつのルビになるかも、ここで分かる
+    function updateRubySample() {
+      const box = document.getElementById('ruby-sample');
+      if (!box) return;
+      const base = document.getElementById('ruby-base').value.trim();
+      const reading = document.getElementById('ruby-reading').value.trim();
+      const r = rubyNotationFromInputs();
+      const empty = !base || !reading;
+      box.classList.toggle('is-empty', empty);
+      box.classList.toggle('is-error', !empty && !!r.error);
+      // 見本の箱は中央に寄せるためのフレックスなので、中身を1段包む（docs/04 §3.5）
+      const inner = empty ? 'ここに見本が出ます' : (r.error ? escapeHTML(r.error) : renderInline(r.source));
+      box.innerHTML = `<span>${inner}</span>`;
+    }
+
+    function onRubyKeydown(e) {
+      // 日本語入力の確定の Enter では決定しない
+      if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+      e.preventDefault();
+      applyRuby();
+    }
+
+    function applyRuby() {
+      if (!rubyEdit) return;
+      const r = rubyNotationFromInputs();
+      if (r.error) {
+        // 空欄のままでも、見本の代わりに何が足りないかを出す
+        const box = document.getElementById('ruby-sample');
+        box.classList.remove('is-empty');
+        box.classList.add('is-error');
+        box.innerHTML = `<span>${escapeHTML(r.error)}</span>`;
+        return;
+      }
+      const { start, end } = rubyEdit;
+      closeRubyModal();
+      // 記法の後ろにカーソルを置く（続けて書けるように）
+      replaceRange(start, end, r.source, r.source.length, 0);
+      handleInput();
+    }
+
+    // ルビの記法を外し、親文字だけを残して選ぶ
+    function removeRuby() {
+      if (!rubyEdit || !rubyEdit.existing) return;
+      const { start, end } = rubyEdit;
+      const field = insertionTarget();
+      const found = field && findRubyAround(field.value, start, end);
+      if (!found) return;
+      closeRubyModal();
+      replaceRange(start, end, found.base, 0, found.base.length);
       handleInput();
     }
 
@@ -10532,13 +10841,13 @@ ${derivedHTML}
     function buildTocHTML(entries) {
       let appendixStarted = false;
       const items = entries.map(e => {
-        // 目次は見出しの文字だけを出す。文字色の記法は外し、複数行の見出しは1行にまとめる
+        // 目次は見出しの文字だけを出す。文字色の記法は外し、複数行の見出しは1行にまとめる。ルビは見出しと同じく付ける
         const label = stripColorNotation(e.raw).replace(/\s*\n\s*/g, ' ').trim() || '（無題）';
         // 巻末の最初の項目の上だけ少し空けて、本文の見出しと分ける
         const first = e.appendix && !appendixStarted;
         if (e.appendix) appendixStarted = true;
         return `<li class="toc-item toc-level-${e.level}${first ? ' toc-appendix-first' : ''}">`
-          + `<a href="#${e.id}" data-toc-target="${e.id}">${escapeHTML(label)}</a></li>`;
+          + `<a href="#${e.id}" data-toc-target="${e.id}">${renderRuby(escapeHTML(label))}</a></li>`;
       }).join('');
       return `<nav class="scenario-toc" aria-label="目次"><h2 class="appendix-heading">目次</h2>`
         + (items
@@ -10580,9 +10889,11 @@ ${derivedHTML}
     // セルの中の改行。Markdown の表で広く使われている書き方に合わせる
     const TABLE_BR_RE = /<br\s*\/?>/gi;
 
-    // 表の1行をセルに分ける。両端の | は省いてよい
+    // 表の1行をセルに分ける。両端の | は省いてよい。
+    // ルビの記法 {漢字|かんじ} の中の縦線はセルの区切りにしない（docs/04_記法設計書.html §13）
     function splitTableRow(line) {
-      return line.trim().replace(/^[|｜]/, '').replace(/[|｜]$/, '').split(/[|｜]/).map(c => c.trim());
+      return withRubyMasked(line.trim(), masked =>
+        masked.replace(/^[|｜]/, '').replace(/[|｜]$/, '').split(/[|｜]/).map(c => c.trim()));
     }
 
     // 区切りの行のセルから、列の寄せを読む。:-: は中央、-: は右。左（:-）と指定なしは、どちらも既定の左寄せ
@@ -11818,10 +12129,10 @@ ${parseRollResultLines(lines, 1)}            </div>
     }
 
     // コピーされる文面。チャットに貼ったときに何の情報かが分かるよう、題名を【】で先頭に付ける。
-    // 文字色などの記法は取り除く（チャットでは装飾にならず、記号として残ってしまうため）
+    // 文字色などの記法は取り除き、ルビは「漢字（かんじ）」にする（チャットでは装飾にならず、記号として残ってしまうため）
     function infoCopyText(info) {
       const title = (info.title || '').trim();
-      const body = stripColorNotation(info.body || '').trim();
+      const body = plainInlineText(info.body || '').trim();
       return title ? `【${title}】\n${body}` : body;
     }
 
@@ -12139,11 +12450,12 @@ ${parseRollResultLines(lines, 1)}            </div>
       return model;
     }
 
-    // 1つのセルの中身を記法に書く。改行は <br>、縦線はセルの区切りと区別できないので ¦ にする。
+    // 1つのセルの中身を記法に書く。改行は <br>、縦線はセルの区切りと区別できないので ¦ にする
+    // （ルビの記法 {漢字|かんじ} の中の縦線は区切りとして読まないので、そのまま残す）。
     // 1文字だけの < ^ は結合の印と区別できないので、全角にして文字として残す
     function tableCellToSource(text) {
-      const s = String(text).replace(/\r/g, '').split('\n').map(l => l.trim()).join('<br>')
-        .replace(/[|｜]/g, '¦').trim();
+      const s = withRubyMasked(String(text).replace(/\r/g, '').split('\n').map(l => l.trim()).join('<br>'),
+        masked => masked.replace(/[|｜]/g, '¦')).trim();
       if (s === TABLE_MERGE_LEFT) return '＜';
       if (s === TABLE_MERGE_UP) return '＾';
       return s;
@@ -14749,7 +15061,7 @@ ${parseRollResultLines(lines, 1)}            </div>
     }
 
     // 探索可能箇所一覧（[探索:エリア名]）のコピー。「【探索可能箇所：エリア名】」の行＋項目を「・」付きで1行ずつ。
-    // 項目は描いた文字（textContent）から取るので、文字色の記法はもう外れている（docs/04_記法設計書.html §9.4）
+    // 項目は描いた文字から取るので、文字色の記法はもう外れている（docs/04_記法設計書.html §9.4。ルビは renderedCopyText() が「漢字（かんじ）」にする）
     function copySearchList(button) {
       const text = searchListCopyText(button);
       if (text !== null) copyWithFeedback(text, button);
@@ -14761,15 +15073,24 @@ ${parseRollResultLines(lines, 1)}            </div>
       if (!box) return null;
       const area = (button.dataset.copySearch || '').trim();
       const items = Array.from(box.querySelectorAll('.search-item'))
-        .map(el => el.textContent.trim()).filter(Boolean).map(t => '・' + t);
+        .map(renderedCopyText).filter(Boolean).map(t => '・' + t);
       return (area ? `【探索可能箇所：${area}】` : '【探索可能箇所】') + (items.length ? '\n' + items.join('\n') : '');
     }
 
-    // 描いた文字をコピーする文面にする。文字色の記法はもう外れている。改行（<br>）は改行に戻す
+    // 描いた文字をコピーする文面にする。文字色の記法はもう外れている。改行（<br>）は改行に戻す。
+    // ルビは「漢字（かんじ）」にする。1字ずつのルビ（漢<rt>かん</rt>字<rt>じ</rt>）も、親文字と読みをそれぞれつなげる
     function renderedCopyText(el) {
       if (!el) return '';
       const clone = el.cloneNode(true);
       clone.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
+      clone.querySelectorAll('ruby').forEach(ruby => {
+        let base = '', reading = '';
+        ruby.childNodes.forEach(n => {
+          if (n.nodeName === 'RT') reading += n.textContent;
+          else if (n.nodeName !== 'RP') base += n.textContent;
+        });
+        ruby.replaceWith(`${base}（${reading}）`);
+      });
       return clone.textContent.trim();
     }
 
@@ -14869,7 +15190,7 @@ ${parseRollResultLines(lines, 1)}            </div>
     function infoDrawerItemHTML(info, usage) {
       const id = escapeHTML(info.id);
       const title = info.title.trim() || '（題名なし）';
-      const preview = stripColorNotation(info.body || '').replace(/\s+/g, ' ').trim();
+      const preview = plainInlineText(info.body || '').replace(/\s+/g, ' ').trim();
       const editing = infoEditingId === info.id;
       let html = `<div class="info-item${editing ? ' editing' : ''}" data-info-id="${id}">`
         + `<div class="info-item-head">`
@@ -14916,7 +15237,7 @@ ${parseRollResultLines(lines, 1)}            </div>
         if (badge) badge.outerHTML = infoTargetBadgeHTML(info.target);
         const preview = item.querySelector('.info-item-preview');
         if (preview) {
-          const text = stripColorNotation(info.body || '').replace(/\s+/g, ' ').trim();
+          const text = plainInlineText(info.body || '').replace(/\s+/g, ' ').trim();
           preview.textContent = text || '（本文が未入力です）';
         }
       }
@@ -15033,7 +15354,7 @@ ${parseRollResultLines(lines, 1)}            </div>
             + `<span class="palette-item-text"><span class="palette-item-name">「${escapeHTML(m.create)}」を新しい情報として登録して挿入</span>`
             + `<span class="palette-item-desc">本文と公開対象は、あとで情報一覧で入力します</span></span></div>`;
         }
-        const preview = stripColorNotation(m.info.body || '').replace(/\s+/g, ' ').trim();
+        const preview = plainInlineText(m.info.body || '').replace(/\s+/g, ' ').trim();
         return `<div class="palette-item" role="option" data-index="${i}">`
           + `<span class="palette-item-icon">📄</span>`
           + `<span class="palette-item-text"><span class="palette-item-name">${escapeHTML(m.info.title.trim() || '（題名なし）')}</span>`
