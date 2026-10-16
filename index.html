@@ -316,6 +316,24 @@
     max-width: 1080px;
     margin: 0 auto;
   }
+  /* 最後まで送ったとき、末尾の段落をプレビューの真ん中あたりまで上げて読めるよう、紙面の後ろに余白を置く
+     （docs/11_プレビュー連携設計書.html §2.7）。余白はプレビューの高さの半分（フレックスの基準の % はプレビューの高さを指す）。
+     画面の高さ（vh）にしなかったのは、縦画面では本文と上下に並んでプレビューが画面の半分ほどになり、余白だけで埋まってしまうため。
+     紙面の最小の高さを残りの半分にして、画面に収まる短い台本ではスクロールが出ないようにする。
+     flex-shrink: 0 も要る。縦のフレックスの中で最小の高さを指定した紙面は、中身より低い所まで縮み、中身が紙面の外へあふれる
+     （余白が中身の後ろではなく、紙面の高さの所に付いてしまう）。
+     画面でだけ当てる（印刷は .preview-section を display: block にするので余白は高さを持たないが、念のため）。
+     HTML出力の紙面には .preview-section が無いので、そちらには付かない */
+  @media screen {
+    .preview-section::after {
+      content: '';
+      flex: 0 0 50%;
+    }
+    .preview-section > .preview-paper {
+      flex-shrink: 0;
+      min-height: 50%;
+    }
+  }
 
   /* === 本文とプレビューの境界（docs/11_プレビュー連携設計書.html §2） ===
      並べる（both）・プレビューだけ（preview）・本文だけ（editor）を body[data-layout] で出し分ける。
@@ -1099,6 +1117,25 @@
     font-size: 0.65rem;
   }
 
+  /* リンクが1つだけの項目は、行のどこを押してもそのリンクへ飛ぶ（docs/04_記法設計書.html §15.3）。
+     リンクの上に、項目の枠いっぱいの透明な面を重ねる（項目は position: relative で、リンク自身は位置を持たない）。
+     スクリプトではなくCSSにしたのは、HTML出力したファイル（スクリプトで動かさない）でも同じように押せるようにするため */
+  #preview-area .search-item-link a.scn-link::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 6px;
+  }
+  /* 行全体が押せるので、リンクの色と下線で示さなくてよい。ほかの項目と同じ文字にする（文字色の記法で囲んでいれば、その色になる） */
+  #preview-area .search-item-link a.scn-link {
+    color: inherit !important;
+    text-decoration: none;
+  }
+  #preview-area .search-item-link:hover {
+    background-color: #eff6ff !important;
+    border-color: #93c5fd !important;
+  }
+
   /* 🎲 技能判定ボックス */
   #preview-area .roll-box {
     border: 1px solid #dbeafe !important;
@@ -1136,6 +1173,43 @@
   }
   #preview-area .roll-type-badge.type-secret {
     background-color: #7c3aed !important; /* 紫 */
+  }
+
+  /* 判定を提示する条件（条件: の行。docs/04_記法設計書.html §5.3）。見出しと結果のあいだの帯。
+     GMだけが読む注意書きなので、GM向け情報（[DL]/[KP]）と同じ琥珀の系統にする。
+     ラベルは結果のラベルと同じ幅にして、条件の文と結果の文の頭を揃える。
+     文は内側の要素で包んであるので、行をフレックスにしても文は割れない（記法設計書 §3.5） */
+  #preview-area .roll-conditions {
+    background-color: #fffbeb !important;
+    border-bottom: 1px solid #fde68a !important;
+    padding: 8px 12px;
+  }
+  #preview-area .roll-condition {
+    display: flex;
+    align-items: baseline;
+  }
+  #preview-area .roll-condition + .roll-condition {
+    margin-top: 6px;
+  }
+  #preview-area .roll-condition-label {
+    flex-shrink: 0;
+    width: 80px;
+    box-sizing: border-box;
+    margin-right: 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-align: center;
+    padding: 1px 4px;
+    border: 1px solid #f59e0b !important;
+    border-radius: 4px;
+    background-color: #ffffff !important;
+    color: #92400e !important;
+  }
+  #preview-area .roll-condition-text {
+    flex-grow: 1;
+    font-size: 0.9rem;
+    line-height: 1.7;
+    color: var(--preview-text) !important;
   }
 
   #preview-area .roll-results {
@@ -1231,6 +1305,73 @@
   #preview-area span.ic-orange { color: #d97706 !important; }
   #preview-area span.ic-purple { color: #7c3aed !important; }
   #preview-area span.ic-gray { color: #64748b !important; }
+
+  /* リンク [表示](#名前) と目印 {#名前}（docs/04_記法設計書.html §15）。
+     リンクは紙面でも見分けられるよう、色と点線の下線を付ける（PDFでもリンクとして押せる） */
+  #preview-area a.scn-link {
+    color: #2563eb !important;
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+  #preview-area a.scn-link:hover {
+    text-decoration-style: solid;
+  }
+  /* リンク先は、画面の上端に貼り付かないよう少し下に止める */
+  #preview-area .scn-anchor,
+  #preview-area .search-box {
+    scroll-margin-top: 16px;
+  }
+  /* 目印だけの段落。紙面には何も出さない（戻るリンクだけが載る） */
+  #preview-area .scn-anchor-block {
+    display: flow-root;
+  }
+  /* 探索可能箇所へ戻るリンク。リンク先の見出し・段落の右上に小さく置く（画面のプレビューとHTML出力だけ） */
+  #preview-area a.scn-backlink {
+    float: right;
+    margin-left: 12px;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.8;
+    color: #0f766e !important;
+    background-color: #f0fdfa !important;
+    border: 1px solid #99f6e4;
+    border-radius: 4px;
+    padding: 0 8px;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  #preview-area a.scn-backlink:hover {
+    background-color: #ccfbf1 !important;
+  }
+  /* リンク先が見つからない・名前が重なっているリンクと目印。書き手が気づけるよう、画面でだけ印を付ける */
+  @media screen {
+    #preview-area .scn-link-broken {
+      text-decoration: underline wavy #ef4444;
+      text-underline-offset: 3px;
+      cursor: help;
+    }
+  }
+  #preview-area .scn-anchor-dup {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #b91c1c !important;
+    background-color: #fef2f2 !important;
+    border: 1px solid #fecaca;
+    border-radius: 4px;
+    padding: 0 6px;
+    margin: 0 4px;
+  }
+  /* リンクで飛んだ先を一瞬光らせる（flashJumpTarget()） */
+  @keyframes scn-flash {
+    0%, 30% { background-color: rgba(250, 204, 21, 0.35); }
+    100% { background-color: transparent; }
+  }
+  #preview-area .scn-flash {
+    animation: scn-flash 1.5s ease-out;
+    border-radius: 4px;
+  }
 
   /* ルビ {漢字|かんじ}（docs/04_記法設計書.html §13）。読みは親文字の半分の大きさで、太字の見出しの中でも細くする。
      行の高さを1にして、ルビの付いた行だけ行間が広がるのを抑える */
@@ -2397,6 +2538,48 @@
     align-items: center;
   }
 
+  /* 技能判定・SANチェックの画面の、条件と結果の文の欄（docs/04_記法設計書.html §5.3・§5.4） */
+  .roll-condition-input {
+    resize: vertical;
+    min-height: 40px;
+    font-family: inherit;
+    line-height: 1.5;
+  }
+  .roll-text-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .roll-text-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .roll-text-tier {
+    flex: 0 0 96px;
+    padding-top: 9px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    overflow-wrap: anywhere;
+  }
+  .roll-text-input {
+    flex: 1;
+    min-width: 0;
+    min-height: 40px;
+    resize: vertical;
+    font-family: inherit;
+    line-height: 1.5;
+  }
+  .roll-text-empty {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+  }
+  /* 「原文へ」を出さないとき（新しく入れるとき）も、決定は右に寄せたままにする */
+  .roll-apply-btn {
+    margin-left: auto;
+  }
+
   /* ルビの画面（docs/04_記法設計書.html §13） */
   .ruby-lead {
     font-size: 0.8rem;
@@ -2432,6 +2615,50 @@
   }
   .ruby-sample.is-empty { color: var(--text-secondary); }
   .ruby-sample.is-error { color: #f87171; border-color: #f87171; }
+  /* 目印の画面の案内・エラー（docs/04_記法設計書.html §15） */
+  .anchor-message {
+    min-height: 1.3em;
+    font-size: 0.8rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+  }
+  .anchor-message.is-error { color: #f87171; }
+  /* 探索可能箇所を作る画面の、場所とリンク先の行。リンク先がどうなるかを、リンク先の欄の下に小さく出す */
+  .search-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .search-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) 24px;
+    gap: 2px 6px;
+    align-items: center;
+  }
+  .search-row-arrow {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+  }
+  .search-row-status {
+    grid-column: 3 / 4;
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    min-height: 1em;
+  }
+  .search-row-status:empty { display: none; }
+  .search-row-status.is-warn { color: #fbbf24; }
+  /* リンク先の欄は、押すとリンク先を選ぶ画面が開くボタン。見た目は入力欄にそろえる */
+  .search-target {
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .search-target:hover { border-color: var(--accent-color); }
+  .search-target.is-empty { color: var(--text-secondary); }
+
   /* 「ルビを外す」を出さないとき（新しく付けるとき）も、右に寄せたままにする */
   .ruby-actions-right {
     display: flex;
@@ -4366,13 +4593,13 @@
   <div id="roll-modal" class="modal">
     <div class="modal-content" style="max-width: 720px;">
       <div class="modal-header">
-        <h3>🎲 技能判定の挿入</h3>
+        <h3 id="roll-modal-heading">🎲 技能判定の挿入</h3>
         <button class="btn-close" onclick="closeRollModal()">&times;</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
           <label class="form-label" for="roll-skill-name">判定する技能名</label>
-          <input type="text" id="roll-skill-name" class="form-input" placeholder="例: 観察眼 または 調査">
+          <input type="text" id="roll-skill-name" class="form-input" placeholder="例: 観察眼／調査">
         </div>
         
         <!-- 技能クイックセレクタ（左：カテゴリ／右：技能一覧） -->
@@ -4405,10 +4632,18 @@
           </div>
         </div>
 
+        <!-- 判定を提示する条件。1行が1つの「条件: …」の行になる（docs/04_記法設計書.html §5.3） -->
+        <div class="form-group">
+          <label class="form-label" for="roll-condition">提示する条件（任意。1行に1つ）</label>
+          <textarea id="roll-condition" class="form-input roll-condition-input" rows="1" autocomplete="off"
+                    placeholder="例: 探索者が本棚について言及したら"></textarea>
+        </div>
+
         <div class="form-group">
           <span class="form-label">作成する成功度の枠（チェックをいれたものを生成）</span>
           <!-- 成功段階はシステムごとに異なるため renderRollTiers() が生成する -->
-          <div class="checkbox-grid" id="roll-tier-checks"></div>
+          <!-- チェックを変えると、下の結果の文の欄を描き直す（renderRollResultTexts()） -->
+          <div class="checkbox-grid" id="roll-tier-checks" onchange="renderRollResultTexts('roll')"></div>
           <div class="tier-add-row">
             <input type="text" id="roll-tier-new" class="form-input" maxlength="20"
                    placeholder="枠を自分で追加（例: 特殊成功／決定で追加）">
@@ -4417,8 +4652,15 @@
           <div class="tier-message" id="roll-tier-message"></div>
         </div>
 
-        <div class="modal-actions" style="justify-content: flex-end; margin-top: 10px;">
-          <button class="btn btn-primary" onmousedown="event.preventDefault(); insertRollBlock()">決定（エディタへ挿入）</button>
+        <!-- 枠ごとの結果の文。中身は renderRollResultTexts() が組み立てる（docs/04_記法設計書.html §5.4） -->
+        <div class="form-group">
+          <span class="form-label">結果の文（任意。あとで本文に書いてもかまいません）</span>
+          <div class="roll-text-list" id="roll-result-texts"></div>
+        </div>
+
+        <div class="modal-actions" style="margin-top: 10px;">
+          <button type="button" class="btn btn-small" id="roll-source-btn" onclick="jumpToRollSource()" title="この判定の記法を、本文で開く">原文へ</button>
+          <button class="btn btn-primary roll-apply-btn" id="roll-apply-btn" onmousedown="event.preventDefault(); insertRollBlock()">決定（エディタへ挿入）</button>
         </div>
       </div>
     </div>
@@ -4464,7 +4706,7 @@
   <div id="san-modal" class="modal">
     <div class="modal-content" style="max-width: 560px;">
       <div class="modal-header">
-        <h3>🧠 SANチェックの挿入</h3>
+        <h3 id="san-modal-heading">🧠 SANチェックの挿入</h3>
         <button class="btn-close" onclick="closeSanModal()">&times;</button>
       </div>
       <div class="modal-body">
@@ -4485,14 +4727,27 @@
           <div id="san-presets" class="san-preset-row"></div>
         </div>
 
+        <!-- SANチェックを行う条件。1行が1つの「条件: …」の行になる（docs/04_記法設計書.html §5.3） -->
+        <div class="form-group">
+          <label class="form-label" for="san-condition">チェックする条件（任意。1行に1つ）</label>
+          <textarea id="san-condition" class="form-input roll-condition-input" rows="1" autocomplete="off"
+                    placeholder="例: 遺体の顔を覗き込んだら"></textarea>
+        </div>
+
         <div class="form-group">
           <span class="form-label">作成する結果の枠（チェックをいれたものを生成）</span>
           <!-- 中身は renderSanTiers() が組み立てる -->
-          <div class="checkbox-grid" id="san-tier-checks"></div>
+          <div class="checkbox-grid" id="san-tier-checks" onchange="renderRollResultTexts('san')"></div>
         </div>
 
-        <div class="modal-actions" style="justify-content: flex-end; margin-top: 10px;">
-          <button class="btn btn-primary" onmousedown="event.preventDefault(); insertSanBlock()">決定（エディタへ挿入）</button>
+        <div class="form-group">
+          <span class="form-label">結果の文（任意。あとで本文に書いてもかまいません）</span>
+          <div class="roll-text-list" id="san-result-texts"></div>
+        </div>
+
+        <div class="modal-actions" style="margin-top: 10px;">
+          <button type="button" class="btn btn-small" id="san-source-btn" onclick="jumpToRollSource()" title="このSANチェックの記法を、本文で開く">原文へ</button>
+          <button class="btn btn-primary roll-apply-btn" id="san-apply-btn" onmousedown="event.preventDefault(); insertSanBlock()">決定（エディタへ挿入）</button>
         </div>
       </div>
     </div>
@@ -4634,6 +4889,83 @@
             <button type="button" class="btn btn-primary" onclick="applyRuby()" title="Enter でも確定できます">決定</button>
           </span>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 📍 目印を置く・名前を変える（{#名前}。docs/04_記法設計書.html §15） -->
+  <div id="anchor-modal" class="modal">
+    <div class="modal-content" style="max-width: 460px;" role="dialog" aria-labelledby="anchor-modal-heading">
+      <div class="modal-header">
+        <h3 id="anchor-modal-heading">📍 目印を置く</h3>
+        <button class="btn-close" onclick="closeAnchorModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="ruby-lead" id="anchor-lead"></p>
+        <label class="form-group">
+          <span class="form-label">目印の名前</span>
+          <input type="text" id="anchor-name" class="form-input" autocomplete="off" spellcheck="false"
+                 placeholder="例: 隠し扉の判定" oninput="updateAnchorMessage()" onkeydown="onAnchorKeydown(event)">
+          <span class="ruby-hint">リンク [表示](#名前) で、ここへ飛べるようになります。紙面には何も出ません。</span>
+        </label>
+        <div class="anchor-message" id="anchor-message" aria-live="polite"></div>
+        <div class="modal-actions">
+          <span class="ruby-actions-right">
+            <button type="button" class="btn" onclick="closeAnchorModal()">取り消す</button>
+            <button type="button" class="btn btn-primary" id="anchor-apply-btn" onclick="applyAnchor()" title="Enter でも確定できます">決定</button>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🔍 探索可能箇所を作る（[探索:エリア名] の一覧と、項目ごとの小見出し・目印・リンク。docs/04_記法設計書.html §15.4） -->
+  <div id="search-modal" class="modal">
+    <div class="modal-content" style="max-width: 520px;" role="dialog" aria-labelledby="search-modal-heading">
+      <div class="modal-header">
+        <h3 id="search-modal-heading">🔍 探索可能箇所を作る</h3>
+        <button class="btn-close" onclick="closeSearchModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <label class="form-group">
+          <span class="form-label">エリア名（任意）</span>
+          <input type="text" id="search-area" class="form-input" autocomplete="off" placeholder="例: 鴎島港">
+        </label>
+        <div class="form-group">
+          <span class="form-label">場所とリンク先</span>
+          <!-- 1行が1つの場所。中身は addSearchRow() が足す。リンク先の欄を押すと、リンクの画面（link-modal）を選ぶ形で開く -->
+          <div class="search-rows" id="search-rows"></div>
+          <div>
+            <button type="button" class="btn btn-small" onclick="addSearchRow('', true)">＋ 場所を足す</button>
+          </div>
+        </div>
+        <p class="ruby-hint" style="margin: 0;">リンク先を押すと、目印や見出しから選べます。</p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-small" id="search-source-btn" onclick="jumpToSearchSource()" title="この一覧の記法を、本文で開く">原文へ</button>
+          <span class="ruby-actions-right">
+            <button type="button" class="btn" onclick="closeSearchModal()">取り消す</button>
+            <button type="button" class="btn btn-primary" id="search-apply-btn" onmousedown="event.preventDefault(); applySearchList()">決定（エディタへ挿入）</button>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🔗 リンク先を選ぶ（[表示](#名前) を入れる）。見た目と操作はコマンドパレットと揃える。
+       探索可能箇所を作る画面からも、リンク先を選ぶ画面として開く。その画面の上に重なり、Esc で先に閉じるよう、後ろに置く -->
+  <div id="link-modal" class="modal modal-palette">
+    <div class="modal-content palette-content" role="dialog" aria-label="リンク先を選ぶ">
+      <div class="palette-search">
+        <span aria-hidden="true">🔗</span>
+        <input type="text" id="link-input" class="palette-input" autocomplete="off" spellcheck="false"
+               placeholder="リンク先の目印・見出しを選ぶ（名前で絞り込み）">
+        <button class="btn-close" tabindex="-1" onclick="closeLinkModal()" aria-label="閉じる">&times;</button>
+      </div>
+      <div id="link-list" class="palette-list" role="listbox"></div>
+      <div class="palette-footer">
+        <span><kbd class="kbd-badge">↑</kbd> <kbd class="kbd-badge">↓</kbd> 選ぶ</span>
+        <span><kbd class="kbd-badge">Enter</kbd> <span id="link-enter-label">挿入</span></span>
+        <span><kbd class="kbd-badge">Esc</kbd> 閉じる</span>
       </div>
     </div>
   </div>
@@ -4975,15 +5307,119 @@
       return Array.isArray(out) ? out.map(restore) : restore(out);
     }
 
-    // エスケープ済みの文字列に、ルビと色記法の変換と改行の <br> 化を施す。
+    // === 太字 ===
+    //
+    // 記法は **太字**（Markdown と同じ書き方）。インライン記法を { } に載せる決まりの例外で、
+    // 種類が1つしかない飾りには記号が向くため（選定理由は docs/04_記法設計書.html §14）。
+    // 1行に閉じる。中身の両端に空白は置けない（「2 ** 3」のような書き方を太字にしないため）
+    const INLINE_BOLD_RE = /\*\*(?![\s*])([^\n]*?[^\s*])\*\*/g;
+
+    // 太字の記法を外す（中身の文字は残す）。生の文字列にもエスケープ済みの文字列にも使える
+    function stripBoldNotation(text) {
+      return String(text).replace(INLINE_BOLD_RE, '$1');
+    }
+
+    // === リンクと目印（docs/04_記法設計書.html §15） ===
+    //
+    // 目印 {#名前} を本文の好きな所に置き、リンク [表示](#名前) でそこへ飛ぶ。見出しに付けるときは行末に書く（## 書斎 {#書斎}）。
+    // リンク先は目印だけで、見出しの名前では飛ばない（同じ名前の見出しが別の場面にあっても取り違えないため）。
+    // リンクを Markdown と同じ形にしたのは利用者が選んだため。[ ] はブロック記法の括弧だが、( ) が続く形はブロック記法に無い。
+    // 目印の名前にコロン・波括弧・半角の丸括弧は使えない（色の記法 {#88ccff:…} と、リンクの (#名前) の閉じ括弧と見分けるため）
+    const ANCHOR_RE = /\{#([^{}:：()\n]+)\}/g;
+    const LINK_RE = /\[([^\[\]\n]+)\]\(#([^()\n]+)\)/g;
+    const ANCHOR_NAME_NG_RE = /[{}:：()\n]/;
+
+    // いま描いている本文の目印の一覧。描く前に updatePreview() が本文を読んで作る（buildLinkContext()）。
+    //   anchors   … 名前（エスケープ済み）→ { id, count }。count が2以上なら、名前が重なっている
+    //   backLinks … 目印の名前 → 戻り先の探索可能箇所の id。探索可能箇所の項目からリンクされている目印にだけある
+    let linkContext = null;
+
+    // 段落が探索可能箇所の一覧か（[探索] / [探索:エリア名] / [調査…]）。
+    // 「[探索の手引き](#…)」のようなリンクで始まる段落を一覧と取り違えないよう、語の次は : ： ] に限る
+    const SEARCH_LIST_RE = /^\[(?:探索|調査)[:：\]]/;
+
+    // 本文から目印と、探索可能箇所の項目のリンクを拾う。名前はエスケープして持つ（描くときは、エスケープ済みの文字列から名前を切り出すため）
+    function buildLinkContext(text) {
+      const ctx = { anchors: new Map(), backLinks: new Map() };
+      const anchorPos = new Map();
+      let n = 0;
+      for (const m of String(text).matchAll(ANCHOR_RE)) {
+        const key = escapeHTML(m[1].trim());
+        if (!key) continue;
+        const a = ctx.anchors.get(key);
+        if (a) a.count++;
+        else {
+          ctx.anchors.set(key, { id: 'anc-' + (n++), count: 1 });
+          anchorPos.set(key, m.index);
+        }
+      }
+      // 探索可能箇所の項目のリンク。同じ目印へリンクしている一覧が2つあれば、目印より前でいちばん近い一覧へ戻る
+      const lists = new Map(); // 目印の名前 → [{ start, id }]
+      splitSourceBlocks(String(text)).forEach(sb => {
+        const main = sb.text.split('>>')[0].trim();
+        if (!SEARCH_LIST_RE.test(main)) return;
+        for (const m of main.matchAll(LINK_RE)) {
+          const key = escapeHTML(m[2].trim());
+          if (!lists.has(key)) lists.set(key, []);
+          lists.get(key).push({ start: sb.start, id: 'search-' + sb.start });
+        }
+      });
+      lists.forEach((found, key) => {
+        if (!anchorPos.has(key)) return;
+        const pos = anchorPos.get(key);
+        const before = found.filter(f => f.start < pos);
+        ctx.backLinks.set(key, (before.length ? before[before.length - 1] : found[0]).id);
+      });
+      return ctx;
+    }
+
+    // エスケープ済みの文字列の目印を、リンク先の印（見えない要素）にする。
+    // 探索可能箇所の項目からリンクされている目印には、一覧へ戻るリンクを添える（画面のプレビューとHTML出力だけ。印刷には出さない）
+    function renderAnchors(escaped) {
+      return String(escaped).replace(ANCHOR_RE, (whole, name) => {
+        const key = name.trim();
+        if (!key) return whole;
+        const a = linkContext && linkContext.anchors.get(key);
+        // 本文の外（表紙・巻末など）に書いた目印は、リンク先にしない（記法だけ消す）
+        if (!a) return '';
+        if (a.count > 1) {
+          return `<span class="scn-anchor-dup no-print" title="同じ名前の目印が${a.count}か所にあります。名前を変えてください">⚠ 目印「${key}」が${a.count}か所</span>`;
+        }
+        const back = linkContext.backLinks.get(key);
+        return `<span class="scn-anchor" id="${a.id}"></span>`
+          + (back ? `<a class="scn-backlink no-print" href="#${back}" data-scn-jump="${back}" title="この項目がある探索可能箇所の一覧へ戻る">↑ 探索可能箇所へ</a>` : '');
+      });
+    }
+
+    // エスケープ済みの文字列のリンクを <a> にする。リンク先が見つからない・名前が重なっているときはリンクにせず、プレビューで印を付ける
+    function renderLinks(escaped) {
+      return String(escaped).replace(LINK_RE, (whole, label, target) => {
+        const key = target.trim();
+        const a = linkContext && linkContext.anchors.get(key);
+        if (a && a.count === 1) return `<a class="scn-link" href="#${a.id}" data-scn-jump="${a.id}">${label}</a>`;
+        const why = !a ? `目印「${key}」が見つかりません` : `目印「${key}」が${a.count}か所にあり、リンク先を決められません`;
+        return `<span class="scn-link-broken" title="${why}">${label}</span>`;
+      });
+    }
+
+    // 生の文字列から目印を消し、リンクを表示の文字だけにする（コピー・目次・場面の名前に使う）
+    function stripLinkNotation(text) {
+      return String(text).replace(ANCHOR_RE, '').replace(LINK_RE, '$1');
+    }
+
+    // エスケープ済みの文字列に、ルビ・太字・色記法の変換と改行の <br> 化を施す。
     //
     // 順序は「エスケープ → 装飾 → 改行」で固定。逆にすると
     // 生成した <span> ごとエスケープされるか、<br> が壊れる。
     // 装飾の中ではルビが先。ルビを <ruby> にしてから色を見るので、{赤:{漢字|かんじ}} の外側の色も効く。
+    // 太字は波括弧を使わないので、色の内側でも外側でも効く（{赤:**危険**} / **{赤:危険}**）。
     // 各所で手書きせず必ずこの関数を通すこと。
     function decorate(escaped) {
       if (escaped === null || escaped === undefined) return '';
-      const decorated = renderRuby(escaped).replace(INLINE_COLOR_RE, (whole, name, body) => {
+      // 目印とリンクがいちばん先。リンクの表示の文字の中のルビ・太字・色は、このあとの段で変換される
+      const linked = renderLinks(renderAnchors(escaped));
+      const bolded = renderRuby(linked).replace(INLINE_BOLD_RE, '<strong>$1</strong>');
+      const decorated = bolded.replace(INLINE_COLOR_RE, (whole, name, body) => {
         const key = name.trim();
         const preset = INLINE_COLORS[key];
         if (preset) return `<span class="${preset.cls}">${body}</span>`;
@@ -5116,7 +5552,7 @@
           const m = String(v).match(/^(?:lv\.?\s*)?(\d+)$/i);
           return m ? 'Lv' + m[1] : v;
         },
-        rollSkillPlaceholder: '例: 観察眼 または 調査',
+        rollSkillPlaceholder: '例: 観察眼／調査',
         // NPCのプロフィール欄の例示。世界観がシステムで違うため定義から引く
         profilePlaceholder: { age: '例: 17', gender: '例: 女性', occupation: '例: 高校生' },
         // GM向け情報ブロックの呼称。エモクロアのGMは「ディーラー(DL)」。
@@ -5185,7 +5621,7 @@
         skillPlaceholder: '技能名（例: 目星）',
         // 値を空けたまま追加したときは、技能一覧の初期値を入れる（coc6SkillInitial()）
         defaultSkillValue: (name, status) => coc6SkillInitial(name, status),
-        rollSkillPlaceholder: '例: 目星 または 図書館',
+        rollSkillPlaceholder: '例: 目星／図書館',
         // 6版の標準は1920年代のアメリカ。現代日本の例だと合わない
         profilePlaceholder: { age: '例: 42', gender: '例: 男性', occupation: '例: 私立探偵' },
         // CoCのGMは「キーパー(KP)」。
@@ -5367,9 +5803,20 @@
       { id: 'search-title', group: 'structure', icon: '📌', name: '探索小見出し', short: '小見出し',
         desc: '行頭に ## を挿入', keywords: 'たんさくこみだし', key: withAlt('2'),
         run: () => insertTemplate('search-title') },
+      // 場所を書くと、一覧と、場所ごとの小見出し・目印・リンクをまとめて入れる画面を開く（docs/04_記法設計書.html §15.4）
       { id: 'search-list', group: 'structure', icon: '🔍', name: '探索一覧', short: '探索',
-        desc: '探索箇所ブロックを挿入', keywords: 'たんさくいちらん', key: withAlt('3'),
-        run: () => insertTemplate('search-list') },
+        desc: '探索可能箇所の一覧を作る（場所ごとの小見出しと、そこへのリンクも入れられる）',
+        keywords: 'たんさくいちらん たんさくかのうかしょ ちょうさ', key: withAlt('3'),
+        run: () => openSearchModal() },
+      // 目印 {#名前} とリンク [表示](#名前)。どちらも名前を決める必要があるので画面を開く（docs/04_記法設計書.html §15）
+      { id: 'anchor', group: 'structure', icon: '📍', name: '目印', short: '目印',
+        desc: 'リンク先になる目印を置く（見出しの行なら行末に付ける。目印の上なら名前を変える）',
+        keywords: 'めじるし あんかー とびさき しおり anchor', key: null,
+        run: () => openAnchorModal() },
+      { id: 'link', group: 'structure', icon: '🔗', name: 'リンク', short: 'リンク',
+        desc: '目印や見出しを選んで、そこへ飛ぶリンクを入れる（文字を選んでいれば、その文字がリンクになる。リンクの上なら、リンク先を変える）',
+        keywords: 'りんく じゃんぷ とぶ さんしょう link jump', key: withAlt('k'),
+        run: () => openLinkModal() },
       { id: 'scene-map-insert', group: 'structure', icon: '🗺', name: '場面図を挿入', short: '場面図',
         desc: '本文に [場面図] を挿入する', keywords: 'ばめんずをそうにゅう map', key: withAlt('z'),
         run: () => insertTemplate('scene-map') },
@@ -5400,6 +5847,11 @@
       { id: 'color', group: 'text', icon: '🎨', name: '文字色', short: '色',
         desc: '選択した文字に色を付ける', keywords: 'もじいろ いろ からー color', key: withAlt('c'),
         run: () => openColorModal() },
+      // 押すたびに付ける・外すを切り替える（ワープロの太字ボタンと同じ）。キーもワープロと同じ Ctrl+B
+      { id: 'bold', group: 'text', icon: '𝐁', name: '太字', short: '太字',
+        desc: '選択した文字を太字にする（太字の文字なら外す）',
+        keywords: 'ふとじ きょうちょう ぼーるど bold strong', key: withCtrl('b'),
+        run: () => toggleBold() },
       // 読みを打つ欄が要るので、記法を直接入れずにルビの画面を開く。ルビの付いた文字の上で開くと、そのルビを直す
       { id: 'ruby', group: 'text', icon: 'ふ', name: 'ルビ', short: 'ルビ',
         desc: '選択した文字にルビ（ふりがな）を付ける（ルビの付いた文字の上なら、そのルビを直す）',
@@ -6663,6 +7115,7 @@
         initSpeechModal();
         initTableModal();
         initInfoFeature();
+        initLinkFeature();
         initBasicInfoModal();
         initFaqModal();
         initBackMatterModal();
@@ -6737,7 +7190,9 @@
       }
       const markdownText = editor.value;
       // 先頭にシナリオの基本情報（表紙）、末尾に巻末（FAQ → あとがきなど → 権利表記）を置く。
-      // どれも本文の記法とは別の入口で書くので、parseMarkdown() には混ぜない
+      // どれも本文の記法とは別の入口で書くので、parseMarkdown() には混ぜない。
+      // リンクは描く場所より後ろの目印へも飛ぶので、描き始める前に本文の目印を拾っておく（表紙・巻末のリンクも本文の目印へ飛べる）
+      linkContext = buildLinkContext(markdownText);
       previewArea.innerHTML = buildScenarioCoverHTML() + parseMarkdown(markdownText, appendixTocEntries())
         + buildFaqSectionHTML() + buildBackMatterHTML();
       // プレビューの data-src（原文での位置）がどの本文に対するものかを覚えておく（initPreviewToSource()）
@@ -6778,7 +7233,8 @@
 
     // .no-print（紙に出さないもの）のうち、書き出したファイルに残すもの。読み手が使う操作だけを選んで残す形にしてあるので、
     // プレビューに書き手向けの部品を .no-print で足せば、書き出しには何もしなくても出ない（§2）
-    const EXPORT_KEEP_SELECTOR = '[data-copy-info], [data-copy-search], [data-copy-speech]';
+    // 探索可能箇所へ戻るリンク（.scn-backlink）は印刷には出さないが、HTML出力では押して戻れるように残す（docs/04_記法設計書.html §15）
+    const EXPORT_KEEP_SELECTOR = '[data-copy-info], [data-copy-search], [data-copy-speech], .scn-backlink';
     // 紙面に当たるCSSを選ぶとき、セレクタから外す状態（ホバーなど）と疑似要素。書き出す時点では当たっていないため（§3）
     const EXPORT_SELECTOR_STATE_RE = /::?(?:hover|active|focus-visible|focus-within|focus|before|after|marker|placeholder|selection|backdrop|first-line|first-letter|-webkit-[\w-]+|-moz-[\w-]+)/g;
 
@@ -7114,6 +7570,9 @@
       'san-modal': () => closeSanModal(),
       'color-modal': () => closeColorModal(),
       'ruby-modal': () => closeRubyModal(),
+      'anchor-modal': () => closeAnchorModal(),
+      'link-modal': () => closeLinkModal(),
+      'search-modal': () => closeSearchModal(),
       'npc-modal': () => closeNpcModal(),
       'shortcut-modal': () => closeShortcutModal(),
       'release-modal': () => closeReleaseModal(),
@@ -7360,6 +7819,7 @@
       document.querySelectorAll('#roll-tier-checks input[type="checkbox"]').forEach(cb => {
         cb.checked = names.indexOf(cb.dataset.tier) !== -1;
       });
+      renderRollResultTexts('roll');
     }
 
     // 判定ブロックの成功段階チェックボックスを生成する
@@ -7372,6 +7832,10 @@
       });
       currentCustomTiers().forEach((name, i) => {
         box.appendChild(buildTierItem('tier-custom-' + i, name, true, true));
+      });
+      // 直している判定にだけある枠（本文に手で書いたもの）。削除ボタンは付けない（自由枠ではない）
+      rollExtraTiers('roll', currentSystem().rollTiers.map(t => t.label).concat(currentCustomTiers())).forEach((name, i) => {
+        box.appendChild(buildTierItem('tier-extra-' + i, name, true, false));
       });
       setTierMessage('');
     }
@@ -7693,54 +8157,275 @@
         rollModalSelectedSkills.push(skill);
       }
 
-      // テキストボックスの値を 押した順番で "または" 結合して自動更新
+      // テキストボックスの値を 押した順番で「／」でつないで自動更新。
+      // 以前は「 または 」でつないでいたが、3つ以上で「または」が繰り返されて読みにくかった（docs/04_記法設計書.html §5.5）
       const input = document.getElementById('roll-skill-name');
       if (input) {
-        input.value = rollModalSelectedSkills.join(' または ');
+        input.value = rollModalSelectedSkills.join('／');
       }
       // 番号バッジの反映は呼び出し元の renderPickerItems() が行う
     }
 
-    function openRollModal() {
-      if (rollModal) {
-        rollModal.classList.add('active');
-        document.getElementById('roll-skill-name').value = '';
-        document.getElementById('type-none').checked = true; // 提示タイプをリセット
-        rollModalSelectedSkills = []; // 選択中の技能をクリア
-        const tierInput = document.getElementById('roll-tier-new');
-        if (tierInput) tierInput.value = '';
-        setTierMessage('');
-        renderPickerItems('roll-skill-picker');
+    // === 判定の画面で、本文の判定を直す（docs/04_記法設計書.html §5.4） ===
+    //
+    // プレビューの判定の箱（技能判定・SANチェック）をダブルクリックすると、技能判定（SANチェック）の画面が「直す」形で開く。
+    // 表と同じく、記法のまま読むより欄に分かれているほうが直しやすいため。確定すると、判定の部分（>> より前）だけを書き直す。
+    // 下部パネルの「🎲 技能判定」は今までどおり新しく入れるだけ（判定の直後で続けて押すことが多く、直す形で開くと邪魔になる）
+    let rollEdit = null;       // 直しているあいだ { kind, field, start, end, original, parsed }。新しく入れるときは null
+    let rollInsertChecks = null; // 直す前の「新しく入れるとき」の枠のチェック。閉じたら戻す（技能判定の枠のチェックは開き直しても残すため）
+    const rollResultTexts = { roll: {}, san: {} }; // 枠ごとの結果の文。チェックを外して付け直しても、打った文を消さない
+    let rollFormSnapshot = { roll: '', san: '' };  // 開いたときの欄の中身。閉じるときに書き換えを捨ててよいか確かめる
+
+    // 判定ブロックの原文（未エスケープ）を読む。描くとき（parseRollConditions() / parseRollResultLines()）と同じ規則で読み、
+    // 書き戻すときに失わないよう、紙面に出ない行（条件より前のメモ・コロンの無い - の行）もそのまま持つ
+    function parseRollSource(text) {
+      const lines = text.split('\n');
+      const parsed = { headerLine: lines[0], conditions: [], results: [], preamble: [], strays: [] };
+      let started = false;
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        if (line.startsWith('-')) {
+          started = true;
+          const colon = line.indexOf(':');
+          if (colon === -1) parsed.strays.push(line);
+          else parsed.results.push({ key: line.substring(1, colon).trim(), val: line.substring(colon + 1).trim() });
+          continue;
+        }
+        if (!started) {
+          const m = line.match(ROLL_CONDITION_RE);
+          if (m) parsed.conditions.push(line.substring(m[0].length));
+          else if (parsed.conditions.length) parsed.conditions[parsed.conditions.length - 1] += '\n' + line;
+          else parsed.preamble.push(line);
+          continue;
+        }
+        if (parsed.results.length) parsed.results[parsed.results.length - 1].val += '\n' + line;
+        else parsed.strays.push(line);
       }
+      return parsed;
     }
 
-    function closeRollModal() {
-      if (rollModal) rollModal.classList.remove('active');
+    // 判定ブロックの記法を組み立てる。改行して書いた結果の文は、2行目から字下げして続きの行にする。
+    // 空行は段落を切るので詰め、>> は右の段に割れるので全角にし、- で始まる続きの行は結果の行と取り違えるので全角にする
+    function buildRollSource(header, parts) {
+      const safe = s => String(s).replace(/>>/g, '＞＞');
+      const out = [header];
+      (parts.preamble || []).forEach(l => out.push(l));
+      (parts.conditions || []).forEach(c => out.push('条件: ' + safe(c)));
+      (parts.results || []).forEach(r => {
+        const lines = safe(r.val).replace(/\r/g, '').split('\n').map(l => l.trim()).filter(Boolean);
+        out.push(`- ${r.key}: ${lines[0] || ''}`);
+        lines.slice(1).forEach(l => out.push('  ' + l.replace(/^-/, '－')));
+      });
+      (parts.strays || []).forEach(l => out.push(l));
+      return out.join('\n');
+    }
+
+    // 条件の欄（1行に1つ）を読む
+    function readRollConditions(inputId) {
+      const input = document.getElementById(inputId);
+      return ((input && input.value) || '').split('\n').map(l => l.trim()).filter(Boolean);
+    }
+
+    // 結果の文の欄を、チェックした枠の並びで描き直す
+    function renderRollResultTexts(kind) {
+      const box = document.getElementById(kind + '-result-texts');
+      const grid = document.getElementById(kind + '-tier-checks');
+      if (!box || !grid) return;
+      box.querySelectorAll('textarea').forEach(t => { rollResultTexts[kind][t.dataset.tier] = t.value; });
+      const tiers = Array.from(grid.querySelectorAll('input[type="checkbox"]')).filter(cb => cb.checked).map(cb => cb.dataset.tier);
+      box.innerHTML = '';
+      if (!tiers.length) {
+        box.innerHTML = '<div class="roll-text-empty">上で枠を選ぶと、ここに結果の文の欄が出ます。</div>';
+        return;
+      }
+      tiers.forEach(tier => {
+        const row = document.createElement('label');
+        row.className = 'roll-text-row';
+        const name = document.createElement('span');
+        name.className = 'roll-text-tier';
+        name.textContent = tier;
+        const ta = document.createElement('textarea');
+        ta.className = 'form-input roll-text-input';
+        ta.dataset.tier = tier;
+        ta.value = rollResultTexts[kind][tier] || '';
+        ta.rows = Math.min(6, Math.max(1, ta.value.split('\n').length));
+        row.append(name, ta);
+        box.appendChild(row);
+      });
+    }
+
+    // 結果の文の欄を、チェックした枠の並びで読む
+    function readRollResults(kind) {
+      return Array.from(document.querySelectorAll(`#${kind}-result-texts textarea`))
+        .map(t => ({ key: t.dataset.tier, val: t.value }));
+    }
+
+    // 閉じるときに書き換えを捨ててよいか確かめるための、欄の中身の写し
+    function rollFormState(kind) {
+      const ids = kind === 'roll' ? ['roll-skill-name', 'roll-condition'] : ['san-success', 'san-failure', 'san-condition'];
+      const radios = kind === 'roll' ? Array.from(document.getElementsByName('roll-display-type')).map(r => r.checked) : [];
+      return JSON.stringify([ids.map(id => document.getElementById(id).value), radios,
+        Array.from(document.querySelectorAll(`#${kind}-tier-checks input`)).map(cb => cb.checked), readRollResults(kind)]);
+    }
+
+    // 画面の見出し・決定の文言・原文へのボタンを、新しく入れるか直すかで切り替える
+    function setRollModalMode(kind) {
+      const editing = !!rollEdit;
+      const label = kind === 'roll' ? '🎲 技能判定' : '🧠 SANチェック';
+      document.getElementById(kind + '-modal-heading').textContent = label + (editing ? 'を直す' : 'の挿入');
+      document.getElementById(kind + '-apply-btn').textContent = editing ? '決定（本文を書き換える）' : '決定（エディタへ挿入）';
+      // .btn の display が hidden 属性に勝つので、style で消す。原文の小窓の中の判定は、小窓がすでに原文なので出さない
+      document.getElementById(kind + '-source-btn').style.display = (editing && rollEdit.field === editor) ? '' : 'none';
+    }
+
+    // プレビューの判定の箱のダブルクリック。原文の小窓を開いていれば先に確定し、描き直したあとの同じ箱を開く
+    function openRollEditorFromPreview(box) {
+      if (!editor) return;
+      if (srcEdit) {
+        const index = Array.from(previewArea.querySelectorAll('.roll-box')).indexOf(box);
+        if (!commitSourceEditor()) return;
+        box = previewArea.querySelectorAll('.roll-box')[index];
+      }
+      const host = box && box.closest('[data-src]');
+      const range = host && (parseSrcRange(host.dataset.part) || parseSrcRange(host.dataset.src));
+      if (!range) return;
+      // 段（>> より前）の前後の空白は残し、判定の記法の部分だけを書き換える
+      const raw = editor.value.substring(range.start, range.end);
+      const text = raw.trim();
+      const start = range.start + (raw.length - raw.trimStart().length);
+      const edit = { field: editor, start, end: start + text.length, original: text, parsed: parseRollSource(text) };
+      if (text.startsWith('[判定:')) openRollModal(Object.assign(edit, { kind: 'roll' }));
+      else if (/^\[SAN\s*[:：]/i.test(text)) openSanModal(Object.assign(edit, { kind: 'san' }));
+    }
+
+    // 直しているとき、開いたときの判定を本文の中で探し直して書き換える（開いているあいだに本文が変わっていた場合）
+    function applyRollEdit(source) {
+      const e = rollEdit;
+      const value = e.field.value;
+      let start = e.start;
+      if (value.substring(e.start, e.end) !== e.original) {
+        const idx = value.indexOf(e.original);
+        if (idx === -1 || value.indexOf(e.original, idx + 1) !== -1) {
+          alert('判定を開いたあとで本文が変わったため、書き換える場所を特定できませんでした。\n\n取り消して、もう一度開き直してください。');
+          return false;
+        }
+        start = idx;
+      }
+      editFieldRange(e.field, start, start + e.original.length, source);
+      return true;
+    }
+
+    // 原文へ（本文の欄のこの判定の位置へ移る）。書き換えていれば、捨ててよいか確かめる
+    function jumpToRollSource() {
+      const e = rollEdit;
+      if (!e || e.field !== editor) return;
+      const close = e.kind === 'roll' ? closeRollModal : closeSanModal;
+      if (!close()) return;
+      jumpToSource({ start: e.start, end: e.end }, e.start);
+    }
+
+    // edit … 直すときの判定（openRollEditorFromPreview()）。省くと新しく入れる
+    function openRollModal(edit) {
+      if (!rollModal) return;
+      // 直すときだけ、新しく入れるときの枠のチェックを覚えておき、閉じたら戻す
+      if (edit && !rollEdit) rollInsertChecks = readCheckedTiers();
+      rollEdit = edit || null;
+      const p = edit ? edit.parsed : null;
+      let skill = '';
+      let type = '';
+      if (p) {
+        const m = p.headerLine.match(/^\[判定:\s*([^\]]+)\]/);
+        const parts = m ? m[1].split('/') : [''];
+        // 以前は「または」でつないでいた。直すと新しい形（／）になる
+        skill = normalizeSkillJoin(parts[0].trim());
+        type = parts.slice(1).join('/').trim();
+        edit.headerRest = m ? p.headerLine.substring(m[0].length) : '';
+        edit.unknownType = '';
+      }
+      document.getElementById('roll-skill-name').value = skill;
+      const radios = Array.from(document.getElementsByName('roll-display-type'));
+      const hit = radios.find(r => r.value === type);
+      radios.forEach(r => { r.checked = r === hit; });
+      // 画面の選択肢に無い提示タイプは、選び直さない限りそのまま残す（どれにも印を付けない）
+      if (!hit && edit) edit.unknownType = type;
+      document.getElementById('roll-condition').value = p ? p.conditions.map(c => c.replace(/\s*\n\s*/g, ' ')).join('\n') : '';
+      rollModalSelectedSkills = skill ? skill.split('／').map(s => s.trim()).filter(Boolean) : [];
+      const tierInput = document.getElementById('roll-tier-new');
+      if (tierInput) tierInput.value = '';
+      // 前に開いたときの欄が残っていると、描き直すときにその文を拾ってしまう
+      document.getElementById('roll-result-texts').innerHTML = '';
+      rollResultTexts.roll = {};
+      if (p) {
+        renderRollTiers();
+        // 同じ枠が2つあれば、文をつないで1つにする（画面では枠ごとに欄が1つのため）
+        p.results.forEach(r => {
+          const prev = rollResultTexts.roll[r.key];
+          rollResultTexts.roll[r.key] = prev ? prev + '\n' + r.val : r.val;
+        });
+        restoreCheckedTiers(p.results.map(r => r.key));
+      }
+      renderRollResultTexts('roll');
+      setTierMessage('');
+      renderPickerItems('roll-skill-picker');
+      setRollModalMode('roll');
+      rollModal.classList.add('active');
+      rollFormSnapshot.roll = rollFormState('roll');
+    }
+
+    // force … 書き換えを捨てる確認をしない（確定したあと）。閉じたら true を返す
+    function closeRollModal(force) {
+      if (!rollModal || !rollModal.classList.contains('active')) return true;
+      if (!force && rollFormState('roll') !== rollFormSnapshot.roll
+          && !confirm(rollEdit ? '判定の書き換えを捨てて閉じますか？' : '入力した内容を捨てて閉じますか？')) return false;
+      rollModal.classList.remove('active');
+      if (rollEdit) {
+        rollEdit = null;
+        renderRollTiers();
+        if (rollInsertChecks) restoreCheckedTiers(rollInsertChecks);
+        rollInsertChecks = null;
+      }
+      return true;
+    }
+
+    // 技能名のつなぎを「／」にそろえる。以前の「 または 」で書いた判定も、紙面ではこの形で出す
+    function normalizeSkillJoin(skill) {
+      return String(skill).replace(/\s*または\s*/g, '／');
     }
 
     function insertRollBlock() {
-      const skillName = document.getElementById('roll-skill-name').value.trim() || '技能名';
-      
-      // 提示タイプ取得
-      const typeElements = document.getElementsByName('roll-display-type');
-      let displayType = '';
-      for (const el of typeElements) {
-        if (el.checked) {
-          displayType = el.value;
-          break;
-        }
-      }
+      // 技能名の ] は見出しを途中で閉じ、半角の / は提示タイプの区切りになるので、全角にする
+      const skillName = (document.getElementById('roll-skill-name').value.trim() || '技能名')
+        .replace(/\]/g, '］').replace(/\//g, '／');
+
+      const checked = Array.from(document.getElementsByName('roll-display-type')).find(el => el.checked);
+      // 画面の選択肢に無い提示タイプ（手で書いたもの）は、どれかを選び直していなければそのまま残す
+      const displayType = checked ? checked.value : ((rollEdit && rollEdit.unknownType) || '');
 
       const tagSuffix = displayType ? `/${displayType}` : '';
-      let template = `\n\n[判定:${skillName}${tagSuffix}]\n`;
-      // 成功段階はシステム定義から生成しているので、チェック状態を順に読む
-      // （以前は7段階のIDを直接参照しており、エモクロア以外に対応できなかった）
-      document.querySelectorAll('#roll-tier-checks input[type="checkbox"]').forEach(cb => {
-        if (cb.checked) template += '- ' + cb.dataset.tier + ': \n';
+      const p = rollEdit ? rollEdit.parsed : {};
+      const source = buildRollSource(`[判定:${skillName}${tagSuffix}]` + ((rollEdit && rollEdit.headerRest) || ''), {
+        preamble: p.preamble,
+        conditions: readRollConditions('roll-condition'),
+        results: readRollResults('roll'),
+        strays: p.strays
       });
+      finishRollModal('roll', source);
+    }
 
-      insertAtCursor(template);
-      closeRollModal();
+    // 確定して本文に入れる（直すときは書き換える）。kind は 'roll' / 'san'
+    function finishRollModal(kind, source) {
+      const close = kind === 'roll' ? closeRollModal : closeSanModal;
+      if (rollEdit) {
+        const fromPreview = rollEdit.field === editor;
+        if (!applyRollEdit(source)) return;
+        close(true);
+        handleInput();
+        if (fromPreview && !srcEdit) flushPreview();
+        return;
+      }
+      insertAtCursor(`\n\n${source}\n`);
+      close(true);
       handleInput();
     }
 
@@ -7819,37 +8504,82 @@
       const box = document.getElementById('san-tier-checks');
       if (!box) return;
       box.innerHTML = '';
-      (currentSystem().sanTiers || []).forEach((tier, i) => {
+      const tiers = currentSystem().sanTiers || [];
+      tiers.forEach((tier, i) => {
         box.appendChild(buildTierItem('san-tier-' + i, tier.label, tier.checked, false));
+      });
+      rollExtraTiers('san', tiers.map(t => t.label)).forEach((name, i) => {
+        box.appendChild(buildTierItem('san-tier-extra-' + i, name, true, false));
       });
     }
 
-    function openSanModal() {
-      if (!sanModal) return;
-      const defaults = currentSystem().sanDefaults || { success: '', failure: '' };
-      sanModal.classList.add('active');
-      document.getElementById('san-success').value = defaults.success || '';
-      document.getElementById('san-failure').value = defaults.failure || '';
-      renderSanTiers();
+    // 直している判定に、画面の枠の一覧に無い枠（本文に手で書いたもの）があれば返す。その判定を直すあいだだけ、チェック欄に足す
+    function rollExtraTiers(kind, known) {
+      if (!rollEdit || rollEdit.kind !== kind) return [];
+      return rollEdit.parsed.results.map(r => r.key).filter((k, i, all) => known.indexOf(k) === -1 && all.indexOf(k) === i);
     }
 
-    function closeSanModal() {
-      if (sanModal) sanModal.classList.remove('active');
+    // edit … 直すときの判定（openRollEditorFromPreview()）。省くと新しく入れる
+    function openSanModal(edit) {
+      if (!sanModal) return;
+      rollEdit = edit || null;
+      const p = edit ? edit.parsed : null;
+      const defaults = currentSystem().sanDefaults || { success: '', failure: '' };
+      let success = defaults.success || '';
+      let failure = defaults.failure || '';
+      if (p) {
+        const m = p.headerLine.match(/^\[SAN\s*[:：]\s*([^\/\]]*)(?:\/([^\]]*))?\]/i);
+        success = m ? (m[1] || '').trim() : '';
+        failure = m ? (m[2] || '').trim() : '';
+        edit.headerRest = m ? p.headerLine.substring(m[0].length) : '';
+      }
+      document.getElementById('san-success').value = success;
+      document.getElementById('san-failure').value = failure;
+      document.getElementById('san-condition').value = p ? p.conditions.map(c => c.replace(/\s*\n\s*/g, ' ')).join('\n') : '';
+      // 前に開いたときの欄が残っていると、描き直すときにその文を拾ってしまう
+      document.getElementById('san-result-texts').innerHTML = '';
+      rollResultTexts.san = {};
+      renderSanTiers();
+      if (p) {
+        p.results.forEach(r => {
+          const prev = rollResultTexts.san[r.key];
+          rollResultTexts.san[r.key] = prev ? prev + '\n' + r.val : r.val;
+        });
+        const keys = p.results.map(r => r.key);
+        document.querySelectorAll('#san-tier-checks input[type="checkbox"]').forEach(cb => {
+          cb.checked = keys.indexOf(cb.dataset.tier) !== -1;
+        });
+      }
+      renderRollResultTexts('san');
+      setRollModalMode('san');
+      sanModal.classList.add('active');
+      rollFormSnapshot.san = rollFormState('san');
+    }
+
+    // force … 書き換えを捨てる確認をしない（確定したあと）。閉じたら true を返す
+    function closeSanModal(force) {
+      if (!sanModal || !sanModal.classList.contains('active')) return true;
+      if (!force && rollFormState('san') !== rollFormSnapshot.san
+          && !confirm(rollEdit ? 'SANチェックの書き換えを捨てて閉じますか？' : '入力した内容を捨てて閉じますか？')) return false;
+      sanModal.classList.remove('active');
+      rollEdit = null;
+      return true;
     }
 
     function insertSanBlock() {
       const defaults = currentSystem().sanDefaults || {};
-      const success = document.getElementById('san-success').value.trim() || defaults.success || '0';
-      const failure = document.getElementById('san-failure').value.trim() || defaults.failure || '1D3';
-
-      let template = `\n\n[SAN:${success}/${failure}]\n`;
-      document.querySelectorAll('#san-tier-checks input[type="checkbox"]').forEach(cb => {
-        if (cb.checked) template += '- ' + cb.dataset.tier + ': \n';
+      // ] は見出しを途中で閉じ、/ は成功と失敗の区切りになるので、全角にする
+      const clean = s => s.replace(/\]/g, '］').replace(/\//g, '／');
+      const success = clean(document.getElementById('san-success').value.trim() || defaults.success || '0');
+      const failure = clean(document.getElementById('san-failure').value.trim() || defaults.failure || '1D3');
+      const p = rollEdit ? rollEdit.parsed : {};
+      const source = buildRollSource(`[SAN:${success}/${failure}]` + ((rollEdit && rollEdit.headerRest) || ''), {
+        preamble: p.preamble,
+        conditions: readRollConditions('san-condition'),
+        results: readRollResults('san'),
+        strays: p.strays
       });
-
-      insertAtCursor(template);
-      closeSanModal();
-      handleInput();
+      finishRollModal('san', source);
     }
 
     // === 🎨 文字色モーダル制御 ===
@@ -7895,9 +8625,9 @@
       }));
     }
 
-    // 文字列から文中の記法を外し、チャットに貼れる文面にする。色は外し、ルビは「漢字（かんじ）」にする
+    // 文字列から文中の記法を外し、チャットに貼れる文面にする。色と太字は外し、ルビは「漢字（かんじ）」にする
     function plainInlineText(text) {
-      return stripColorNotation(rubyToPlain(text));
+      return stripBoldNotation(stripColorNotation(rubyToPlain(stripLinkNotation(text))));
     }
 
     // 選択範囲がまるごと色記法で囲まれているとき、その囲みまで含めた範囲を返す。
@@ -8108,6 +8838,805 @@
       // 記法の後ろにカーソルを置く（続けて書けるように）
       replaceRange(start, end, r.source, r.source.length, 0);
       handleInput();
+    }
+
+    // === 目印・リンク・探索可能箇所の画面（docs/04_記法設計書.html §15） ===
+
+    // 本文の目印と見出しを拾う。リンクのリンク先を選ぶ画面と、新しく置く目印の名前が重ならないかを確かめるのに使う。
+    //   anchors  … [{ name, pos, scene }]（名前は生のまま。scene はその目印がある場面の見出し）
+    //   headings … [{ title, level, start, lineEnd, anchor, scene }]（title は記法を外した文字。anchor は見出しの行にある目印の名前）
+    function scanLinkTargets(text) {
+      const headings = [];
+      splitSourceBlocks(text).forEach(sb => {
+        if (!sb.text.startsWith('#')) return;
+        const first = sb.text.split('\n')[0];
+        const am = first.match(/\{#([^{}:：()\n]+)\}/);
+        headings.push({
+          title: plainInlineText(first.replace(/^#+\s*/, '')).trim(),
+          level: first.startsWith('##') ? 2 : 1,
+          start: sb.start,
+          lineEnd: sb.start + first.length,
+          anchor: am ? am[1].trim() : ''
+        });
+      });
+      const sceneAt = pos => {
+        let title = '';
+        headings.forEach(h => { if (h.level === 1 && h.start <= pos) title = h.title; });
+        return title;
+      };
+      headings.forEach(h => { h.scene = h.level === 1 ? '' : sceneAt(h.start); });
+      const anchors = Array.from(String(text).matchAll(ANCHOR_RE))
+        .map(m => ({ name: m[1].trim(), pos: m.index, scene: sceneAt(m.index) }))
+        .filter(a => a.name);
+      return { anchors, headings };
+    }
+
+    // 目印の名前として使えるようにする（使えない文字を外し、空白をそろえる）
+    function cleanAnchorName(name) {
+      return String(name).replace(/[{}:：()\n]/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+
+    // 使われていない目印の名前を返す。base が使われていれば prefix を付け、それでも重なれば -2, -3 … を付ける
+    function uniqueAnchorName(base, used, prefix) {
+      const name = cleanAnchorName(base) || '目印';
+      if (!used.has(name)) return name;
+      const withPrefix = prefix ? cleanAnchorName(prefix + '・' + name) : name;
+      if (!used.has(withPrefix)) return withPrefix;
+      for (let i = 2; ; i++) if (!used.has(withPrefix + '-' + i)) return withPrefix + '-' + i;
+    }
+
+    // --- 📍 目印を置く・名前を変える ---
+    //
+    // カーソルが見出しの行にあれば、その見出しの行末に付ける（## 書斎 {#書斎}）。それ以外はカーソルの位置に入れる。
+    // カーソルが目印の記法の上にある・見出しにもう目印があるときは、名前を変える。そのときは本文のリンク (#旧) も書き換える
+    let anchorEdit = null; // { field, mode: 'insert' | 'heading' | 'rename', pos, start, end, old }
+
+    function openAnchorModal() {
+      const modal = document.getElementById('anchor-modal');
+      const field = insertionTarget();
+      if (!modal || !field) return;
+      hidePanelTip();
+      const text = field.value;
+      const s = field.selectionStart;
+      const e = field.selectionEnd;
+      const lineStart = text.lastIndexOf('\n', s - 1) + 1;
+      let lineEnd = text.indexOf('\n', s);
+      if (lineEnd === -1) lineEnd = text.length;
+      const line = text.substring(lineStart, lineEnd);
+      let name = '';
+      let lead = '';
+      // カーソルが目印の記法の上にある、または見出しの行に目印がある → 名前を変える
+      const onAnchor = Array.from(line.matchAll(ANCHOR_RE)).find(m =>
+        lineStart + m.index <= s && e <= lineStart + m.index + m[0].length) || (/^#{1,2}(?!#)/.test(line) && line.match(/\{#([^{}:：()\n]+)\}/));
+      if (onAnchor) {
+        const start = lineStart + (onAnchor.index || 0);
+        anchorEdit = { field, mode: 'rename', start, end: start + onAnchor[0].length, old: onAnchor[1].trim() };
+        name = anchorEdit.old;
+        lead = `目印「${anchorEdit.old}」の名前を変えます。本文のリンク (#${anchorEdit.old}) も一緒に書き換えます。`;
+      } else if (/^#{1,2}(?!#)/.test(line)) {
+        anchorEdit = { field, mode: 'heading', pos: lineEnd };
+        name = plainInlineText(line.replace(/^#+\s*/, '')).trim();
+        lead = 'この見出しの行末に目印を付けます。リンクで飛ぶと、見出しが画面の上に来ます。';
+      } else {
+        anchorEdit = { field, mode: 'insert', pos: s };
+        const selected = text.substring(s, e);
+        if (!selected.includes('\n')) name = plainInlineText(selected).trim();
+        lead = '判定・セリフなどのブロックをリンク先にするときは、そのブロックの前に空行で区切って目印だけの段落を置いてください。';
+      }
+      document.getElementById('anchor-modal-heading').textContent = anchorEdit.mode === 'rename' ? '📍 目印の名前を変える' : '📍 目印を置く';
+      document.getElementById('anchor-lead').textContent = lead;
+      const input = document.getElementById('anchor-name');
+      input.value = cleanAnchorName(name);
+      updateAnchorMessage();
+      modal.classList.add('active');
+      input.focus();
+      input.select();
+    }
+
+    function closeAnchorModal() {
+      const modal = document.getElementById('anchor-modal');
+      if (!modal || !modal.classList.contains('active')) return;
+      modal.classList.remove('active');
+      const field = anchorEdit && anchorEdit.field;
+      anchorEdit = null;
+      if (document.body.dataset.mode === 'write' && field && field.offsetParent !== null) field.focus();
+    }
+
+    // 入れようとしている名前を確かめる。使えなければ理由を返す
+    function anchorNameError(name) {
+      if (!name) return '目印の名前を入れてください。';
+      if (ANCHOR_NAME_NG_RE.test(name)) return '目印の名前に { } : ( ) は使えません。';
+      const same = anchorEdit && anchorEdit.mode === 'rename' && name === anchorEdit.old;
+      if (!same && scanLinkTargets(editor ? editor.value : '').anchors.some(a => a.name === name)) {
+        return `目印「${name}」はもうあります。別の名前にしてください。`;
+      }
+      return '';
+    }
+
+    function updateAnchorMessage() {
+      const box = document.getElementById('anchor-message');
+      if (!box) return;
+      const name = document.getElementById('anchor-name').value.trim();
+      const err = name ? anchorNameError(name) : '';
+      box.classList.toggle('is-error', !!err);
+      box.textContent = err || (name ? `本文に {#${name}} が入ります。リンクは [表示](#${name}) です。` : '');
+    }
+
+    function onAnchorKeydown(e) {
+      if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+      e.preventDefault();
+      applyAnchor();
+    }
+
+    function applyAnchor() {
+      const ed = anchorEdit;
+      if (!ed) return;
+      const name = document.getElementById('anchor-name').value.trim();
+      const err = anchorNameError(name);
+      if (err) {
+        const box = document.getElementById('anchor-message');
+        box.classList.add('is-error');
+        box.textContent = err;
+        return;
+      }
+      const tag = `{#${name}}`;
+      closeAnchorModal();
+      if (ed.mode === 'rename') {
+        // 目印と、本文のリンク (#旧) をまとめて書き換える（取り消しは1回で戻る）。
+        // 目印より前のリンクの長さが変わるので、前と後ろを分けて書き換え、目印の位置を測り直す
+        const field = ed.field;
+        const esc = ed.old.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const linkRe = new RegExp(`(\\[[^\\[\\]\\n]+\\]\\(#)\\s*${esc}\\s*(\\))`, 'g');
+        const rewrite = s => s.replace(linkRe, (whole, open, close) => open + name + close);
+        const before = rewrite(field.value.substring(0, ed.start));
+        const after = rewrite(field.value.substring(ed.end));
+        // 原文の小窓で変えたとき、小窓の外の本文にも (#旧) へのリンクがあれば、小窓を確定して本文ごと書き換える
+        // （小窓の中だけ変えると、外のリンクが切れるため）
+        const blockStart = field !== editor && srcEdit ? locateSourceEditorBlock(srcEdit) : -1;
+        const outside = blockStart === -1 ? null : {
+          before: editor.value.substring(0, blockStart),
+          after: editor.value.substring(blockStart + srcEdit.original.length)
+        };
+        const hasOutsideLink = !!outside && rewrite(outside.before + '\n\n' + outside.after) !== outside.before + '\n\n' + outside.after;
+        if (field === editor) {
+          setEditorTextUndoable(before + tag + after, { sel: { start: before.length, end: before.length + tag.length } });
+        } else if (hasOutsideLink) {
+          const head = rewrite(outside.before) + before;
+          closeSourceEditor(false);
+          setEditorTextUndoable(head + tag + after + rewrite(outside.after), { sel: { start: head.length, end: head.length + tag.length } });
+          flushPreview();
+        } else {
+          replaceFieldText(field, 0, field.value.length, before + tag + after);
+        }
+      } else if (ed.mode === 'heading') {
+        replaceRange(ed.pos, ed.pos, ' ' + tag, 1, tag.length);
+      } else {
+        replaceRange(ed.pos, ed.pos, tag, tag.length, 0);
+      }
+      handleInput();
+    }
+
+    // --- 🔗 リンク先を選ぶ ---
+    //
+    // 本文の目印と、目印の無い見出しを並べる。見出しを選ぶと、その見出しの行末に目印を付けてからリンクを入れる。
+    // 一覧に無い名前を打てば、まだ置いていない目印へのリンクとして入れられる（プレビューでは目印を置くまで印が付く）。
+    // 探索可能箇所を作る画面からは、場所のリンク先を選ぶ画面として開く（linkPick）。そのときは選んだものをその場所の行に入れるだけで、
+    // 本文は書き換えない（見出しへの目印は、探索可能箇所を入れるときにまとめて付ける）
+    let linkMatches = [];
+    let linkIndex = 0;
+    let linkPick = null; // 探索可能箇所を作る画面の、リンク先を選んでいる行
+    let linkEdit = null; // 本文のリンクの上で開いたとき、そのリンク { start, end, label, name }。選び直すとリンク先だけを変える
+
+    // カーソルが乗っているリンクの記法。カーソルだけのときは記法の内側（両端の外は含まない。リンクのすぐ後ろに新しいリンクを入れられるように）、
+    // 文字を選んでいるときは記法の中に収まっているものに限る
+    function linkUnderCursor(field) {
+      const text = field.value;
+      const s = field.selectionStart;
+      const e = field.selectionEnd;
+      const lineStart = text.lastIndexOf('\n', s - 1) + 1;
+      let lineEnd = text.indexOf('\n', s);
+      if (lineEnd === -1) lineEnd = text.length;
+      const m = Array.from(text.substring(lineStart, lineEnd).matchAll(LINK_RE)).find(m => {
+        const start = lineStart + m.index;
+        const end = start + m[0].length;
+        return s === e ? start < s && s < end : start <= s && e <= end;
+      });
+      return m ? { start: lineStart + m.index, end: lineStart + m.index + m[0].length, label: m[1], name: m[2].trim() } : null;
+    }
+
+    // pickRow … 探索可能箇所を作る画面の行。省くと、本文のカーソルの位置にリンクを入れる（リンクの上なら、そのリンク先を変える）
+    function openLinkModal(pickRow) {
+      const modal = document.getElementById('link-modal');
+      const field = insertionTarget();
+      if (!modal || !field) return;
+      hidePanelTip();
+      linkPick = pickRow || null;
+      linkEdit = linkPick ? null : linkUnderCursor(field);
+      const input = document.getElementById('link-input');
+      input.value = '';
+      input.placeholder = linkPick
+        ? 'この場所のリンク先を選ぶ（新しい名前も打てます）'
+        : linkEdit ? `「${linkEdit.label}」のリンク先を選び直す（名前で絞り込み）`
+        : 'リンク先の目印・見出しを選ぶ（名前で絞り込み）';
+      document.getElementById('link-enter-label').textContent = linkPick ? '選ぶ' : linkEdit ? 'リンク先を変える' : '挿入';
+      linkIndex = 0;
+      renderLinkChooser();
+      modal.classList.add('active');
+      input.focus();
+    }
+
+    function closeLinkModal() {
+      const modal = document.getElementById('link-modal');
+      if (!modal || !modal.classList.contains('active')) return;
+      modal.classList.remove('active');
+      linkEdit = null;
+      // 探索可能箇所を作る画面から開いたなら、その行へ戻る
+      if (linkPick) {
+        const btn = linkPick.querySelector('.search-target');
+        linkPick = null;
+        if (btn) btn.focus();
+        return;
+      }
+      const field = insertionTarget();
+      if (document.body.dataset.mode === 'write' && field && field.offsetParent !== null) field.focus();
+    }
+
+    function renderLinkChooser() {
+      const list = document.getElementById('link-list');
+      if (!list) return;
+      const typed = document.getElementById('link-input').value.trim();
+      const tokens = normalizeForSearch(typed).split(/[\s　]+/).filter(Boolean);
+      const hit = (...words) => { const hay = normalizeForSearch(words.join(' ')); return tokens.every(t => hay.includes(t)); };
+      const targets = scanLinkTargets(editor ? editor.value : '');
+      const counts = new Map();
+      targets.anchors.forEach(a => counts.set(a.name, (counts.get(a.name) || 0) + 1));
+      linkMatches = [];
+      // 探索可能箇所の行から開いたときは、先頭に「新しい小見出しを入れる」「リンクにしない」を置く
+      if (linkPick && !typed) linkMatches.push({ fresh: 'new' }, { fresh: 'none' });
+      // 名前が重なっている目印は1つにまとめて、重なっていることを添える
+      const listed = new Set();
+      targets.anchors.forEach(a => {
+        if (listed.has(a.name) || !hit(a.name, a.scene)) return;
+        listed.add(a.name);
+        linkMatches.push({ anchor: a, dup: counts.get(a.name) > 1 });
+      });
+      // 目印の無い見出し。見出しに目印を付けるのは本文の欄だけ（原文の小窓の外の見出しは書き換えない）
+      if (insertionTarget() === editor) {
+        targets.headings.forEach(h => {
+          if (!h.anchor && h.title && hit(h.title, h.scene)) linkMatches.push({ heading: h });
+        });
+      }
+      // 一覧に無い名前なら、まだ置いていない目印へのリンクとして入れる候補を出す（同じ名前の見出しがあれば、そちらを選べば目印も付く）
+      const clean = cleanAnchorName(typed);
+      if (clean && !targets.anchors.some(a => a.name === clean) && !linkMatches.some(m => m.heading && m.heading.title === clean)) {
+        linkMatches.push({ create: clean });
+      }
+
+      if (!linkMatches.length) {
+        list.innerHTML = '<div class="palette-empty">本文に目印も見出しもまだありません。名前を打って Enter で、その名前へのリンクを入れます（目印はあとで「📍 目印」で置きます）。</div>';
+        return;
+      }
+      list.innerHTML = linkMatches.map((m, i) => {
+        let icon, name, desc;
+        if (m.fresh === 'new') {
+          icon = '＋';
+          name = '新しい小見出しを入れる';
+          desc = '一覧の後ろに、この場所の小見出しを入れます';
+        } else if (m.fresh === 'none') {
+          icon = '－';
+          name = 'リンクにしない';
+          desc = '押しても飛ばない項目にします';
+        } else if (m.anchor) {
+          icon = '📍';
+          name = escapeHTML(m.anchor.name);
+          desc = m.dup ? '⚠ 同じ名前の目印が2か所以上あります。リンク先を決められません'
+            : escapeHTML((linkEdit && linkEdit.name === m.anchor.name ? 'いまのリンク先。' : '')
+              + (m.anchor.scene ? `場面「${m.anchor.scene}」の中の目印` : '目印'));
+        } else if (m.heading) {
+          icon = m.heading.level === 1 ? '🎬' : '📌';
+          name = escapeHTML(m.heading.title);
+          desc = escapeHTML((m.heading.scene ? `場面「${m.heading.scene}」の小見出し。` : '見出し。') + '選ぶと、この見出しに目印を付けてリンクします');
+        } else {
+          icon = '＋';
+          name = linkPick ? `「${escapeHTML(m.create)}」の小見出しを新しく入れる`
+            : linkEdit ? `リンク先を「${escapeHTML(m.create)}」に変える` : `「${escapeHTML(m.create)}」へのリンクを入れる`;
+          desc = linkPick ? '一覧の後ろに、この名前の目印を付けた小見出しを入れます'
+            : 'まだ目印がありません。あとで「📍 目印」でその名前の目印を置くと、飛べるようになります';
+        }
+        return `<div class="palette-item" role="option" data-index="${i}">`
+          + `<span class="palette-item-icon">${icon}</span>`
+          + `<span class="palette-item-text"><span class="palette-item-name">${name}</span>`
+          + `<span class="palette-item-desc">${desc}</span></span></div>`;
+      }).join('');
+      setLinkIndex(Math.min(linkIndex, linkMatches.length - 1));
+    }
+
+    function setLinkIndex(i) {
+      linkIndex = i;
+      highlightListOption(document.getElementById('link-list'), i);
+    }
+
+    // 選んだリンク先へのリンクを、カーソルの位置に入れる。表示の文字は、本文で文字を選んでいればその文字、なければリンク先の名前。
+    // 探索可能箇所を作る画面から開いていれば、その場所の行に入れるだけ
+    function chooseLink(i) {
+      const m = linkMatches[i];
+      if (!m) return;
+      if (linkPick) {
+        setSearchRowTarget(linkPick, m);
+        closeLinkModal();
+        return;
+      }
+      const field = insertionTarget();
+      if (!field) return;
+      // リンクの上で開いていれば、そのリンクの記法をまるごと差し替える（表示の文字はそのまま）
+      const ed = linkEdit;
+      closeLinkModal();
+      const text = field.value;
+      const s = ed ? ed.start : field.selectionStart;
+      const e = ed ? ed.end : field.selectionEnd;
+      const selected = ed ? ed.label : text.substring(s, e);
+      let name;
+      let headingAt = -1;
+      let headingTag = '';
+      if (m.heading) {
+        const used = new Set(scanLinkTargets(text).anchors.map(a => a.name));
+        name = uniqueAnchorName(m.heading.title, used, m.heading.scene);
+        headingAt = m.heading.lineEnd;
+        headingTag = ` {#${name}}`;
+      } else {
+        name = m.anchor ? m.anchor.name : m.create;
+      }
+      // 表示の文字の ] と改行はリンクを壊すので、選んだ文字が使えなければ名前を表示にする
+      const label = selected && !/[\[\]\n]/.test(selected) ? selected : (m.heading ? m.heading.title : name).replace(/[\[\]]/g, '');
+      const link = `[${label}](#${name})`;
+      if (headingAt === -1) {
+        replaceRange(s, e, link, link.length, 0);
+      } else {
+        // 見出しへの目印とリンクを、1回の取り消しで戻るようにまとめて書き換える
+        const r = insertWithHeadingAnchors(text, s, e, link, link.length, [{ at: headingAt, tag: headingTag }]);
+        setEditorTextUndoable(r.text, { sel: { start: r.caret, end: r.caret } });
+        editor.focus();
+      }
+      handleInput();
+    }
+
+    // 本文の s〜e を block に差し替え、あわせて見出しの行末（at）に目印（tag）を足した文字列を返す。
+    // caret は差し替えたあとのカーソルの位置（block の先頭から caretOffset の所）。1回の取り消しで戻るよう、呼ぶ側でまとめて書き換える
+    function insertWithHeadingAnchors(text, s, e, block, caretOffset, tags) {
+      const edits = tags.map(t => ({ start: t.at, end: t.at, text: t.tag, tag: true }))
+        .concat([{ start: s, end: e, text: block, tag: false }])
+        // 同じ位置なら、見出しの目印を先に（見出しの行末とカーソルが重なるとき、目印を見出しの側に付ける）
+        .sort((a, b) => a.start - b.start || (a.tag ? -1 : 1));
+      let out = '';
+      let pos = 0;
+      let caret = 0;
+      edits.forEach(ed => {
+        out += text.substring(pos, ed.start);
+        if (!ed.tag) caret = out.length + caretOffset;
+        out += ed.text;
+        pos = ed.end;
+      });
+      out += text.substring(pos);
+      return { text: out, caret };
+    }
+
+    function initLinkFeature() {
+      const input = document.getElementById('link-input');
+      const list = document.getElementById('link-list');
+      if (!input || !list) return;
+      bindChooserList(input, list, {
+        count: () => linkMatches.length,
+        index: () => linkIndex,
+        setIndex: setLinkIndex,
+        choose: chooseLink,
+        render: renderLinkChooser
+      });
+    }
+
+    // --- 🔍 探索可能箇所を作る・直す ---
+    //
+    // [探索:エリア名] の一覧を入れる。プレビューの一覧をダブルクリックすると、その一覧を直す形で開く。
+    // 場所ごとにリンク先を選ぶ（記法は [場所](#名前) のまま）。リンク先の欄はボタンで、押すとリンク先を選ぶ画面（openLinkModal(行)）が開く。
+    // 行のリンク先は、ボタンの data-kind に持つ:
+    //   new     … 場所の名前で目印を付けた小見出し（## 場所 {#名前}）を新しく入れてリンクする（新しく足した行の既定）
+    //   none    … リンクの無い項目
+    //   anchor  … 本文の目印 name へのリンクだけ（直すときに読み込んだリンクもこれ。目印がまだ無くても小見出しは入れない）
+    //   heading … 目印の無い見出しに、入れるときに目印 name を付けてリンクする
+    //   create  … 打った名前 name の目印を付けた小見出しを新しく入れてリンクする
+    // 新しい小見出しは、作るときは一覧のすぐ後ろ、直すときは一覧の段落の後ろに入れる。目印の名前は本文の目印と重ならないようにする
+    let searchAnchorNames = new Set(); // 開いた時点の本文の目印の名前
+    let searchEdit = null;             // 直しているあいだ { start, end, original, paraEnd, parsed }
+
+    // 探索可能箇所の一覧の記法（>> より前、未エスケープ）を読む。項目の行がリンクだけならリンク先として読み、それ以外はリンクの無い項目
+    function parseSearchListSource(text) {
+      const lines = text.split('\n');
+      const m = lines[0].match(/^\[(探索|調査)(?:\s*[:：]\s*([^\]\n]*))?\]/);
+      const items = lines.slice(1).map(l => l.trim().replace(/^[-・*]\s*/, '').trim()).filter(Boolean).map(raw => {
+        const link = raw.match(/^\[([^\[\]\n]+)\]\(#([^()\n]+)\)$/);
+        return link ? { place: link[1], kind: 'anchor', name: link[2].trim() } : { place: raw, kind: 'none', name: '' };
+      });
+      return {
+        keyword: m ? m[1] : '探索',
+        area: m && m[2] ? m[2].trim() : '',
+        headerRest: m ? lines[0].substring(m[0].length) : '',
+        items
+      };
+    }
+
+    // edit … 直すときの一覧（openSearchEditorFromPreview()）。省くと新しく作る
+    function openSearchModal(edit) {
+      const modal = document.getElementById('search-modal');
+      if (!modal) return;
+      hidePanelTip();
+      searchEdit = edit || null;
+      const p = edit ? edit.parsed : null;
+      document.getElementById('search-area').value = p ? p.area : '';
+      searchAnchorNames = new Set(scanLinkTargets(editor ? editor.value : '').anchors.map(a => a.name));
+      document.getElementById('search-rows').innerHTML = '';
+      if (p && p.items.length) p.items.forEach(it => addSearchRow(it.place, false, { kind: it.kind, name: it.name }));
+      else for (let i = 0; i < 3; i++) addSearchRow('', false);
+      document.getElementById('search-modal-heading').textContent = edit ? '🔍 探索可能箇所を直す' : '🔍 探索可能箇所を作る';
+      document.getElementById('search-apply-btn').textContent = edit ? '決定（本文を書き換える）' : '決定（エディタへ挿入）';
+      // .btn の display が hidden 属性に勝つので、style で消す
+      document.getElementById('search-source-btn').style.display = edit ? '' : 'none';
+      modal.classList.add('active');
+      document.getElementById('search-area').focus();
+    }
+
+    // プレビューの探索可能箇所の一覧のダブルクリック。原文の小窓を開いていれば先に確定し、描き直したあとの同じ一覧を開く
+    function openSearchEditorFromPreview(box) {
+      if (!editor) return;
+      if (srcEdit) {
+        const index = Array.from(previewArea.querySelectorAll('.search-box')).indexOf(box);
+        if (!commitSourceEditor()) return;
+        box = previewArea.querySelectorAll('.search-box')[index];
+      }
+      const host = box && box.closest('[data-src]');
+      const para = host && parseSrcRange(host.dataset.src);
+      const range = host && (parseSrcRange(host.dataset.part) || para);
+      if (!range) return;
+      // 段（>> より前）の前後の空白は残し、一覧の記法の部分だけを書き換える
+      const raw = editor.value.substring(range.start, range.end);
+      const text = raw.trim();
+      if (!SEARCH_LIST_RE.test(text)) return;
+      const start = range.start + (raw.length - raw.trimStart().length);
+      openSearchModal({ start, end: start + text.length, original: text, paraEnd: para.end, parsed: parseSearchListSource(text) });
+    }
+
+    // 場所の行を1つ足す。focus なら、足した行の場所の欄へ移る。target は { kind, name }（省くと「新しい小見出し」）
+    function addSearchRow(place, focus, target) {
+      const rows = document.getElementById('search-rows');
+      const row = document.createElement('div');
+      row.className = 'search-row';
+      row.innerHTML = '<input type="text" class="form-input search-place" autocomplete="off" placeholder="場所">'
+        + '<span class="search-row-arrow" aria-hidden="true">→</span>'
+        + '<button type="button" class="form-input search-target" title="リンク先を選ぶ"></button>'
+        + '<button type="button" class="tier-remove" title="この場所を外す">&times;</button>'
+        + '<span class="search-row-status"></span>';
+      const [placeInput, , targetBtn, remove] = row.children;
+      placeInput.value = place;
+      const t = target || { kind: 'new', name: '' };
+      Object.assign(targetBtn.dataset, { kind: t.kind, name: t.name || '', heading: '', headingTitle: '' });
+      placeInput.addEventListener('input', () => updateSearchRowStatus(row));
+      placeInput.addEventListener('keydown', onSearchRowKeydown);
+      placeInput.addEventListener('paste', onSearchRowPaste);
+      targetBtn.addEventListener('click', () => openLinkModal(row));
+      remove.addEventListener('click', () => {
+        row.remove();
+        if (!rows.children.length) addSearchRow('', true);
+      });
+      rows.appendChild(row);
+      updateSearchRowStatus(row);
+      if (focus) placeInput.focus();
+      return row;
+    }
+
+    // リンク先を選ぶ画面で選んだものを、行に入れる
+    function setSearchRowTarget(row, m) {
+      const target = row.querySelector('.search-target');
+      const d = { kind: 'new', name: '', heading: '', headingTitle: '' };
+      if (m.fresh) d.kind = m.fresh;
+      else if (m.anchor) Object.assign(d, { kind: 'anchor', name: m.anchor.name });
+      else if (m.create) Object.assign(d, { kind: 'create', name: m.create });
+      else if (m.heading) {
+        // 見出しに付ける目印の名前。本文の目印と、ほかの行で選んだ名前に重ならないようにする。
+        // 同じ見出しをほかの行でも選んでいれば、同じ目印へリンクする
+        const others = Array.from(document.querySelectorAll('#search-rows .search-target')).filter(t => t !== target);
+        const same = others.find(t => t.dataset.kind === 'heading' && t.dataset.heading === String(m.heading.start));
+        const used = new Set(searchAnchorNames);
+        others.forEach(t => { if (t.dataset.name) used.add(t.dataset.name); });
+        Object.assign(d, {
+          kind: 'heading',
+          name: same ? same.dataset.name : uniqueAnchorName(m.heading.title, used, m.heading.scene),
+          heading: String(m.heading.start),
+          headingTitle: m.heading.title
+        });
+      }
+      Object.assign(target.dataset, d);
+      updateSearchRowStatus(row);
+    }
+
+    // Enter で次の行の場所へ移る（最後の行なら行を足す）。Ctrl+Enter で決定。日本語入力の確定の Enter では動かない
+    function onSearchRowKeydown(e) {
+      if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+      e.preventDefault();
+      if (e.ctrlKey) {
+        applySearchList();
+        return;
+      }
+      const row = e.target.closest('.search-row');
+      const next = row.nextElementSibling;
+      if (next) next.querySelector('.search-place').focus();
+      else addSearchRow('', true);
+    }
+
+    // 複数行を貼ったら、1行ずつの場所に分ける（メモ帳などに書いた場所の一覧をそのまま貼れるように）
+    function onSearchRowPaste(e) {
+      const text = (e.clipboardData || window.clipboardData).getData('text');
+      const lines = text.split(/\r?\n/).map(l => l.replace(/^\s*[-・*]\s*/, '').trim()).filter(Boolean);
+      if (lines.length < 2) return;
+      e.preventDefault();
+      let row = e.target.closest('.search-row');
+      row.querySelector('.search-place').value = lines[0];
+      updateSearchRowStatus(row);
+      lines.slice(1).forEach(line => {
+        // 後ろに空いている行があれば使い、無ければ足す
+        let next = row.nextElementSibling;
+        if (!next || next.querySelector('.search-place').value.trim()) {
+          const added = addSearchRow(line, false);
+          if (next) row.after(added);
+          next = added;
+        } else {
+          next.querySelector('.search-place').value = line;
+          updateSearchRowStatus(next);
+        }
+        row = next;
+      });
+      row.querySelector('.search-place').focus();
+    }
+
+    // リンク先の欄の文字と、その下の短い説明を描き直す
+    function updateSearchRowStatus(row) {
+      const target = row.querySelector('.search-target');
+      const status = row.querySelector('.search-row-status');
+      const place = row.querySelector('.search-place').value.trim();
+      const { kind, name, headingTitle } = target.dataset;
+      target.textContent = kind === 'new' ? '＋ 新しい小見出し' : kind === 'none' ? 'リンクなし' : '📍 ' + name;
+      target.classList.toggle('is-empty', kind === 'new' || kind === 'none');
+      let text = '';
+      let warn = false;
+      if (place) {
+        if (kind === 'anchor' && !searchAnchorNames.has(name)) { text = '⚠ 本文にまだ無い目印'; warn = true; }
+        else if (kind === 'heading') text = `見出し「${headingTitle}」に目印を付ける`;
+        else if (kind === 'create') text = '小見出しを新しく入れる';
+      }
+      status.textContent = text;
+      status.classList.toggle('is-warn', warn);
+    }
+
+    function closeSearchModal() {
+      const modal = document.getElementById('search-modal');
+      if (!modal || !modal.classList.contains('active')) return;
+      modal.classList.remove('active');
+      // プレビューから開いたなら、プレビューを見ているので本文へは移らない
+      const fromPreview = !!searchEdit;
+      searchEdit = null;
+      if (fromPreview) return;
+      const field = insertionTarget();
+      if (document.body.dataset.mode === 'write' && field && field.offsetParent !== null) field.focus();
+    }
+
+    // 原文へ（本文の欄のこの一覧の位置へ移る）
+    function jumpToSearchSource() {
+      const e = searchEdit;
+      if (!e) return;
+      closeSearchModal();
+      jumpToSource({ start: e.start, end: e.end }, e.start);
+    }
+
+    // 文字列に、重ならない差し替え（{ start, end, text }）をまとめて当てる
+    function applyTextEdits(text, edits) {
+      let out = '';
+      let pos = 0;
+      edits.slice().sort((a, b) => a.start - b.start).forEach(ed => {
+        out += text.substring(pos, ed.start) + ed.text;
+        pos = ed.end;
+      });
+      return out + text.substring(pos);
+    }
+
+    function applySearchList() {
+      const edit = searchEdit;
+      const area = document.getElementById('search-area').value.replace(/[\]\n]/g, ' ').trim();
+      const rows = Array.from(document.querySelectorAll('#search-rows .search-row'))
+        .map(row => {
+          const t = row.querySelector('.search-target').dataset;
+          return {
+            place: row.querySelector('.search-place').value.replace(/^[-・*]\s*/, '').trim(),
+            kind: t.kind,
+            name: t.name,
+            heading: t.heading === '' ? -1 : Number(t.heading)
+          };
+        })
+        .filter(r => r.place);
+      const keyword = edit ? edit.parsed.keyword : '探索';
+      const head = `[${keyword}${area ? ':' + area : (edit ? '' : ':エリア名')}]` + (edit ? edit.parsed.headerRest : '');
+      const field = edit ? editor : insertionTarget();
+      closeSearchModal();
+      if (!field) return;
+      if (!rows.length && !edit) {
+        insertAtCursor(`\n\n${head}\n- 探索可能箇所1\n- 探索可能箇所2\n`);
+        handleInput();
+        return;
+      }
+      const targets = scanLinkTargets(editor ? editor.value : '');
+      const used = new Set(targets.anchors.map(a => a.name));
+      const sections = [];
+      const headingTags = new Map(); // 見出しの位置 → { at, tag }
+      const lines = rows.map(r => {
+        const label = r.place.replace(/[\[\]]/g, '');
+        const link = name => `- [${label}](#${name})`;
+        if (r.kind === 'none') return `- ${r.place}`;
+        if (r.kind === 'anchor') return link(r.name);
+        // 目印の無い見出しを選んでいれば、その見出しに目印を付ける（開いているあいだに見出しが変わっていれば、新しい小見出しにする）
+        if (r.kind === 'heading') {
+          const h = field === editor && targets.headings.find(x => x.start === r.heading && !x.anchor);
+          if (h) {
+            headingTags.set(h.start, { at: h.lineEnd, tag: ` {#${r.name}}` });
+            used.add(r.name);
+            return link(r.name);
+          }
+        }
+        // 新しい小見出しを入れる。名前が本文の目印や、新しく入れるほかの場所と重なれば、重ならない名前にする
+        const wanted = r.kind === 'create' ? r.name : '';
+        const name = wanted && !used.has(wanted) ? wanted : uniqueAnchorName(wanted || plainInlineText(r.place), used, area);
+        used.add(name);
+        sections.push(`## ${r.place} {#${name}}`);
+        return link(name);
+      });
+      const list = head + (lines.length ? '\n' + lines.join('\n') : '');
+
+      if (edit) {
+        // 開いているあいだに本文が変わっていたら（ふつうは起きない）、開いたときの一覧を探し直す
+        const value = editor.value;
+        let shift = 0;
+        if (value.substring(edit.start, edit.end) !== edit.original) {
+          const idx = value.indexOf(edit.original);
+          if (idx === -1 || value.indexOf(edit.original, idx + 1) !== -1) {
+            alert('一覧を開いたあとで本文が変わったため、書き換える場所を特定できませんでした。\n\n取り消して、もう一度開き直してください。');
+            return;
+          }
+          shift = idx - edit.start;
+        }
+        // 一覧の書き換え・段落の後ろへの新しい小見出し・見出しへの目印を、1回の取り消しで戻るようにまとめて書き換える
+        const edits = [{ start: edit.start + shift, end: edit.end + shift, text: list }];
+        if (sections.length) {
+          // 小見出しの下に描写を書く空いた行を残す（後ろに続きがあるときは、最後の小見出しの下にも）
+          const tail = value.substring(edit.paraEnd + shift).trim() ? '\n\n' : '';
+          edits.push({ start: edit.paraEnd + shift, end: edit.paraEnd + shift, text: '\n\n' + sections.join('\n\n\n\n') + tail });
+        }
+        headingTags.forEach(t => edits.push({ start: t.at, end: t.at, text: t.tag }));
+        setEditorTextUndoable(applyTextEdits(value, edits), { keepFocus: true });
+        handleInput();
+        if (!srcEdit) flushPreview();
+        return;
+      }
+
+      // 小見出しを入れるなら、最初の小見出しの下にカーソルを置き、すぐ描写を書き始められるようにする
+      const before = sections.length ? `\n\n${list}\n\n${sections[0]}\n\n` : `\n\n${list}\n`;
+      const after = sections.length ? (sections.length > 1 ? '\n\n' + sections.slice(1).join('\n\n\n\n') : '') + '\n' : '';
+      const s = field.selectionStart;
+      const e = field.selectionEnd;
+      if (!headingTags.size) {
+        replaceRange(s, e, before + after, before.length, 0);
+      } else {
+        // 見出しへの目印と一覧を、1回の取り消しで戻るようにまとめて書き換える
+        const r = insertWithHeadingAnchors(field.value, s, e, before + after, before.length, Array.from(headingTags.values()));
+        setEditorTextUndoable(r.text, { sel: { start: r.caret, end: r.caret } });
+        editor.focus();
+      }
+      handleInput();
+    }
+
+    // === 太字（Ctrl+B） ===
+    //
+    // 記法は **太字**（INLINE_BOLD_RE を参照。docs/04_記法設計書.html §14）。
+    // ワープロの太字ボタンと同じく、押すたびに付ける・外すを切り替える。
+    //   ・太字でない文字を選んで押す … ** で囲む。選んだ範囲にかかる太字は1つにまとめる
+    //   ・太字の中の文字を選んで押す … 選んだ所だけ太字を外す（全体を選んでいれば記法ごと外す）
+    //   ・太字の中にカーソルを置いて押す … その太字を外す
+    //   ・何も選ばずに押す … **** を入れてカーソルを中に置く
+
+    // 文字列を ** で囲む。両端の空白は記法の外に出す（中身の両端に空白があると太字にならないため）。
+    // 返す sel は、囲んだ中身の位置（out の先頭から）
+    function wrapBold(str) {
+      const m = String(str).match(/^(\s*)([\s\S]*?)(\s*)$/);
+      if (!m[2]) return { out: str, sel: [0, str.length] };
+      return { out: `${m[1]}**${m[2]}**${m[3]}`, sel: [m[1].length + 2, m[1].length + 2 + m[2].length] };
+    }
+
+    // 行 [lineStart, lineEnd) の中の太字の記法の位置
+    function boldSpansIn(text, lineStart, lineEnd) {
+      const line = text.substring(lineStart, lineEnd);
+      return Array.from(line.matchAll(new RegExp(INLINE_BOLD_RE.source, 'g'))).map(m => ({
+        start: lineStart + m.index,
+        end: lineStart + m.index + m[0].length,
+        inner: m[1]
+      }));
+    }
+
+    function toggleBold() {
+      const field = insertionTarget();
+      if (!field) return;
+      const text = field.value;
+      const s = field.selectionStart;
+      const e = field.selectionEnd;
+      const done = (start, end, out, selStart, selEnd) => {
+        replaceRange(start, end, out, selStart, selEnd - selStart);
+        handleInput();
+      };
+
+      // 行をまたいで選んでいるときは、行ごとに囲む（太字は1行に閉じる）。
+      // 中身のある行がすべて太字だけでできていれば、外す
+      const selected = text.substring(s, e);
+      if (selected.includes('\n')) {
+        const lines = selected.split('\n');
+        const isWholeBold = l => { const t = l.trim(); return !t || new RegExp('^' + INLINE_BOLD_RE.source + '$').test(t); };
+        const out = lines.every(isWholeBold)
+          ? lines.map(stripBoldNotation).join('\n')
+          : lines.map(l => wrapBold(stripBoldNotation(l)).out).join('\n');
+        done(s, e, out, 0, out.length);
+        return;
+      }
+
+      const lineStart = text.lastIndexOf('\n', s - 1) + 1;
+      let lineEnd = text.indexOf('\n', s);
+      if (lineEnd === -1) lineEnd = text.length;
+      const spans = boldSpansIn(text, lineStart, lineEnd);
+
+      if (s === e) {
+        const span = spans.find(sp => sp.start < s && s < sp.end);
+        if (span) {
+          // カーソルを置いていた文字の位置を、外したあとも保つ
+          const at = Math.max(0, Math.min(span.inner.length, s - span.start - 2));
+          done(span.start, span.end, span.inner, at, at);
+        } else if (text.substring(s - 2, s + 2) === '****') {
+          // 空の太字を入れた直後にもう一度押した → 取り消す
+          done(s - 2, s + 2, '', 0, 0);
+        } else {
+          done(s, e, '****', 2, 2);
+        }
+        return;
+      }
+
+      // 太字の中だけを選んでいる → 選んだ所の太字を外し、前後は太字のまま残す
+      const inside = spans.find(sp => sp.start <= s && e <= sp.end);
+      if (inside) {
+        const innerStart = inside.start + 2;
+        const innerEnd = inside.end - 2;
+        const a = Math.max(s, innerStart);
+        const b = Math.min(e, innerEnd);
+        const pre = text.substring(innerStart, a);
+        const mid = text.substring(a, b);
+        const post = text.substring(b, innerEnd);
+        const preOut = pre.trim() ? wrapBold(pre).out : pre;
+        const postOut = post.trim() ? wrapBold(post).out : post;
+        const out = preOut + mid + postOut;
+        done(inside.start, inside.end, out, preOut.length, preOut.length + mid.length);
+        return;
+      }
+
+      // 太字でない所を選んでいる → 囲む。選んだ範囲にかかる太字があれば、その範囲まで広げて1つにまとめる
+      let start = s;
+      let end = e;
+      spans.forEach(sp => {
+        if (sp.start < e && s < sp.end) {
+          start = Math.min(start, sp.start);
+          end = Math.max(end, sp.end);
+        }
+      });
+      const w = wrapBold(stripBoldNotation(text.substring(start, end)));
+      done(start, end, w.out, w.sel[0], w.sel[1]);
     }
 
     // ルビの記法を外し、親文字だけを残して選ぶ
@@ -9296,7 +10825,8 @@ ${derivedHTML}
         if (!body || body[0] !== '#' || body.startsWith('##')) return;
         const firstLine = body.split('\n')[0];
         headings.push({
-          title: firstLine.replace(/^#\s*/, '').trim(),
+          // 見出しに付けた目印（# 書斎 {#書斎}）は名前に含めない。付け外ししても場面カードとのつながりが切れないように
+          title: firstLine.replace(/^#\s*/, '').replace(ANCHOR_RE, '').trim(),
           start: start + lead,
           end: start + lead + firstLine.length
         });
@@ -10841,8 +12371,8 @@ ${derivedHTML}
     function buildTocHTML(entries) {
       let appendixStarted = false;
       const items = entries.map(e => {
-        // 目次は見出しの文字だけを出す。文字色の記法は外し、複数行の見出しは1行にまとめる。ルビは見出しと同じく付ける
-        const label = stripColorNotation(e.raw).replace(/\s*\n\s*/g, ' ').trim() || '（無題）';
+        // 目次は見出しの文字だけを出す。文字色と太字の記法は外し、複数行の見出しは1行にまとめる。ルビは見出しと同じく付ける
+        const label = stripBoldNotation(stripColorNotation(stripLinkNotation(e.raw))).replace(/\s*\n\s*/g, ' ').trim() || '（無題）';
         // 巻末の最初の項目の上だけ少し空けて、本文の見出しと分ける
         const first = e.appendix && !appendixStarted;
         if (e.appendix) appendixStarted = true;
@@ -10862,12 +12392,29 @@ ${derivedHTML}
     function initTocLinks() {
       if (!previewArea) return;
       previewArea.addEventListener('click', e => {
-        const link = e.target.closest('a[data-toc-target]');
+        // 本文のリンク [表示](#名前) と、探索可能箇所へ戻るリンクも同じ扱い（docs/04_記法設計書.html §15）
+        const link = e.target.closest('a[data-toc-target], a[data-scn-jump]');
         if (!link) return;
         e.preventDefault();
-        const target = document.getElementById(link.dataset.tocTarget);
-        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const target = document.getElementById(link.dataset.tocTarget || link.dataset.scnJump);
+        if (!target) return;
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (link.dataset.scnJump) flashJumpTarget(target);
       });
+    }
+
+    // リンクで飛んだ先を一瞬光らせる。目印は見えない要素なので、それを含む見出し・段落・ブロックを光らせる。
+    // 目印だけの段落（見えない）なら、その次のブロックを光らせる
+    function flashJumpTarget(target) {
+      let block = target.classList.contains('scn-anchor')
+        ? target.closest('h2, h3, .row, .scn-anchor-block, .table-box, nav, .bi-cover, .faq-section, .backmatter-section') || target.parentElement
+        : target;
+      if (block && block.classList.contains('scn-anchor-block')) block = block.nextElementSibling || block;
+      if (!block) return;
+      block.classList.remove('scn-flash');
+      void block.offsetWidth; // アニメーションをやり直すため
+      block.classList.add('scn-flash');
+      setTimeout(() => block.classList.remove('scn-flash'), 1600);
     }
 
     // === 表 [表] / [表:題名] ===
@@ -11493,12 +13040,31 @@ ${derivedHTML}
     function initPreviewToSource() {
       if (!previewArea) return;
       previewArea.addEventListener('dblclick', e => {
-        // ボタン・リンク・原文の小窓の中は、それぞれ本来の動きに任せる
-        if (e.target.closest('button, a, input, textarea, select, .src-editor')) return;
+        // ボタン・リンク・原文の小窓の中は、それぞれ本来の動きに任せる。
+        // ただし判定の箱の結果のラベル（押すとコピーするボタン）は、箱の中でいちばん目立つ所なので、ダブルクリックで判定の画面を開く
+        if (e.target.closest('.src-editor')) return;
+        if (!e.target.closest('.roll-box') && e.target.closest('button, a, input, textarea, select')) return;
         let target = e.target;
         if (editor && previewRenderedText !== editor.value) {
           flushPreview();
           target = document.elementFromPoint(e.clientX, e.clientY) || target;
+        }
+        // 判定の箱（技能判定・SANチェック）は、原文ではなく判定の画面で開く（表と同じ。docs/04_記法設計書.html §5.4）
+        const rollBox = target.closest && target.closest('.roll-box');
+        if (rollBox && previewArea.contains(rollBox)) {
+          const sel = window.getSelection();
+          if (sel) sel.removeAllRanges();
+          openRollEditorFromPreview(rollBox);
+          return;
+        }
+        // 探索可能箇所の一覧も、探索可能箇所の画面で直す（docs/04_記法設計書.html §15.4）。
+        // リンクのある項目は1回押すと飛ぶので、見出しの行や枠の余白のダブルクリックで開く
+        const searchBox = target.closest && target.closest('.search-box');
+        if (searchBox && previewArea.contains(searchBox)) {
+          const sel = window.getSelection();
+          if (sel) sel.removeAllRanges();
+          openSearchEditorFromPreview(searchBox);
+          return;
         }
         const el = target.closest && target.closest('[data-origin], [data-src]');
         if (!el || !previewArea.contains(el)) return;
@@ -11822,6 +13388,13 @@ ${derivedHTML}
           continue;
         }
 
+        // 目印だけの段落（{#名前}）。判定・セリフなどのブロックの直前に置いて、そのブロックをリンク先にする。
+        // 紙面には何も出さない（高さの無い要素）。右の段を持たないので、前後の本文の段落の右の段の並びを崩さない（場面図と同じく寄せる）
+        if (/^(?:\{#[^{}:：()\n]+\}\s*)+$/.test(block)) {
+          pushFullWidth(withSrcAttrs(`<div class="scn-anchor-block">${decorate(escapeHTML(block.replace(/\s+/g, '')))}</div>\n`, src));
+          continue;
+        }
+
         // 3. 段落 (メインカラム・サイドカラムに分解)
         let mainText = '';
         let sideText = '';
@@ -11839,7 +13412,9 @@ ${derivedHTML}
           mainText = block;
         }
 
-        const mainHTML = parseElement(mainText, 'main');
+        let mainHTML = parseElement(mainText, 'main');
+        // 探索可能箇所の一覧には、項目のリンクのリンク先から戻ってくるための id を付ける（buildLinkContext() と同じく、段落の位置で振る）
+        if (SEARCH_LIST_RE.test(mainText)) mainHTML = mainHTML.replace('<div class="search-box"', `<div class="search-box" id="search-${sb.start}"`);
         // サイドビューの小さなNPCカードは、場面ごと・NPCごとに最初の1回だけ出す（resolveSideNpcCard）
         const sideCard = resolveSideNpcCard(mainText, sideText, sideCardShown);
         const sideHTML = withSrcAttrs(sideCard !== null ? sideCard : parseElement(sideText, 'side'), sideSrc);
@@ -11911,13 +13486,15 @@ ${derivedHTML}
         }
 
         // 探索可能箇所一覧 [探索:エリア名] または [探索]
-        if (html.startsWith('[探索') || html.startsWith('[調査')) {
+        // 語の次は : ： ] に限る（「[探索の手引き](#…)」のようなリンクで始まる段落を一覧にしないため。SEARCH_LIST_RE）
+        if (SEARCH_LIST_RE.test(html)) {
           const lines = html.split('\n');
           const headerLine = lines[0];
           
           let areaName = 'このエリア';
           let namedArea = '';  // コピーの見出しに使う。名前を書いていなければ「【探索可能箇所】」だけにする
-          const headerMatch = headerLine.match(/^\[(?:探索|調査)(?::\s*([^\]]+))?\]/);
+          // 区切りは半角 : と全角 ： のどちらも受け付ける（一覧と見なす SEARCH_LIST_RE と揃える）
+          const headerMatch = headerLine.match(/^\[(?:探索|調査)(?:\s*[:：]\s*([^\]]+))?\]/);
           if (headerMatch && headerMatch[1]) {
             areaName = headerMatch[1].trim();
             namedArea = areaName;
@@ -11934,7 +13511,11 @@ ${derivedHTML}
             // line は html（エスケープ済み）を切り出したものなので、ここで再度
             // escapeHTML してはいけない。以前は二重エスケープになっており、
             // 「A & B」のような項目が「A &amp; B」と表示されていた。
-            itemsHTML += `<span class="search-item">${decorate(line)}</span>`;
+            // リンクが1つだけの項目は、行のどこを押してもそのリンクへ飛べるようにする（.search-item-link。docs/04_記法設計書.html §15.3）。
+            // 2つ以上あると、行のどこを押したらどれへ飛ぶのかが分からないので、リンクの文字の上だけにする
+            const itemHTML = decorate(line);
+            const linkCount = (itemHTML.match(/class="scn-link"/g) || []).length;
+            itemsHTML += `<span class="search-item${linkCount === 1 ? ' search-item-link' : ''}">${itemHTML}</span>`;
           }
 
           // コピーボタンは情報（[情報:題名]）と同じ扱い。プレイヤーに「調べられる場所」をチャットで示すため（docs/04_記法設計書.html §9.4）
@@ -11992,7 +13573,8 @@ ${derivedHTML}
           let displayType = '';
           if (headerMatch) {
             const parts = headerMatch[1].split('/');
-            skillName = parts[0].trim();
+            // 以前の「目星 または 聞き耳 または 図書館」も「目星／聞き耳／図書館」として出す（docs/04_記法設計書.html §5.5）
+            skillName = normalizeSkillJoin(parts[0].trim());
             if (parts[1]) {
               displayType = parts[1].trim();
             }
@@ -12017,7 +13599,7 @@ ${derivedHTML}
               <div>🎲 判定： <span>${skillName}</span></div>
               ${badgeHTML}
             </div>
-            <div class="roll-results">
+${rollConditionsHTML(lines, 1)}            <div class="roll-results">
 ${parseRollResultLines(lines, 1)}            </div>
           </div>`;
         }
@@ -12040,7 +13622,7 @@ ${parseRollResultLines(lines, 1)}            </div>
               <div>🧠 SANチェック</div>
               <span class="san-loss">成功 ${onSuccess} / 失敗 ${onFailure}</span>
             </div>
-            <div class="roll-results">
+${rollConditionsHTML(lines, 1)}            <div class="roll-results">
 ${parseRollResultLines(lines, 1)}            </div>
           </div>`;
         }
@@ -12074,6 +13656,37 @@ ${parseRollResultLines(lines, 1)}            </div>
     //
     // ブロックの終わりは空行であることに注意（空行で段落が切れるため、
     // 判定ブロックの直後に本文を続けるときは必ず空行を挟む）。
+    // 判定を提示する条件（トリガー）。見出しの次から、結果の行（- で始まる）より前に「条件: …」と書く。
+    // 「探索者が本棚について言及したら」のように、GMがいつこの判定を出すかを書くためのもの（docs/04_記法設計書.html §5.3）。
+    // 結果の行より前の文は、以前は捨てていた（parseRollResultLines() の「ヘッダ直後の書きかけ」）ので、
+    // ここを読むようにしても、今までの台本の見え方は変わらない
+    const ROLL_CONDITION_RE = /^条件\s*[:：]\s*/;
+
+    // lines は判定ブロックの行（エスケープ済み）。条件を1つずつ返す。
+    // 「条件:」の行のあとの、- で始まらない行は、その条件の続き（結果の行と同じく改行して書ける）。
+    // 「条件:」より前の文は、今までどおり捨てる
+    function parseRollConditions(lines, startIndex) {
+      const conditions = [];
+      for (let i = startIndex; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        if (line.startsWith('-')) break; // 結果の行から後ろは見ない
+        const m = line.match(ROLL_CONDITION_RE);
+        if (m) conditions.push(line.substring(m[0].length));
+        else if (conditions.length) conditions[conditions.length - 1] += '\n' + line;
+      }
+      return conditions.filter(c => c.trim());
+    }
+
+    // 判定の箱の見出しの下に置く「条件」の帯。条件が無ければ何も出さない
+    function rollConditionsHTML(lines, startIndex) {
+      const conditions = parseRollConditions(lines, startIndex);
+      if (!conditions.length) return '';
+      return '            <div class="roll-conditions">\n'
+        + conditions.map(c => `              <div class="roll-condition"><span class="roll-condition-label">条件</span><span class="roll-condition-text">${decorate(c)}</span></div>\n`).join('')
+        + '            </div>\n';
+    }
+
     function parseRollResultLines(lines, startIndex) {
       const items = [];
 
@@ -12378,9 +13991,7 @@ ${parseRollResultLines(lines, 1)}            </div>
         case 'search-title':
           template = '\n\n## ';
           break;
-        case 'search-list':
-          template = '\n\n[探索:エリア名]\n- 探索可能箇所1\n- 探索可能箇所2\n';
-          break;
+        // 探索可能箇所の一覧は、場所を書く画面から入れる（openSearchModal()）
         case 'read':
           template = '\n\n> ';
           break;
@@ -15078,10 +16689,12 @@ ${parseRollResultLines(lines, 1)}            </div>
     }
 
     // 描いた文字をコピーする文面にする。文字色の記法はもう外れている。改行（<br>）は改行に戻す。
-    // ルビは「漢字（かんじ）」にする。1字ずつのルビ（漢<rt>かん</rt>字<rt>じ</rt>）も、親文字と読みをそれぞれつなげる
+    // ルビは「漢字（かんじ）」にする。1字ずつのルビ（漢<rt>かん</rt>字<rt>じ</rt>）も、親文字と読みをそれぞれつなげる。
+    // 書き手向けの印（目印に添える「↑ 探索可能箇所へ」や、目印の重なりの警告。.no-print）はチャットに貼らない
     function renderedCopyText(el) {
       if (!el) return '';
       const clone = el.cloneNode(true);
+      clone.querySelectorAll('.no-print').forEach(n => n.remove());
       clone.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
       clone.querySelectorAll('ruby').forEach(ruby => {
         let base = '', reading = '';

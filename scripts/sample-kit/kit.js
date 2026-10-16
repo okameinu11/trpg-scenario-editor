@@ -282,7 +282,8 @@ window.SampleKit = (function () {
       const roll = first.match(/^\[判定:\s*([^\]]+)\]/);
       if (roll) {
         const parts = roll[1].split('/');
-        parts[0].split(/\s*(?:または|、|・|，|,)\s*/).forEach(nm => { if (!knownSkill(nm.trim())) W(at, '判定の技能「' + nm.trim() + '」は ' + (sys ? sys.short : '') + ' の技能一覧にありません（意図したものなら data.json の meta.allowSkills に足す）'); });
+        // 複数の技能は、アプリの判定の画面が「／」でつなぐ（2026-10-15 から。以前は「 または 」。docs/04_記法設計書.html §5.5）
+        parts[0].split(/\s*(?:／|または|、|・|，|,)\s*/).forEach(nm => { if (!knownSkill(nm.trim())) W(at, '判定の技能「' + nm.trim() + '」は ' + (sys ? sys.short : '') + ' の技能一覧にありません（意図したものなら data.json の meta.allowSkills に足す）'); });
         if (parts[1] && ROLL_TYPES.indexOf(parts[1].trim()) === -1) W(at, '提示タイプ「' + parts[1].trim() + '」は色の付かないバッジになります（' + ROLL_TYPES.join(' / ') + '）');
       }
       if (sys && /^\[共鳴:/.test(first) && !sys.hasResonanceRoll) W(at, '共鳴判定は ' + sys.short + ' にはありません');
